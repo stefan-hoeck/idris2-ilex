@@ -8,4 +8,11 @@ depends = elab-util
 
 sourcedir = "src"
 
-modules = Text.ILex.Util
+modules = Text.ILex
+        , Text.ILex.Args
+        , Text.ILex.Codegen
+        , Text.ILex.DFA
+        , Text.ILex.Expr
+        , Text.ILex.Set
+        , Text.ILex.Util
+        , Text.ILex.Val
