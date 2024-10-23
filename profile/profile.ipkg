@@ -1,0 +1,13 @@
+package ilex-profile
+version = 0.1.0
+authors = "stefan-hoeck"
+langversion >= 0.7
+depends = ilex
+        , profiler
+        , idris2
+
+sourcedir = "src"
+prebuild  = "codegen/genlexers.sh"
+
+main       = Main
+executable = "ilex-profile"
