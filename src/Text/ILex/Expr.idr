@@ -31,6 +31,105 @@ data Expr : Bool -> (e : Type) -> (is,os : Types) -> Type where
   AFail   : Conversion is e -> Expr True e is os
 
 --------------------------------------------------------------------------------
+-- Character Classes
+--------------------------------------------------------------------------------
+
+||| Accepts the given single character
+public export %inline
+chr : {is : _} -> Char -> Expr True e is (is:<Char)
+chr = AChar . Chr
+
+||| Accepts and drops the given single character
+public export %inline
+chr_ : {is : _} -> Char -> Expr True e is is
+chr_ = AMatch . Chr
+
+||| Accepts any character
+public export %inline
+any : {is : _} -> Expr True e is (is:<Char)
+any = AChar Any
+
+||| Accepts and drops any character
+public export %inline
+any_ : {is : _} -> Expr True e is is
+any_ = AMatch Any
+
+||| Accepts characters that match the given predicate
+public export %inline
+pred : {is : _} -> VPred -> Expr True e is (is:<Char)
+pred p = AChar (Pred p)
+
+||| Accepts and drops characters that match the given predicate
+public export %inline
+pred_ : {is : _} -> VPred -> Expr True e is is
+pred_ p = AMatch (Pred p)
+
+||| Macro version of `pred`
+export %macro
+mpred : {is : _} -> (Char -> Bool) -> Elab (Expr True e is (is:<Char))
+mpred p = do
+  vp <- lift p
+  pure (pred vp)
+
+||| Macro version of `pred_`
+export %macro
+mpred_ : {is : _} -> (Char -> Bool) -> Elab (Expr True e is is)
+mpred_ p = do
+  vp <- lift p
+  pure (pred_ vp)
+
+||| Accepts any character in the given range
+public export %inline
+range : {is : _} -> Char -> Char -> Expr True e is (is:<Char)
+range x y =
+  let vx := VPrim $ Ch x
+      vy := VPrim $ Ch y
+      vv := VPlain "v"
+      gt := VApp (VApp (VPlain "(<=)") vx) vv
+      lt := VApp (VApp (VPlain "(<=)") vv) vy
+   in pred (V predTpe $ VLam "v" (VApp (VApp (VPlain "(&&)") lt) gt))
+
+||| Accepts any character except the newline character
+public export %inline
+dot : {is : _} -> Expr True e is (is:<Char)
+dot = pred (mlift $ \v => v /= '\n')
+
+||| Accepts and drops any character except the newline character
+public export %inline
+dot_ : {is : _} -> Expr True e is is
+dot_ = pred_ (mlift $ \v => v /= '\n')
+
+||| Accepts any whitespace character
+public export %inline
+space : {is : _} -> Expr True e is (is:<Char)
+space = pred (mlift isSpace)
+
+||| Accepts any whitespace character
+public export %inline
+space_ : {is : _} -> Expr True e is is
+space_ = pred_ (mlift isSpace)
+
+||| Accepts any upper case character
+public export %inline
+upper : {is : _} -> Expr True e is (is:<Char)
+upper = pred (mlift isUpper)
+
+||| Accepts any lower case character
+public export %inline
+lower : {is : _} -> Expr True e is (is:<Char)
+lower = pred (mlift isLower)
+
+||| Accepts any alphabetic character
+public export %inline
+alpha : {is : _} -> Expr True e is (is:<Char)
+alpha = pred (mlift isAlpha)
+
+||| Accepts any alpha-numeric character
+public export %inline
+alphaNum : {is : _} -> Expr True e is (is:<Char)
+alphaNum = pred (mlift isAlphaNum)
+
+--------------------------------------------------------------------------------
 -- Combinators
 --------------------------------------------------------------------------------
 
@@ -38,7 +137,7 @@ public export
 orF : Expr (b || False) e is os -> Expr b e is os
 orF x = replace {p = \y => Expr y e is os} (orFalseNeutral b) x
 
-export infixr 1 >>>
+export infixr 1 >>>,>>-,->>
 export infixr 3 &&&
 
 public export %inline
@@ -49,39 +148,9 @@ public export %inline
 (<|>) : Expr b1 e is os -> Expr b2 e is os -> Expr (b1 && b2) e is os
 (<|>) = AOr
 
-||| Accepts the given single character
-public export %inline
-chr : {is : _} -> Char -> Expr True e is (is:<Char)
-chr = AChar . Chr
-
-||| Accepts the given single character
-public export %inline
-chr_ : {is : _} -> Char -> Expr True e is is
-chr_ = AMatch . Chr
-
-public export %inline
-dot : {is : _} -> Expr True e is (is:<Char)
-dot = AChar Dot
-
-public export %inline
-dot_ : {is : _} -> Expr True e is is
-dot_ = AMatch Dot
-
-public export %inline
-any : {is : _} -> Expr True e is (is:<Char)
-any = AChar Any
-
-public export %inline
-any_ : {is : _} -> Expr True e is is
-any_ = AMatch Any
-
 public export
 unexpected : {is : _} -> Expr True LexErr (is:<Char) os
 unexpected = AFail $ (CApp (CPure vunexpected) (CAt Lst))
-
-public export %inline
-range : {is : _} -> Char -> Char -> Expr True e is (is:<Char)
-range x y = AChar $ Range x y
 
 public export
 identity : {is : _} -> Expr False e is is
@@ -90,6 +159,14 @@ identity = AConv fromTypes
 public export
 arr : {is : _} -> (f : Val (a -> b)) -> Expr False e (is:<a) (is:<b)
 arr v = AConv $ mapConvs v
+
+public export
+(>>-) : {os : _} -> Expr b1 e is (os:<a) -> Val (a -> b) ->  Expr b1 e is (os:<b)
+x >>- v = orF $ x >>> arr v
+
+public export
+(->>) : {is : _} -> Val (a -> b) -> Expr b1 e (is:<b) os ->  Expr b1 e (is:<a) os
+v ->> x = arr v >>> x
 
 public export
 arr2 :
@@ -101,6 +178,12 @@ arr2 v = AConv $ appConvs v
 export %macro
 marr : {is : _} -> (f : a -> b) -> Elab (Expr False e (is:<a) (is:<b))
 marr f = do
+  v <- lift f
+  pure (arr v)
+
+export %macro
+tarr : {is : _} -> (f : a -> b) -> Elab (Expr False e (is:<a) (is:<b))
+tarr f = do
   v <- lift f
   pure (arr v)
 
@@ -170,6 +253,22 @@ last (AOr x y)  = AOr (last x) (last y)
 last (ARec  x)  = ARec (last x)
 last (AFail x)  = AFail (weakenConv x)
 
+export
+vlin : ToType a => Val (SnocList a)
+vlin = V (toType (SnocList a)) (VPlain "Lin")
+
+export
+vwrap : ToType a => Val (a -> SnocList a)
+vwrap = V (funType2 a (SnocList a)) (value `(\x => [<x]))
+
+export
+vsnoc : ToType a => Val (SnocList a -> a -> SnocList a)
+vsnoc = V (funType3 (SnocList a) a (SnocList a)) (VPlain "(:<)")
+
+export
+vpack : ToType a => Val (SnocList a -> String)
+vpack = V (funType2 (SnocList a) String) (value `(\x => pack (x <>> [])))
+
 public export
 (&&&) :
      {is : _}
@@ -201,9 +300,7 @@ snoc :
   -> {auto tt : ToType a}
   -> Expr True e is (is:<a)
   -> Expr True e (is:<SnocList a) (is:<SnocList a)
-snoc x =
-  let vsnoc := V (funType3 (SnocList a) a (SnocList a)) (VPlain "(:<)")
-   in last x >>> flip >>> arr2 vsnoc
+snoc x = last x >>> flip >>> arr2 vsnoc
 
 public export
 snocAll :
@@ -219,11 +316,25 @@ many :
   -> {auto tt : ToType a}
   -> Expr True e is (is:<a)
   -> Expr False e is (is:<SnocList a)
-many x =
-  let tsnoc := toType (SnocList a)
-      vlin  := V tsnoc (VPlain "Lin")
-      vsnoc := V (funType3 (SnocList a) a (SnocList a)) (VPlain "(:<)")
-   in fold vlin vsnoc x
+many x = fold vlin vsnoc x
+
+public export
+sep1 :
+     {is : _}
+  -> {auto tt : ToType a}
+  -> (sep : Expr True e is is)
+  -> Expr True e is (is:<a)
+  -> Expr True e is (is:<SnocList a)
+sep1 sep x = x >>> vwrap ->> snocAll (sep >>> x)
+
+public export
+sep :
+     {is : _}
+  -> {auto tt : ToType a}
+  -> (sep : Expr True e is is)
+  -> Expr True e is (is:<a)
+  -> Expr False e is (is:<SnocList a)
+sep s x = sep1 s x <|> pure vlin
 
 export %macro
 mfold1 :

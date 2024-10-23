@@ -22,12 +22,18 @@ data Tpe : Type where
   Pi    : Tpe -> Tpe -> Tpe
   Ty    : Tpe
 
-%runElab derive "Tpe" [Eq,Pretty]
+%runElab derive "PrimType" [ConIndex,Ord]
+%runElab derive "Tpe" [Eq,Pretty,Ord]
 
 public export
 toName : Name -> Maybe String
 toName (NS _ n)       = toName n
+toName (MN s n)       = Just "\{s}\{show n}"
 toName (UN $ Basic n) =
+  case strM n of
+    StrNil         => Just n
+    (StrCons x xs) => if isAlpha x then Just n else Just "(\{n})"
+toName (DN n _) =
   case strM n of
     StrNil         => Just n
     (StrCons x xs) => if isAlpha x then Just n else Just "(\{n})"
@@ -106,12 +112,14 @@ data Value : Type where
   VLam   : String -> Value -> Value
   VPrim  : Constant -> Value
 
-%runElab derive "Value" [Eq,Pretty]
+%runElab derive "Constant" [Ord]
+%runElab derive "Value" [Eq,Pretty,Ord]
 
 public export
 toVal : TTImp -> Maybe Value
 toVal (IVar _ nm)          = VPlain <$> toName nm
-toVal (ILam _ _ _ mnm _ t) = [| VLam (mnm >>= toName) (toVal t) |]
+toVal (ILam _ _ _ mnm _ t) =
+  maybe (toVal t) (\n => VLam n <$> toVal t) (mnm >>= toName)
 toVal (IApp _ s t)         = [| VApp (toVal s) (toVal t) |]
 toVal (INamedApp _ s nm t) = toVal s
 toVal (IAutoApp _ s t)     = toVal s
@@ -120,6 +128,10 @@ toVal (IDelay _ s)         = toVal s
 toVal (IForce _ s)         = toVal s
 toVal (IPrimVal _ c)       = Just $ VPrim c
 toVal _                    = Nothing
+
+public export
+value : (t : TTImp) -> (0 p : IsJust (toVal t)) => Value
+value t = fromJust $ toVal t
 
 printConst : Constant -> String
 printConst (I i)    = show i
@@ -187,7 +199,7 @@ record TOnly (a : Type) where
   constructor TO
   tpe : Tpe
 
-%runElab derive "TOnly" [Show,Eq,Pretty]
+%runElab derive "TOnly" [Show,Eq,Pretty,Ord]
 
 public export
 interface ToType a where
@@ -314,7 +326,7 @@ record Val (a : Type) where
   tpe : TOnly a
   val : Value
 
-%runElab derive "Val" [Show,Eq,Pretty]
+%runElab deriveIndexed "Val" [Show,Eq,Pretty,Ord]
 
 export
 lift : (0 x : a) -> Elab (Val a)
