@@ -5,6 +5,7 @@ langversion >= 0.7
 depends = ilex
 
 sourcedir = "src"
+prebuild  = "codegen/genlexers.sh"
 
 main       = Main
 executable = "ilex-test"
