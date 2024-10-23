@@ -1,9 +1,14 @@
 [install]
 
-whitelist = ["ilex-test"]
+whitelist = ["ilex-test", "ilex-profile"]
 
 [custom.all.ilex]
 type = "local"
 path = "."
 ipkg = "ilex.ipkg"
 test = "test/test.ipkg"
+
+[custom.all.ilex-profile]
+type = "local"
+path = "profile"
+ipkg = "profile.ipkg"
