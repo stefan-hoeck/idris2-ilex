@@ -51,10 +51,24 @@ public export
 comment : SnocList Char -> Token
 comment x = Comment (pack (x <>> []))
 
+public export
+validStrChar : Char -> Bool
+validStrChar '"' = False
+validStrChar c   = not (isControl c)
+
 export
 ident : {is : _} -> Expr True e is (is:<String)
 ident =
   mpred isIdentStart >>> vwrap ->> snocAll (mpred isIdentTrailing) >>- vpack
+
+integer : {is : _} -> Expr True e is (is:<Integer)
+integer = (str "-" >>> decimal >>> marr negate) <|> decimal
+
+stringLit : {is : _} -> Expr True e is (is:<String)
+stringLit = chr_ '"' >>> many strChar >>> chr_ '"' >>- vpack
+  where
+    strChar : Expr True e is (is:<Char)
+    strChar = (chr_ '\\' >>> dot) <|> mpred validStrChar
 
 export
 tok : {is : _} -> Expr True e is (is:<Token)
@@ -63,13 +77,15 @@ tok =
   <|> (str "--" >>> many dot >>> marr comment)
   <|> (str "=" $> Equals)
   <|> (str "." $> Dot)
+  <|> (str "," $> Separator)
   <|> (str "<" $> LT)
   <|> (str ">" $> GT)
   <|> (str "<=" $> LTE)
   <|> (str ">=" $> GTE)
   <|> (str "&&" $> AndOp)
   <|> (space_ >>> ARec space_ $> Space)
-  <|> (natural >>> marr IntegerLit)
+  <|> (integer >>> marr IntegerLit)
+  <|> (stringLit >>> marr StringLit)
   <|> (sep1 (chr_ '.') ident >>> marr fromIdents)
 
 export

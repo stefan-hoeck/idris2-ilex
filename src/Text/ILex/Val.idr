@@ -28,7 +28,12 @@ data Tpe : Type where
 public export
 toName : Name -> Maybe String
 toName (NS _ n)       = toName n
+toName (MN s n)       = Just "\{s}\{show n}"
 toName (UN $ Basic n) =
+  case strM n of
+    StrNil         => Just n
+    (StrCons x xs) => if isAlpha x then Just n else Just "(\{n})"
+toName (DN n _) =
   case strM n of
     StrNil         => Just n
     (StrCons x xs) => if isAlpha x then Just n else Just "(\{n})"
@@ -113,7 +118,8 @@ data Value : Type where
 public export
 toVal : TTImp -> Maybe Value
 toVal (IVar _ nm)          = VPlain <$> toName nm
-toVal (ILam _ _ _ mnm _ t) = [| VLam (mnm >>= toName) (toVal t) |]
+toVal (ILam _ _ _ mnm _ t) =
+  maybe (toVal t) (\n => VLam n <$> toVal t) (mnm >>= toName)
 toVal (IApp _ s t)         = [| VApp (toVal s) (toVal t) |]
 toVal (INamedApp _ s nm t) = toVal s
 toVal (IAutoApp _ s t)     = toVal s

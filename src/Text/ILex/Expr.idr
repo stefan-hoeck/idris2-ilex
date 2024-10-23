@@ -181,6 +181,12 @@ marr f = do
   v <- lift f
   pure (arr v)
 
+export %macro
+tarr : {is : _} -> (f : a -> b) -> Elab (Expr False e (is:<a) (is:<b))
+tarr f = do
+  v <- lift f
+  pure (arr v)
+
 public export
 map : {os : _} -> (f : Val (a -> b)) -> Expr b1 e is (os:<a) -> Expr b1 e is (os:<b)
 map f x = orF (x >>> arr f)
