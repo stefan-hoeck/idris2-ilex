@@ -1,0 +1,4 @@
+[custom.all.ilex]
+type = "local"
+path = "."
+ipkg = "ilex.ipkg"
