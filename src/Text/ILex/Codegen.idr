@@ -50,7 +50,7 @@ subName s m = VPlain "\{s}\{show m}"
 
 pat : Rule -> String
 pat (R x y) = "c >= \{show x} && c <= \{show y}"
-pat _       = "c /= '\n'"
+pat _       = "c /= '\\n'"
 
 unexpected : Value
 unexpected =
@@ -71,7 +71,8 @@ parameters (args : UArgs)
   charCls k ch c = "    \{show ch} => \{invoke k c vcs}"
 
   remClause1 : Nat -> Value -> Deltas -> List String
-  remClause1 i cl [] = [indent i "_   => \{cl}"]
+  remClause1 i cl []             = [indent i "_   => \{cl}"]
+  remClause1 i cl [D A c t]      = [indent i "_   => \{invoke t c vcs}"]
   remClause1 i cl (D r c t ::ds) =
     indent i     "_  => case \{pat r} of" ::
     indent (i+2) "True => \{invoke t c vcs}" ::
@@ -97,52 +98,65 @@ parameters (args : UArgs)
   charClause : Value -> Deltas -> List String
   charClause dflt ds = "  case c of" :: charClauses dflt ds
 
-  consCase : Deltas -> List String
-  consCase ds =
+  catchAll : Deltas -> Value
+  catchAll (D Eps _ _ :: D A c t :: _) = invoke t c vstr
+  catchAll (D Eps c t :: _)            = invoke t c vstr
+  catchAll (D A c t :: _)              = invoke t c vstr
+  catchAll _                           = unexpected
+
+  consCase : Deltas -> Value -> List String
+  consCase ds v =
     case ds of
-      D (C _) _ _::_              => charClause unexpected ds
-      D Eps cx x::D (C c) cy y::t =>
-        charClause (invoke x cx vstr) (D (C c) cy y::t)
-      D Eps cx x::t               => remClause 2 (invoke x cx vstr) t
-      _                           => remClause 2 unexpected ds
+      D (C _) _ _::_  => charClause v ds
+      _               => remClause 2 v ds
 
   nilCase : Deltas -> Value
   nilCase (D Eps c t :: _) = invoke t c vnil
   nilCase _                = eoi
 
 lexType : (res : Tpe) -> UArgs -> Tpe
-lexType res args = piAll res (listCharTpe.tpe :: (args <>> []))
+lexType res args = piAll res (tpeof (List Char) :: (args <>> []))
 
 decl : String -> (res : Tpe) -> (Bits32,Node) -> String
 decl n res (x,N args ds) =
   "\npublic export\n\{subName n x} : \{lexType res args}"
+
+rem : Deltas -> Deltas
+rem (D Eps _ _ :: ds) = rem ds
+rem (D A   _ _ :: ds) = rem ds
+rem ds                = ds
 
 defn : String -> (Bits32,Node) -> String
 defn s (x,N args [D Eps c t]) =
  let name := subName s x
      lhs  := applyArgs args 0 (VApp name vstr)
      rhs  := invoke args s t c vstr
-  in "\n\{lhs} = rhs"
+  in "\n\{lhs} = \{rhs}"
 defn s (x,N args ds) =
  let name := subName s x
      consLHS := applyArgs args 0 (VApp name $ VPlain "str@(c::cs)")
      nilLHS  := applyArgs args 0 (VApp name $ VPlain "[]")
-  in fastUnlines $
-       "\{consLHS} =" ::
-       consCase args s ds ++
-       ["\{nilLHS} = \{nilCase args s ds}"]
+  in case rem ds of
+       []  =>
+         fastUnlines $
+           "\{consLHS} = \{catchAll args s ds}" ::
+           ["\{nilLHS} = \{nilCase args s ds}"]
+       rem =>
+         fastUnlines $
+           "\{consLHS} =" :: consCase args s rem (catchAll args s ds) ++
+           ["\{nilLHS} = \{nilCase args s ds}"]
 
 export covering
 generate :
-     {auto c : Cast LexErr e}
+     {auto c  : Cast LexErr e}
+  -> {auto te : ToType e}
+  -> {auto ta : ToType a}
   -> String
-  -> TOnly e
-  -> TOnly a
   -> Expr b e [<] [<a]
   -> String
-generate n err res r =
- let g      := toDFA res r
-     resTpe := App (App (Plain "Either") err.tpe) res.tpe
+generate n r =
+ let g      := toDFA (toType a) r
+     resTpe := tpeof (Either e a)
   in fastUnlines $
        ("\npublic export\n\{n} : String -> \{resTpe}" ::
        map (decl n resTpe) g) ++

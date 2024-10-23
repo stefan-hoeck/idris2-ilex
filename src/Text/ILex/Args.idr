@@ -1,50 +1,13 @@
 module Text.ILex.Args
 
 import Derive.Prelude
+import Derive.Pretty
 import Language.Reflection.Util
 import Text.ILex.Util
 import public Text.ILex.Val
 
 %default total
 %language ElabReflection
-
---------------------------------------------------------------------------------
--- Types Only
---------------------------------------------------------------------------------
-
-public export
-record TOnly (a : Type) where
-  constructor TO
-  tpe : Tpe
-
-%runElab derive "TOnly" [Show,Eq]
-
-export
-tlift : (0 a : Type) -> Elab (TOnly a)
-tlift a = do
-  t <- quote a
-  Just tp <- pure (toTpe t) | Nothing => failAt EmptyFC "Can't reflect type"
-  pure (TO tp)
-
-export %macro
-mtlift : (0 a : Type) -> Elab (TOnly a)
-mtlift = tlift
-
-export
-voidTpe : TOnly Void
-voidTpe = mtlift Void
-
-export
-lexErrTpe : TOnly LexErr
-lexErrTpe = mtlift LexErr
-
-export
-listCharTpe : TOnly (List Char)
-listCharTpe = mtlift (List Char)
-
-export
-chrTpe : TOnly Char
-chrTpe = TO $ tpe charVal
 
 --------------------------------------------------------------------------------
 -- Argument Lists
@@ -169,7 +132,7 @@ flipArgs sa         = sa
 lookupTpe : UArgs -> Nat -> Tpe
 lookupTpe (sa :< t) 0     = t
 lookupTpe (sa :< t) (S y) = lookupTpe sa y
-lookupTpe [<]       _     = chrTpe.tpe
+lookupTpe [<]       _     = tpeof Char
 
 ||| A computation making use of a subset of a list of function arguments
 ||| resulting in a value of the given type.
@@ -197,11 +160,15 @@ export %inline
 Show UConversion where
   showPrec p = showPrec p . toNF . convToVal
 
+export %inline
+Pretty UConversion where
+  prettyPrec p = line . showPrec p
+
 export
 uconv : Conversion is o -> UConversion
 uconv (CAt p)    = UAt (posToNat p)
 uconv (CApp x y) = UApp (uconv x) (uconv y)
-uconv (CPure v)  = UPure v.tpe v.val
+uconv (CPure v)  = UPure v.tpe.tpe v.val
 
 public export
 0 UConversions : Type
@@ -257,7 +224,7 @@ data Conv : Type where
   UC : UConversions -> Conv
   EC : UConversions -> Conv
 
-%runElab derive "Conv" [Show,Eq]
+%runElab derive "Conv" [Show,Eq,Pretty]
 
 export
 trans : Conv -> Conv -> Conv

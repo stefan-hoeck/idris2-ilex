@@ -1,0 +1,10 @@
+package ilex-test
+version = 0.1.0
+authors = "stefan-hoeck"
+langversion >= 0.7
+depends = ilex
+
+sourcedir = "src"
+
+main       = Main
+executable = "ilex-test"

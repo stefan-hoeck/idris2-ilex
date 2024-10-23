@@ -60,8 +60,32 @@ chr_ : {is : _} -> Char -> Expr True e is is
 chr_ = AMatch . Chr
 
 public export %inline
+dot : {is : _} -> Expr True e is (is:<Char)
+dot = AChar Dot
+
+public export %inline
+dot_ : {is : _} -> Expr True e is is
+dot_ = AMatch Dot
+
+public export %inline
+any : {is : _} -> Expr True e is (is:<Char)
+any = AChar Any
+
+public export %inline
+any_ : {is : _} -> Expr True e is is
+any_ = AMatch Any
+
+public export
+unexpected : {is : _} -> Expr True LexErr (is:<Char) os
+unexpected = AFail $ (CApp (CPure vunexpected) (CAt Lst))
+
+public export %inline
 range : {is : _} -> Char -> Char -> Expr True e is (is:<Char)
 range x y = AChar $ Range x y
+
+public export
+identity : {is : _} -> Expr False e is is
+identity = AConv fromTypes
 
 public export
 arr : {is : _} -> (f : Val (a -> b)) -> Expr False e (is:<a) (is:<b)
@@ -93,6 +117,10 @@ mmap f x = do
 public export %inline
 pure : {is : _} -> Val a -> Expr False e is (is:< a)
 pure x = AConv (pureConvs x)
+
+public export
+eoi : {is : _} -> Expr False LexErr is is
+eoi = (any >>> unexpected) <|> identity
 
 export %macro
 ($>) : {os : _} -> Expr b1 e is os -> (f : b) -> Elab (Expr b1 e is (os:<b))
@@ -153,24 +181,54 @@ x &&& y = x >>> orF (last y >>> flip)
 public export
 fold1 :
      {is : _}
-  -> Val (a -> s -> s)
+  -> Val (s -> a -> s)
   -> Expr True e is (is:<a)
   -> Expr False e (is:<s) (is:<s)
-fold1 f x = ARec (last x >>> arr2 f)
+fold1 f x = ARec (last x >>> flip >>> arr2 f)
 
 public export
 fold :
      {is : _}
   -> (v : Val s)
-  -> (f : Val (a -> s -> s))
+  -> (f : Val (s -> a -> s))
   -> Expr True e is (is:<a)
   -> Expr False e is (is:<s)
 fold v f x = pure v >>> fold1 f x
 
+public export
+snoc :
+     {is : _}
+  -> {auto tt : ToType a}
+  -> Expr True e is (is:<a)
+  -> Expr True e (is:<SnocList a) (is:<SnocList a)
+snoc x =
+  let vsnoc := V (funType3 (SnocList a) a (SnocList a)) (VPlain "(:<)")
+   in last x >>> flip >>> arr2 vsnoc
+
+public export
+snocAll :
+     {is : _}
+  -> {auto tt : ToType a}
+  -> Expr True e is (is:<a)
+  -> Expr False e (is:<SnocList a) (is:<SnocList a)
+snocAll x = ARec (snoc x)
+
+public export
+many :
+     {is : _}
+  -> {auto tt : ToType a}
+  -> Expr True e is (is:<a)
+  -> Expr False e is (is:<SnocList a)
+many x =
+  let tsnoc := toType (SnocList a)
+      vlin  := V tsnoc (VPlain "Lin")
+      vsnoc := V (funType3 (SnocList a) a (SnocList a)) (VPlain "(:<)")
+   in fold vlin vsnoc x
+
 export %macro
 mfold1 :
      {is : _}
-  -> (f : a -> s -> s)
+  -> (f : s -> a -> s)
   -> Expr True e is (is:<a)
   -> Elab (Expr False e (is:<s) (is:<s))
 mfold1 f x = do
@@ -181,7 +239,7 @@ export %macro
 mfold :
      {is : _}
   -> (v : s)
-  -> (f : a -> s -> s)
+  -> (f : s -> a -> s)
   -> Expr True e is (is:<a)
   -> Elab (Expr False e is (is:<s))
 mfold v f x = do
@@ -214,19 +272,19 @@ hexdigit =
 
 public export
 binary : {is : _} -> Expr True e is (is:<Integer)
-binary = bindigit >>> mfold1 (\x,y => y*2 + x) bindigit
+binary = bindigit >>> mfold1 (\x,y => x*2 + y) bindigit
 
 public export
 octal : {is : _} -> Expr True e is (is:<Integer)
-octal = octdigit >>> mfold1 (\x,y => y*8 + x) octdigit
+octal = octdigit >>> mfold1 (\x,y => x*8 + y) octdigit
 
 public export
 decimal : {is : _} -> Expr True e is (is:<Integer)
-decimal = (chr_ '0' $> 0) <|> (posdigit >>> mfold1 (\x,y => y*10 + x) digit)
+decimal = (chr_ '0' $> 0) <|> (posdigit >>> mfold1 (\x,y => x*10 + y) digit)
 
 public export
 hexadecimal : {is : _} -> Expr True e is (is:<Integer)
-hexadecimal = (hexdigit >>> mfold1 (\x,y => y*16 + x) hexdigit)
+hexadecimal = (hexdigit >>> mfold1 (\x,y => x*16 + y) hexdigit)
 
 public export
 natural : {is : _} -> Expr True e is (is:<Integer)

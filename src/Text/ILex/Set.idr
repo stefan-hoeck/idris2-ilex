@@ -18,11 +18,15 @@ data Set : Type where
   ||| Matches every character except '\n'
   Dot   : Set
 
+  ||| Matches every character except '\n'
+  Any   : Set
+
 %runElab derive "Set" [Show,Eq,Ord,Pretty]
 
 public export
 data Rule : Type where
   Eps : Rule
+  A   : Rule
   C   : Char -> Rule
   R   : Char -> Char -> Rule
   D   : Rule
@@ -34,3 +38,4 @@ fromSet : Set -> Rule
 fromSet (Chr c)     = C c
 fromSet (Range c d) = R c d
 fromSet Dot         = D
+fromSet Any         = A
