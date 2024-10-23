@@ -2,3 +2,4 @@
 type = "local"
 path = "."
 ipkg = "ilex.ipkg"
+test = "test/test.ipkg"

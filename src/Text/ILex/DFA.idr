@@ -2,6 +2,7 @@ module Text.ILex.DFA
 
 import Data.SortedMap
 import Derive.Prelude
+import Derive.Pretty
 
 import public Text.ILex.Expr
 
@@ -21,7 +22,7 @@ data TExp : Type where
 
   Epsilon : Conv -> TExp
 
-%runElab derive "TExp" [Show,Eq]
+%runElab derive "TExp" [Show,Eq,Pretty]
 
 export
 outArgs : UArgs -> TExp -> Maybe UArgs
@@ -129,8 +130,8 @@ merge s args x y rx ry =
     GT => merge s args y x ry rx
     LT =>
      let Nothing := lookup (x,y) s.pairs | Just z  => (s,z,ID)
-         Just nx := lookup x s.graph     | Nothing => (s,y,ry)
-         Just ny := lookup y s.graph     | Nothing => (s,x,rx)
+         nx      := fromMaybe (N args [D Eps ID x]) (lookup x s.graph)
+         ny      := fromMaybe (N args [D Eps ID y]) (lookup y s.graph)
          (t,z)   := newPair x y s
          (u,ds)  := combine t args [<] (pre rx <$> nx.deltas) (pre ry <$> ny.deltas)
       in (insertNode z (N args ds) u, z, ID)
@@ -165,10 +166,10 @@ dfa args s tgt p (And x y) =
        _             => dfa args (insertNode iy (N out dy) t) iy ID x
 
 dfa args s tgt p (Or x y) =
-  let DR t rx ix nx := dfa args s tgt p x
+  let DR t rx ix dx := dfa args s tgt p x
       DR u ry iy dy := dfa args t tgt p y
-      (v,cs)        := combine u args [<] nx dy
-      w             := insertNodeIf ry iy (N args dy) (insertNodeIf rx ix (N args nx) v)
+      (v,cs)        := combine u args [<] dx dy
+      w             := insertNodeIf ry iy (N args dy) (insertNodeIf rx ix (N args dx) v)
    in DR (inc w) False w.cur cs
 
 dfa args s tgt p (Star x) =
