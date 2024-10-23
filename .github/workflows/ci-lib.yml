@@ -1,0 +1,32 @@
+---
+name: Build
+
+on:
+  push:
+    branches:
+      - '**'
+    tags:
+      - '**'
+  pull_request:
+    branches:
+      - main
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+
+  build:
+    name: Build the lib with Idris2 HEAD
+    runs-on: ubuntu-latest
+    env:
+      PACK_DIR: /root/.pack
+    strategy:
+      fail-fast: false
+    container: ghcr.io/stefan-hoeck/idris2-pack:latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Build ilex
+        run: pack typecheck ilex
