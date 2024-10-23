@@ -49,8 +49,8 @@ subName : String -> Bits32 -> Value
 subName s m = VPlain "\{s}\{show m}"
 
 pat : Rule -> String
-pat (R x y) = "c >= \{show x} && c <= \{show y}"
-pat _       = "c /= '\\n'"
+pat (P p) = interpolate (VApp p.val vc)
+pat _     = "c /= '\\n'"
 
 unexpected : Value
 unexpected =

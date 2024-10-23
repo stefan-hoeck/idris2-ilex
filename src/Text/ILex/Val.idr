@@ -22,7 +22,8 @@ data Tpe : Type where
   Pi    : Tpe -> Tpe -> Tpe
   Ty    : Tpe
 
-%runElab derive "Tpe" [Eq,Pretty]
+%runElab derive "PrimType" [ConIndex,Ord]
+%runElab derive "Tpe" [Eq,Pretty,Ord]
 
 public export
 toName : Name -> Maybe String
@@ -106,7 +107,8 @@ data Value : Type where
   VLam   : String -> Value -> Value
   VPrim  : Constant -> Value
 
-%runElab derive "Value" [Eq,Pretty]
+%runElab derive "Constant" [Ord]
+%runElab derive "Value" [Eq,Pretty,Ord]
 
 public export
 toVal : TTImp -> Maybe Value
@@ -120,6 +122,10 @@ toVal (IDelay _ s)         = toVal s
 toVal (IForce _ s)         = toVal s
 toVal (IPrimVal _ c)       = Just $ VPrim c
 toVal _                    = Nothing
+
+public export
+value : (t : TTImp) -> (0 p : IsJust (toVal t)) => Value
+value t = fromJust $ toVal t
 
 printConst : Constant -> String
 printConst (I i)    = show i
@@ -187,7 +193,7 @@ record TOnly (a : Type) where
   constructor TO
   tpe : Tpe
 
-%runElab derive "TOnly" [Show,Eq,Pretty]
+%runElab derive "TOnly" [Show,Eq,Pretty,Ord]
 
 public export
 interface ToType a where
@@ -314,7 +320,7 @@ record Val (a : Type) where
   tpe : TOnly a
   val : Value
 
-%runElab derive "Val" [Show,Eq,Pretty]
+%runElab deriveIndexed "Val" [Show,Eq,Pretty,Ord]
 
 export
 lift : (0 x : a) -> Elab (Val a)
