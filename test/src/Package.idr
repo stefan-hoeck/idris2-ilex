@@ -23,7 +23,8 @@ data Token
   = Comment String
   | EndOfInput
   | Equals
-  | DotSepIdent (SnocList String) String
+  | Module (SnocList String) String
+  | PkgName String
   | Separator
   | Dot
   | LTE
@@ -43,9 +44,9 @@ ToType Token where
   toType_ = TO $ Plain "Token"
 
 public export
-fromIdents : SnocList String -> Token
-fromIdents (sx :< x) = DotSepIdent sx x
-fromIdents [<]       = EndOfInput -- impossible
+module' : SnocList String -> Token
+module' (sx :< x) = Module sx x
+module' [<]       = EndOfInput -- impossible
 
 public export
 comment : SnocList Char -> Token
@@ -60,6 +61,10 @@ export
 ident : {is : _} -> Expr True e is (is:<String)
 ident =
   mpred isIdentStart >>> vwrap ->> snocAll (mpred isIdentTrailing) >>- vpack
+
+export
+pkgName : {is : _} -> Expr True e is (is:<String)
+pkgName = lower >>> vwrap ->> snocAll (mpred isIdentTrailing) >>- vpack
 
 integer : {is : _} -> Expr True e is (is:<Integer)
 integer = (str "-" >>> decimal >>> marr negate) <|> decimal
@@ -86,7 +91,8 @@ tok =
   <|> (space_ >>> ARec space_ $> Space)
   <|> (integer >>> marr IntegerLit)
   <|> (stringLit >>> marr StringLit)
-  <|> (sep1 (chr_ '.') ident >>> marr fromIdents)
+  <|> (sep1 (chr_ '.') ident >>> marr module')
+  <|> (pkgName >>> marr PkgName)
 
 export
 toks : Expr False LexErr [<] [<SnocList Token]
