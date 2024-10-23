@@ -1,6 +1,9 @@
 module Text.ILex.Util
 
+import Derive.Prelude
+
 %default total
+%language ElabReflection
 
 public export
 toDigit : Char -> Integer
@@ -35,3 +38,5 @@ public export
 data LexErr : Type where
   EOI        : LexErr
   Unexpected : Char -> LexErr
+
+%runElab derive "LexErr" [Show,Eq]
