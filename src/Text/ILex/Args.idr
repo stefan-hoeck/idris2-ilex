@@ -14,11 +14,28 @@ import public Text.ILex.Val
 --------------------------------------------------------------------------------
 
 namespace Types
-  ||| The types of function arguments
+  ||| The types of function arguments in snoclist order
   public export
   data Types : Type where
     Lin  : Types
     (:<) : Types -> (0 t : Type) -> Types
+
+namespace LTypes
+  ||| The types of function arguments in list order
+  public export
+  data LTypes : Type where
+    Nil  : LTypes
+    (::) : (0 t : Type) -> LTypes -> LTypes
+
+  public export
+  (<><) : Types -> LTypes -> Types
+  (<><) st []       = st
+  (<><) st (t :: x) = (st :< t) <>< x
+
+public export
+0 Fun : LTypes -> Type -> Type
+Fun []      r = r
+Fun (t::ts) r = t -> Fun ts r
 
 ||| Position in a list of arguments
 public export
@@ -30,6 +47,10 @@ public export
 posToNat : Pos is t -> Nat
 posToNat Lst     = 0
 posToNat (Pre x) = S $ posToNat x
+
+--------------------------------------------------------------------------------
+-- Computations with  Argument Lists
+--------------------------------------------------------------------------------
 
 ||| A computation making use of a subset of a list of function arguments
 ||| resulting in a value of the given type.
@@ -51,6 +72,19 @@ weakenConv : Conversion st t -> Conversion (st:<s) t
 weakenConv (CAt x)    = CAt (Pre x)
 weakenConv (CApp x y) = CApp (weakenConv x) (weakenConv y)
 weakenConv (CPure x)  = CPure x
+
+||| A conversion that consmes all the arguments given in `ts`.
+public export
+convAll : (ts : LTypes) -> Val (Fun ts r) -> Conversion (is <>< ts) r
+convAll ts v = go ts (CPure v)
+  where
+    pos : (ys : LTypes) -> Pos st y -> Pos (st <>< ys) y
+    pos []       p = p
+    pos (_ :: x) p = pos x (Pre p)
+
+    go : (us : LTypes) -> Conversion (st <>< us) (Fun us r) -> Conversion (st <>< us) r
+    go []        c = c
+    go (y :: ys) c = go ys (CApp c (CAt $ pos ys Lst))
 
 ||| A list of conversions from one set of function arguments `is`
 ||| to another set
@@ -90,6 +124,14 @@ appendChar = CID :< CPure charVal
 export
 flipLast : Conversions (is:<a:<s) (is:<s:<a)
 flipLast = CWeaken (CWeaken CID) :< CAt Lst :< CAt (Pre Lst)
+
+public export
+convsAll : (ts : LTypes) -> Val (Fun ts r) -> Conversions (is <>< ts) (is:<r)
+convsAll ts v = weakenBy ts CID :< convAll ts v
+  where
+    weakenBy : (us : LTypes) -> Conversions xs is -> Conversions (xs <>< us) is
+    weakenBy []        x = x
+    weakenBy (_ :: ys) x = weakenBy ys (CWeaken x)
 
 --------------------------------------------------------------------------------
 -- Untyped Arguments
