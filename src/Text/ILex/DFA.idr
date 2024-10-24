@@ -32,15 +32,25 @@ outArgs args (And x y)   = outArgs args x >>= \as => outArgs as y
 outArgs args (Or x y)    = outArgs args x <|> outArgs args y
 outArgs args (Star x)    = outArgs args x
 
+compileST : TTypes is -> Expr b e is os -> (TExp, Maybe $ TTypes os)
+compileST ti (AConv x) =
+  let (uc,to) := uconvs ti x in (Epsilon $ UC uc, Just to)
+compileST ti (AChar x)  = (CH x $ UC $ appendChr ti, Just $ TS ti)
+compileST ti (AMatch x) = (CH x ID, Just ti)
+compileST ti (ASeq x y) =
+  let (xx, Just tx) := compileST ti x | (xx,_) => (xx,Nothing)
+      (xy, ty)      := compileST tx y
+   in (And xx xy, ty)
+compileST ti (AOr x y) =
+  let (xx,tx) := compileST ti x
+      (xy,ty) := compileST ti y
+   in (Or xx xy, tx <|> ty)
+compileST ti (ARec x)  = let (xx,tx) := compileST ti x in (Star xx, tx)
+compileST ti (AFail x) = (Epsilon (EC $ [<uconv x]), Nothing)
+
 export
-compile : Expr b e is os -> TExp
-compile (AConv x)      = Epsilon (UC $ uconvs x)
-compile (AChar {is} x) = CH x (UC $ appendChar is)
-compile (AMatch x)     = CH x ID
-compile (ASeq x y)     = And (compile x) (compile y)
-compile (AOr x y)      = Or (compile x) (compile y)
-compile (ARec x)       = Star (compile x)
-compile (AFail x)      = Epsilon (EC $ [<uconv x])
+compile : Expr b e [<] os -> TExp
+compile x = fst (compileST TZ x)
 
 --------------------------------------------------------------------------------
 -- DFA State and utilities
