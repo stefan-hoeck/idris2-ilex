@@ -3,6 +3,9 @@ module Main
 import Data.SnocList
 import Lexer
 import Package
+import Smiles
+import SmilesLexer
+import Text.Smiles.Lexer
 import PackageLexer
 import Text.ILex.Util
 
@@ -10,6 +13,7 @@ pkg : String
 
 main : IO ()
 main = do
+  printLn (smiles "[13CH2+]c1ccccc1CC#N")
   printLn (lexNat "1,10,0b1100,0xffaa,0,100")
   printLn (lexTok pkg)
 

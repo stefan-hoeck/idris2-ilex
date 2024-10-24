@@ -133,20 +133,23 @@ public export
 value : (t : TTImp) -> (0 p : IsJust (toVal t)) => Value
 value t = fromJust $ toVal t
 
+showNeg : Ord t => Num t => Neg t => Show t => t -> String
+showNeg x = if x < 0 then "(\{show x})" else show x
+
 printConst : Constant -> String
-printConst (I i)    = show i
-printConst (BI i)   = show i
-printConst (I8 i)   = show i
-printConst (I16 i)  = show i
-printConst (I32 i)  = show i
-printConst (I64 i)  = show i
+printConst (I i)    = showNeg i
+printConst (BI i)   = showNeg i
+printConst (I8 i)   = showNeg i
+printConst (I16 i)  = showNeg i
+printConst (I32 i)  = showNeg i
+printConst (I64 i)  = showNeg i
 printConst (B8 m)   = show m
 printConst (B16 m)  = show m
 printConst (B32 m)  = show m
 printConst (B64 m)  = show m
 printConst (Str s)  = show s
 printConst (Ch c)   = show c
-printConst (Db d)   = show d
+printConst (Db d)   = showNeg d
 printConst (PrT p)  = printPrimType p
 printConst WorldVal = "%MkWorld"
 

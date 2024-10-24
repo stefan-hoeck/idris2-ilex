@@ -137,6 +137,10 @@ public export
 orF : Expr (b || False) e is os -> Expr b e is os
 orF x = replace {p = \y => Expr y e is os} (orFalseNeutral b) x
 
+public export
+toOrF : Expr b e is os -> Expr (b || False) e is os
+toOrF x = replace {p = \y => Expr y e is os} (sym $ orFalseNeutral b) x
+
 export infixr 1 >>>,>>-,->>
 export infixr 3 &&&
 
@@ -197,6 +201,12 @@ mmap f x = do
 public export %inline
 pure : Val a -> Expr False e is (is:< a)
 pure x = AConv (pureConvs x)
+
+export %macro
+mpure : (v : a) -> Elab (Expr False e is (is:< a))
+mpure x = do
+  v <- lift x
+  pure (Expr.pure v)
 
 public export
 eoi : Expr False LexErr is is
@@ -341,6 +351,56 @@ mfold v f x = do
   vv <- lift v
   ff <- lift f
   pure $ fold vv ff x
+
+public export
+choice :
+     (es : List (Expr True e is os))
+  -> {auto 0 p : NonEmpty es}
+  -> Expr True e is os
+choice [x]            = x
+choice (x::xs@(_::_)) = x <|> choice xs
+
+public export
+vjust : ToType a => Val (a -> Maybe a)
+vjust = V (funType2 a (Maybe a)) (VPlain "Just")
+
+public export
+vnothing : ToType a => Val (Maybe a)
+vnothing = V (toType (Maybe a)) (VPlain "Nothing")
+
+public export
+opt : ToType a => Expr True e is (is:<a) -> Expr False e is (is:<Maybe a)
+opt x = (x >>> arr vjust) <|> Expr.pure vnothing
+
+--------------------------------------------------------------------------------
+-- Zipping Tokens
+--------------------------------------------------------------------------------
+
+public export
+data Exprs : Bool -> (e : type) -> (is : Types) -> (ts : LTypes) -> Type where
+  Nil  : Exprs False e is []
+  (::) :
+       Expr b1 e is (is:<a)
+    -> Exprs b2 e is xs
+    -> Exprs (b1 || b2) e is (a::xs)
+
+public export
+lastAll : Exprs b e is ts -> Exprs b e (is:<a) ts
+lastAll []        = []
+lastAll (x :: xs) = (orF (last x >>> flip)) :: lastAll xs
+
+public export
+zip : (xs : Exprs b e is ts) -> Expr b e is (is <>< ts)
+zip []      = identity
+zip (x::xs) = x >>> zip (lastAll xs)
+
+public export
+zipWith : {ts : _} -> Exprs b e is ts -> Val (Fun ts r) -> Expr b e is (is:<r)
+zipWith xs v = orF $ zip xs >>> AConv (convsAll ts v)
+
+--------------------------------------------------------------------------------
+-- Utilities
+--------------------------------------------------------------------------------
 
 public export
 digit : Expr True e is (is:<Integer)
