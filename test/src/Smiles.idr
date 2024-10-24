@@ -160,8 +160,8 @@ token =
   <|> (bond >>> marr Lexer.TB)
   <|> (zipWith [subset <|> brckt, many ring] vta)
 
-tokens : Expr False Util.LexErr [<] [<SnocList SmilesToken]
-tokens = many token >>> eoi
+tokens : Expr False Util.LexErr [<] [<SnocList $ SmilesToken]
+tokens = many (token) >>> eoi
 
 covering
 main : IO ()

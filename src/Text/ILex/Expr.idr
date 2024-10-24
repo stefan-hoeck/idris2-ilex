@@ -84,10 +84,10 @@ range : Char -> Char -> Expr True e is (is:<Char)
 range x y =
   let vx := VPrim $ Ch x
       vy := VPrim $ Ch y
-      vv := VPlain "v"
-      gt := VApp (VApp (VPlain "(<=)") vx) vv
-      lt := VApp (VApp (VPlain "(<=)") vv) vy
-   in pred (V predTpe $ VLam "v" (VApp (VApp (VPlain "(&&)") lt) gt))
+      vv := "v"
+      gt := appAll "(<=)" [vx,vv]
+      lt := appAll "(<=)" [vv,vy]
+   in pred (V predTpe $ VLam "v" (appAll "(&&)" [lt,gt]))
 
 ||| Accepts any character except the newline character
 public export %inline
@@ -102,12 +102,12 @@ dot_ = pred_ (mlift $ \v => v /= '\n')
 ||| Accepts any whitespace character
 public export %inline
 space : Expr True e is (is:<Char)
-space = pred (mlift isSpace)
+space = AOr (chr '\n') (pred (mlift isSpace))
 
 ||| Accepts any whitespace character
 public export %inline
 space_ : Expr True e is is
-space_ = pred_ (mlift isSpace)
+space_ = AOr (chr_ '\n') (pred_ (mlift isSpace))
 
 ||| Accepts any upper case character
 public export %inline
@@ -257,22 +257,6 @@ last (AOr x y)  = AOr (last x) (last y)
 last (ARec  x)  = ARec (last x)
 last (AFail x)  = AFail (weakenConv x)
 
-export
-vlin : ToType a => Val (SnocList a)
-vlin = V (toType (SnocList a)) (VPlain "Lin")
-
-export
-vwrap : ToType a => Val (a -> SnocList a)
-vwrap = V (funType2 a (SnocList a)) (value `(\x => [<x]))
-
-export
-vsnoc : ToType a => Val (SnocList a -> a -> SnocList a)
-vsnoc = V (funType3 (SnocList a) a (SnocList a)) (VPlain "(:<)")
-
-export
-vpack : ToType a => Val (SnocList a -> String)
-vpack = V (funType2 (SnocList a) String) (value `(\x => pack (x <>> [])))
-
 public export
 (&&&) :
      Expr b1 e is (is:<a)
@@ -361,14 +345,6 @@ choice [x]            = x
 choice (x::xs@(_::_)) = x <|> choice xs
 
 public export
-vjust : ToType a => Val (a -> Maybe a)
-vjust = V (funType2 a (Maybe a)) (VPlain "Just")
-
-public export
-vnothing : ToType a => Val (Maybe a)
-vnothing = V (toType (Maybe a)) (VPlain "Nothing")
-
-public export
 opt : ToType a => Expr True e is (is:<a) -> Expr False e is (is:<Maybe a)
 opt x = (x >>> arr vjust) <|> Expr.pure vnothing
 
@@ -397,6 +373,36 @@ zip (x::xs) = x >>> zip (lastAll xs)
 public export
 zipWith : {ts : _} -> Exprs b e is ts -> Val (Fun ts r) -> Expr b e is (is:<r)
 zipWith xs v = orF $ zip xs >>> AConv (convsAll ts v)
+
+--------------------------------------------------------------------------------
+-- Token Bounds
+--------------------------------------------------------------------------------
+
+public export
+col : Expr False e is (is:<Nat)
+col = AConv (CID :< CCol)
+
+public export
+row : Expr False e is (is:<Nat)
+row = AConv (CID :< CRow)
+
+vp : Val (Nat -> Nat -> Pos)
+vp = mlift P
+
+public export
+pos : {is : _} -> Expr False e is (is:<Pos)
+pos = zipWith [row,col] vp
+
+vwb : ToType a => Val (Pos -> a -> Pos -> WBounds a)
+vwb = V (funType4 Pos a Pos (WBounds a)) "WB"
+
+public export
+bounded :
+     {auto tt : ToType a}
+  -> {is : _}
+  -> Expr b e is (is:<a)
+  -> Expr b e is (is:<WBounds a)
+bounded x = orF $ zipWith [pos,x,pos] vwb
 
 --------------------------------------------------------------------------------
 -- Utilities

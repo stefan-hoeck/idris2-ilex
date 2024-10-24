@@ -96,7 +96,7 @@ tok =
 
 export
 toks : Expr False LexErr [<] [<SnocList Token]
-toks = many tok >>> eoi
+toks = many (tok) >>> eoi
 
 covering
 main : IO ()
