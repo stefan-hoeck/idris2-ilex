@@ -18,10 +18,10 @@ public export
 lexTok3 : List Char -> Nat -> Nat -> SnocList Token -> Either LexErr (SnocList Token)
 
 public export
-lexTok4 : List Char -> Nat -> Nat -> SnocList Char -> SnocList Token -> Either LexErr (SnocList Token)
+lexTok4 : List Char -> Nat -> Nat -> SnocList Token -> Either LexErr (SnocList Token)
 
 public export
-lexTok5 : List Char -> Nat -> Nat -> SnocList Token -> Either LexErr (SnocList Token)
+lexTok5 : List Char -> Nat -> Nat -> SnocList Char -> SnocList Token -> Either LexErr (SnocList Token)
 
 public export
 lexTok6 : List Char -> Nat -> Nat -> SnocList Token -> Either LexErr (SnocList Token)
@@ -36,13 +36,13 @@ public export
 lexTok9 : List Char -> Nat -> Nat -> SnocList Token -> Either LexErr (SnocList Token)
 
 public export
-lexTok10 : List Char -> Nat -> Nat -> SnocList Char -> SnocList Token -> Either LexErr (SnocList Token)
+lexTok10 : List Char -> Nat -> Nat -> SnocList Token -> Either LexErr (SnocList Token)
 
 public export
 lexTok11 : List Char -> Nat -> Nat -> SnocList Char -> SnocList Token -> Either LexErr (SnocList Token)
 
 public export
-lexTok12 : List Char -> Nat -> Nat -> SnocList Token -> Either LexErr (SnocList Token)
+lexTok12 : List Char -> Nat -> Nat -> SnocList Char -> SnocList Token -> Either LexErr (SnocList Token)
 
 public export
 lexTok13 : List Char -> Nat -> Nat -> Integer -> SnocList Token -> Either LexErr (SnocList Token)
@@ -74,21 +74,22 @@ lexTok s = lexTok1 (unpack s) 0 0
 lexTok1 str row col = lexTok2 str row col Lin
 lexTok2 str@(c::cs) row col x0 =
   case c of
-    '"' => lexTok4 cs row (S col) Lin x0
-    '&' => lexTok5 cs row (S col) x0
+    '\n' => lexTok4 cs (S row) 0 x0
+    '"' => lexTok5 cs row (S col) Lin x0
+    '&' => lexTok6 cs row (S col) x0
     ',' => lexTok2 cs row (S col) ((:<) x0 Separator)
-    '-' => lexTok6 cs row (S col) x0
+    '-' => lexTok7 cs row (S col) x0
     '.' => lexTok2 cs row (S col) ((:<) x0 Dot)
     '0' => lexTok2 cs row (S col) ((:<) x0 (IntegerLit 0))
-    '<' => lexTok7 cs row (S col) x0
-    '=' => lexTok8 cs row (S col) x0
-    '>' => lexTok9 cs row (S col) x0
+    '<' => lexTok8 cs row (S col) x0
+    '=' => lexTok9 cs row (S col) x0
+    '>' => lexTok10 cs row (S col) x0
     _  => case isIdentStart c of
-      True => lexTok10 cs row (S col) ((:<) Lin c) x0
+      True => lexTok11 cs row (S col) ((:<) Lin c) x0
       _  => case isLower c of
-        True => lexTok11 cs row (S col) ((:<) Lin c) x0
+        True => lexTok12 cs row (S col) ((:<) Lin c) x0
         _  => case isSpace c of
-          True => lexTok12 cs row (S col) x0
+          True => lexTok4 cs row (S col) x0
           _  => case (&&) ((<=) c '9') ((<=) '1' c) of
             True => lexTok13 cs row (S col) (toDigit c) x0
             _   => lexTok3 str row col x0
@@ -97,64 +98,66 @@ lexTok2 [] row col x0 = lexTok3 Nil row col x0
 lexTok3 str@(c::cs) row col x0 = Left (Unexpected c)
 lexTok3 [] row col x0 = Right x0
 
-lexTok4 str@(c::cs) row col x1 x0 =
+lexTok4 str@(c::cs) row col x0 =
+  case c of
+    '\n' => lexTok4 cs (S row) 0 x0
+    _  => case isSpace c of
+      True => lexTok4 cs row (S col) x0
+      _   => lexTok2 str row col ((:<) x0 Space)
+lexTok4 [] row col x0 = lexTok2 Nil row col ((:<) x0 Space)
+
+lexTok5 str@(c::cs) row col x1 x0 =
   case c of
     '\\' => lexTok15 cs row (S col) x1 x0
     _  => case validStrChar c of
-      True => lexTok4 cs row (S col) ((:<) x1 c) x0
+      True => lexTok5 cs row (S col) ((:<) x1 c) x0
       _   => lexTok14 str row col x1 x0
-lexTok4 [] row col x1 x0 = lexTok14 Nil row col x1 x0
+lexTok5 [] row col x1 x0 = lexTok14 Nil row col x1 x0
 
-lexTok5 str@(c::cs) row col x0 =
+lexTok6 str@(c::cs) row col x0 =
   case c of
     '&' => lexTok2 cs row (S col) ((:<) x0 AndOp)
     _   => Left (cast (Unexpected c))
-lexTok5 [] row col x0 = Left (cast EOI)
+lexTok6 [] row col x0 = Left (cast EOI)
 
-lexTok6 str@(c::cs) row col x0 =
+lexTok7 str@(c::cs) row col x0 =
   case c of
     '-' => lexTok16 cs row (S col) Lin x0
     '0' => lexTok2 cs row (S col) ((:<) x0 (IntegerLit (negate 0)))
     _  => case (&&) ((<=) c '9') ((<=) '1' c) of
       True => lexTok17 cs row (S col) (toDigit c) x0
       _   => Left (cast (Unexpected c))
-lexTok6 [] row col x0 = Left (cast EOI)
-
-lexTok7 str@(c::cs) row col x0 =
-  case c of
-    '=' => lexTok2 cs row (S col) ((:<) x0 LTE)
-    _   => lexTok2 str row col ((:<) x0 LT)
-lexTok7 [] row col x0 = lexTok2 Nil row col ((:<) x0 LT)
+lexTok7 [] row col x0 = Left (cast EOI)
 
 lexTok8 str@(c::cs) row col x0 =
   case c of
-    '=' => lexTok2 cs row (S col) ((:<) x0 EqOp)
-    _   => lexTok2 str row col ((:<) x0 Equals)
-lexTok8 [] row col x0 = lexTok2 Nil row col ((:<) x0 Equals)
+    '=' => lexTok2 cs row (S col) ((:<) x0 LTE)
+    _   => lexTok2 str row col ((:<) x0 LT)
+lexTok8 [] row col x0 = lexTok2 Nil row col ((:<) x0 LT)
 
 lexTok9 str@(c::cs) row col x0 =
   case c of
+    '=' => lexTok2 cs row (S col) ((:<) x0 EqOp)
+    _   => lexTok2 str row col ((:<) x0 Equals)
+lexTok9 [] row col x0 = lexTok2 Nil row col ((:<) x0 Equals)
+
+lexTok10 str@(c::cs) row col x0 =
+  case c of
     '=' => lexTok2 cs row (S col) ((:<) x0 GTE)
     _   => lexTok2 str row col ((:<) x0 GT)
-lexTok9 [] row col x0 = lexTok2 Nil row col ((:<) x0 GT)
-
-lexTok10 str@(c::cs) row col x1 x0 =
-  case isIdentTrailing c of
-    True => lexTok10 cs row (S col) ((:<) x1 c) x0
-    _    => lexTok18 str row col ((:<) Lin (pack ((<>>) x1 Nil))) x0
-lexTok10 [] row col x1 x0 = lexTok18 Nil row col ((:<) Lin (pack ((<>>) x1 Nil))) x0
+lexTok10 [] row col x0 = lexTok2 Nil row col ((:<) x0 GT)
 
 lexTok11 str@(c::cs) row col x1 x0 =
   case isIdentTrailing c of
     True => lexTok11 cs row (S col) ((:<) x1 c) x0
-    _    => lexTok2 str row col ((:<) x0 (PkgName (pack ((<>>) x1 Nil))))
-lexTok11 [] row col x1 x0 = lexTok2 Nil row col ((:<) x0 (PkgName (pack ((<>>) x1 Nil))))
+    _    => lexTok18 str row col ((:<) Lin (pack ((<>>) x1 Nil))) x0
+lexTok11 [] row col x1 x0 = lexTok18 Nil row col ((:<) Lin (pack ((<>>) x1 Nil))) x0
 
-lexTok12 str@(c::cs) row col x0 =
-  case isSpace c of
-    True => lexTok12 cs row (S col) x0
-    _    => lexTok2 str row col ((:<) x0 Space)
-lexTok12 [] row col x0 = lexTok2 Nil row col ((:<) x0 Space)
+lexTok12 str@(c::cs) row col x1 x0 =
+  case isIdentTrailing c of
+    True => lexTok12 cs row (S col) ((:<) x1 c) x0
+    _    => lexTok2 str row col ((:<) x0 (PkgName (pack ((<>>) x1 Nil))))
+lexTok12 [] row col x1 x0 = lexTok2 Nil row col ((:<) x0 (PkgName (pack ((<>>) x1 Nil))))
 
 lexTok13 str@(c::cs) row col x1 x0 =
   case (&&) ((<=) c '9') ((<=) '0' c) of
@@ -170,7 +173,7 @@ lexTok14 [] row col x1 x0 = Left (cast EOI)
 
 lexTok15 str@(c::cs) row col x1 x0 =
   case (/=) c (fromChar '\n') of
-    True => lexTok4 cs row (S col) ((:<) x1 c) x0
+    True => lexTok5 cs row (S col) ((:<) x1 c) x0
     _    => Left (cast (Unexpected c))
 lexTok15 [] row col x1 x0 = Left (cast EOI)
 

@@ -69,6 +69,12 @@ data Conversion : (st : Types) -> Type -> Type where
   ||| The character we currently match on
   CChar : Conversion st Char
 
+  ||| The current row position
+  CRow : Conversion st Nat
+
+  ||| The current column position
+  CCol : Conversion st Nat
+
 ||| Adjusts a computation so that it can operate on additional values
 export
 weakenConv : Conversion st t -> Conversion (st:<s) t
@@ -76,6 +82,8 @@ weakenConv (CAt x)    = CAt (Pre x)
 weakenConv (CApp x y) = CApp (weakenConv x) (weakenConv y)
 weakenConv (CPure x)  = CPure x
 weakenConv CChar      = CChar
+weakenConv CRow       = CRow
+weakenConv CCol       = CCol
 
 ||| A conversion that consmes all the arguments given in `ts`.
 public export
@@ -173,12 +181,20 @@ data UConversion : Type where
   ||| The character we currently match on
   UChar : UConversion
 
+  ||| The current row position
+  URow  : UConversion
+
+  ||| The current column position
+  UCol  : UConversion
+
 export
 convToVal : UConversion -> Value
 convToVal (UAt k)     = VPlain "x\{show k}"
 convToVal (UApp x y)  = VApp (convToVal x) (convToVal y)
 convToVal (UPure x y) = y
 convToVal UChar       = "c"
+convToVal URow        = "row"
+convToVal UCol        = "col"
 
 %runElab derive "UConversion" [Eq]
 
@@ -196,6 +212,8 @@ uconv (CAt p)    = UAt (posToNat p)
 uconv (CApp x y) = UApp (uconv x) (uconv y)
 uconv (CPure v)  = UPure v.tpe.tpe v.val
 uconv CChar      = UChar
+uconv CRow       = URow
+uconv CCol       = UCol
 
 public export
 0 UConversions : Type
@@ -211,6 +229,8 @@ outArg args (UAt x)     = lookupTpe args x
 outArg args (UApp x y)  = outType $ outArg args x
 outArg args (UPure x _) = x
 outArg args UChar       = tpeof Char
+outArg args URow        = tpeof Nat
+outArg args UCol        = tpeof Nat
 
 public export
 data TTypes : Types -> Type where
@@ -231,6 +251,8 @@ weaken (UAt k)     = UAt (S k)
 weaken (UApp x y)  = UApp (weaken x) (weaken y)
 weaken (UPure x y) = UPure x y
 weaken UChar       = UChar
+weaken URow        = URow
+weaken UCol        = UCol
 
 export
 uconvs : TTypes is -> Conversions is os -> (UConversions, TTypes os)
@@ -254,6 +276,8 @@ adapt xs (UAt x)     = lookup xs x
 adapt xs (UApp x y)  = UApp (adapt xs x) (adapt xs y)
 adapt xs (UPure x y) = (UPure x y)
 adapt xs UChar       = UChar
+adapt xs URow        = URow
+adapt xs UCol        = UCol
 
 ||| Merges to argument list conversions so that the output functions
 ||| operate directly on the previous input list

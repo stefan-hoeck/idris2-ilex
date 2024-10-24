@@ -44,8 +44,8 @@ data LexErr : Type where
 public export
 record Pos where
   constructor P
-  line : Nat
-  col  : Nat
+  row : Nat
+  col : Nat
 
 %runElab derive "Pos" [Show,Eq,Ord]
 

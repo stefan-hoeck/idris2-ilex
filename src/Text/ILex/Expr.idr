@@ -102,12 +102,12 @@ dot_ = pred_ (mlift $ \v => v /= '\n')
 ||| Accepts any whitespace character
 public export %inline
 space : Expr True e is (is:<Char)
-space = pred (mlift isSpace)
+space = AOr (chr '\n') (pred (mlift isSpace))
 
 ||| Accepts any whitespace character
 public export %inline
 space_ : Expr True e is is
-space_ = pred_ (mlift isSpace)
+space_ = AOr (chr_ '\n') (pred_ (mlift isSpace))
 
 ||| Accepts any upper case character
 public export %inline
@@ -373,6 +373,36 @@ zip (x::xs) = x >>> zip (lastAll xs)
 public export
 zipWith : {ts : _} -> Exprs b e is ts -> Val (Fun ts r) -> Expr b e is (is:<r)
 zipWith xs v = orF $ zip xs >>> AConv (convsAll ts v)
+
+--------------------------------------------------------------------------------
+-- Token Bounds
+--------------------------------------------------------------------------------
+
+public export
+col : Expr False e is (is:<Nat)
+col = AConv (CID :< CCol)
+
+public export
+row : Expr False e is (is:<Nat)
+row = AConv (CID :< CRow)
+
+vp : Val (Nat -> Nat -> Pos)
+vp = mlift P
+
+public export
+pos : {is : _} -> Expr False e is (is:<Pos)
+pos = zipWith [row,col] vp
+
+vwb : ToType a => Val (Pos -> a -> Pos -> WBounds a)
+vwb = V (funType4 Pos a Pos (WBounds a)) "WB"
+
+public export
+bounded :
+     {auto tt : ToType a}
+  -> {is : _}
+  -> Expr b e is (is:<a)
+  -> Expr b e is (is:<WBounds a)
+bounded x = orF $ zipWith [pos,x,pos] vwb
 
 --------------------------------------------------------------------------------
 -- Utilities
