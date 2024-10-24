@@ -7,7 +7,17 @@ import Package
 import PackageLexer
 import Parser.Lexer.Package
 import Profile
+import Smiles
+import SmilesLexer
 import Text.ILex.Util
+import Text.Parse.Manual
+import Text.Smiles.Lexer
+
+mol : String
+mol = "C[C@@H]1CCCN(C1)C(=O)[C@@H](C)Oc2ccccc2"
+
+strychnine : String
+strychnine = "O=C7N2c1ccccc1[C@@]64[C@@H]2[C@@H]3[C@@H](OC/C=C5\[C@@H]3C[C@@H]6N(CC4)C5)C7"
 
 small, large : String
 
@@ -27,6 +37,14 @@ bench = Group "lex-ipkg"
   , Group "very-large"
       [ Single "ilex"       (basic lexTok veryLarge)
       , Single "idris-api"  (basic lex veryLarge)
+      ]
+  , Group "smiles-mol"
+      [ Single "ilex"       (basic smiles mol)
+      , Single "idris-api"  (basic lexSmiles mol)
+      ]
+  , Group "smiles-strychnine"
+      [ Single "ilex"       (basic smiles strychnine)
+      , Single "idris-api"  (basic lexSmiles strychnine)
       ]
   ]
 
