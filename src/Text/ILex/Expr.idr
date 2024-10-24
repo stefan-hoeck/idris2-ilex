@@ -84,10 +84,10 @@ range : Char -> Char -> Expr True e is (is:<Char)
 range x y =
   let vx := VPrim $ Ch x
       vy := VPrim $ Ch y
-      vv := VPlain "v"
-      gt := VApp (VApp (VPlain "(<=)") vx) vv
-      lt := VApp (VApp (VPlain "(<=)") vv) vy
-   in pred (V predTpe $ VLam "v" (VApp (VApp (VPlain "(&&)") lt) gt))
+      vv := "v"
+      gt := appAll "(<=)" [vx,vv]
+      lt := appAll "(<=)" [vv,vy]
+   in pred (V predTpe $ VLam "v" (appAll "(&&)" [lt,gt]))
 
 ||| Accepts any character except the newline character
 public export %inline
@@ -257,22 +257,6 @@ last (AOr x y)  = AOr (last x) (last y)
 last (ARec  x)  = ARec (last x)
 last (AFail x)  = AFail (weakenConv x)
 
-export
-vlin : ToType a => Val (SnocList a)
-vlin = V (toType (SnocList a)) (VPlain "Lin")
-
-export
-vwrap : ToType a => Val (a -> SnocList a)
-vwrap = V (funType2 a (SnocList a)) (value `(\x => [<x]))
-
-export
-vsnoc : ToType a => Val (SnocList a -> a -> SnocList a)
-vsnoc = V (funType3 (SnocList a) a (SnocList a)) (VPlain "(:<)")
-
-export
-vpack : ToType a => Val (SnocList a -> String)
-vpack = V (funType2 (SnocList a) String) (value `(\x => pack (x <>> [])))
-
 public export
 (&&&) :
      Expr b1 e is (is:<a)
@@ -359,14 +343,6 @@ choice :
   -> Expr True e is os
 choice [x]            = x
 choice (x::xs@(_::_)) = x <|> choice xs
-
-public export
-vjust : ToType a => Val (a -> Maybe a)
-vjust = V (funType2 a (Maybe a)) (VPlain "Just")
-
-public export
-vnothing : ToType a => Val (Maybe a)
-vnothing = V (toType (Maybe a)) (VPlain "Nothing")
 
 public export
 opt : ToType a => Expr True e is (is:<a) -> Expr False e is (is:<Maybe a)

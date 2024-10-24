@@ -66,12 +66,16 @@ data Conversion : (st : Types) -> Type -> Type where
   ||| in a computation
   CPure : Val a        -> Conversion st a
 
+  ||| The character we currently match on
+  CChar : Conversion st Char
+
 ||| Adjusts a computation so that it can operate on additional values
 export
 weakenConv : Conversion st t -> Conversion (st:<s) t
 weakenConv (CAt x)    = CAt (Pre x)
 weakenConv (CApp x y) = CApp (weakenConv x) (weakenConv y)
 weakenConv (CPure x)  = CPure x
+weakenConv CChar      = CChar
 
 ||| A conversion that consmes all the arguments given in `ts`.
 public export
@@ -119,7 +123,7 @@ appendConv sc = CWeaken sc :< CAt Lst
 ||| Drops the last argument
 export
 appendChar : Conversions is (is:<Char)
-appendChar = CID :< CPure charVal
+appendChar = CID :< CChar
 
 export
 flipLast : Conversions (is:<a:<s) (is:<s:<a)
@@ -166,11 +170,15 @@ data UConversion : Type where
   ||| in a computation
   UPure : Tpe -> Value -> UConversion
 
+  ||| The character we currently match on
+  UChar : UConversion
+
 export
 convToVal : UConversion -> Value
 convToVal (UAt k)     = VPlain "x\{show k}"
 convToVal (UApp x y)  = VApp (convToVal x) (convToVal y)
 convToVal (UPure x y) = y
+convToVal UChar       = "c"
 
 %runElab derive "UConversion" [Eq]
 
@@ -187,6 +195,7 @@ uconv : Conversion is o -> UConversion
 uconv (CAt p)    = UAt (posToNat p)
 uconv (CApp x y) = UApp (uconv x) (uconv y)
 uconv (CPure v)  = UPure v.tpe.tpe v.val
+uconv CChar      = UChar
 
 public export
 0 UConversions : Type
@@ -201,6 +210,7 @@ outArg : UArgs -> UConversion -> Tpe
 outArg args (UAt x)     = lookupTpe args x
 outArg args (UApp x y)  = outType $ outArg args x
 outArg args (UPure x _) = x
+outArg args UChar       = tpeof Char
 
 public export
 data TTypes : Types -> Type where
@@ -214,12 +224,13 @@ fromTypes n (TS k) = fromTypes (S n) k :< UAt n
 
 export
 appendChr : TTypes is -> UConversions
-appendChr ts = fromTypes 0 ts :< uconv {is = [<]} (CPure charVal)
+appendChr ts = fromTypes 0 ts :< uconv {is = [<]} CChar
 
 weaken : UConversion -> UConversion
 weaken (UAt k)     = UAt (S k)
 weaken (UApp x y)  = UApp (weaken x) (weaken y)
 weaken (UPure x y) = UPure x y
+weaken UChar       = UChar
 
 export
 uconvs : TTypes is -> Conversions is os -> (UConversions, TTypes os)
@@ -242,6 +253,7 @@ adapt : UConversions -> UConversion -> UConversion
 adapt xs (UAt x)     = lookup xs x
 adapt xs (UApp x y)  = UApp (adapt xs x) (adapt xs y)
 adapt xs (UPure x y) = (UPure x y)
+adapt xs UChar       = UChar
 
 ||| Merges to argument list conversions so that the output functions
 ||| operate directly on the previous input list

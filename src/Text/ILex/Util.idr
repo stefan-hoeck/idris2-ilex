@@ -40,3 +40,20 @@ data LexErr : Type where
   Unexpected : Char -> LexErr
 
 %runElab derive "LexErr" [Show,Eq]
+
+public export
+record Pos where
+  constructor P
+  line : Nat
+  col  : Nat
+
+%runElab derive "Pos" [Show,Eq,Ord]
+
+public export
+record WBounds a where
+  constructor WB
+  start : Pos
+  val   : a
+  end   : Pos
+
+%runElab derive "WBounds" [Show,Eq]

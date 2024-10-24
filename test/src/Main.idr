@@ -9,13 +9,21 @@ import Text.Smiles.Lexer
 import PackageLexer
 import Text.ILex.Util
 
+toLst : Either a (SnocList b) -> List b
+toLst = either (const []) (<>> [])
+
 pkg : String
 
 main : IO ()
 main = do
-  printLn (smiles "[13CH2+]c1ccccc1CC#N")
-  printLn (lexNat "1,10,0b1100,0xffaa,0,100")
-  printLn (lexTok pkg)
+  putStrLn "SMILES Tokens:"
+  traverse_ printLn (toLst $ smiles "[13CH2+]c1ccccc1CC#N")
+
+  putStrLn "\nNatural Numbers:"
+  traverse_ printLn (toLst $ lexNat "1,10,0b1100,0xffaa,0,100")
+
+  putStrLn "\n.ipkg Tokens:"
+  traverse_ printLn (toLst $ lexTok pkg)
 
 pkg =
   """

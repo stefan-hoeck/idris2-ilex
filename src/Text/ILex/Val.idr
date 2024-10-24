@@ -22,6 +22,10 @@ data Tpe : Type where
   Pi    : Tpe -> Tpe -> Tpe
   Ty    : Tpe
 
+public export
+FromString Tpe where
+  fromString = Plain
+
 %runElab derive "PrimType" [ConIndex,Ord]
 %runElab derive "Tpe" [Eq,Pretty,Ord]
 
@@ -112,6 +116,10 @@ data Value : Type where
   VLam   : String -> Value -> Value
   VPrim  : Constant -> Value
 
+public export
+FromString Value where
+  fromString = VPlain
+
 %runElab derive "Constant" [Ord]
 %runElab derive "Value" [Eq,Pretty,Ord]
 
@@ -132,6 +140,11 @@ toVal _                    = Nothing
 public export
 value : (t : TTImp) -> (0 p : IsJust (toVal t)) => Value
 value t = fromJust $ toVal t
+
+public export
+appAll : Value -> List Value -> Value
+appAll v []        = v
+appAll v (x :: xs) = appAll (VApp v x) xs
 
 showNeg : Ord t => Num t => Neg t => Show t => t -> String
 showNeg x = if x < 0 then "(\{show x})" else show x
@@ -266,35 +279,43 @@ ToType Char where
 
 public export %inline
 ToType a => ToType (Maybe a) where
-  toType_ = TO (App (Plain "Maybe") (tpeof a))
+  toType_ = TO (App "Maybe" (tpeof a))
 
 public export %inline
 ToType a => ToType (List a) where
-  toType_ = TO (App (Plain "List") (tpeof a))
+  toType_ = TO (App "List" (tpeof a))
 
 public export %inline
 ToType a => ToType (SnocList a) where
-  toType_ = TO (App (Plain "SnocList") (tpeof a))
+  toType_ = TO (App "SnocList" (tpeof a))
 
 public export %inline
 ToType a => ToType b => ToType (Either a b) where
-  toType_ = TO (App (App (Plain "Either") (tpeof a)) (tpeof b))
+  toType_ = TO (App (App "Either" (tpeof a)) (tpeof b))
 
 public export %inline
 ToType a => ToType b => ToType (Pair a b) where
-  toType_ = TO (App (App (Plain "Pair") (tpeof a)) (tpeof b))
+  toType_ = TO (App (App "Pair" (tpeof a)) (tpeof b))
 
 public export %inline
 ToType Bool where
-  toType_ = TO (Plain "Bool")
+  toType_ = TO "Bool"
 
 public export %inline
 ToType Nat where
-  toType_ = TO (Plain "Nat")
+  toType_ = TO "Nat"
 
 public export %inline
 ToType LexErr where
-  toType_ = TO (Plain "LexErr")
+  toType_ = TO "LexErr"
+
+public export %inline
+ToType Pos where
+  toType_ = TO "Pos"
+
+public export %inline
+ToType a => ToType (WBounds a) where
+  toType_ = TO (App "WBounds" (tpeof a))
 
 export
 tlift : (0 a : Type) -> Elab (TOnly a)
@@ -347,9 +368,29 @@ mlift : (0 x : a) -> Elab (Val a)
 mlift = lift
 
 export
-charVal : Val Char
-charVal = V toType_ (VPlain "c")
-
-export
 vunexpected : Val (Char -> LexErr)
 vunexpected = mlift Unexpected
+
+export
+vlin : ToType a => Val (SnocList a)
+vlin = V (toType (SnocList a)) "Lin"
+
+export
+vwrap : ToType a => Val (a -> SnocList a)
+vwrap = V (funType2 a (SnocList a)) (value `(\x => [<x]))
+
+export
+vsnoc : ToType a => Val (SnocList a -> a -> SnocList a)
+vsnoc = V (funType3 (SnocList a) a (SnocList a)) "(:<)"
+
+export
+vpack : ToType a => Val (SnocList a -> String)
+vpack = V (funType2 (SnocList a) String) (value `(\x => pack (x <>> [])))
+
+public export
+vjust : ToType a => Val (a -> Maybe a)
+vjust = V (funType2 a (Maybe a)) "Just"
+
+public export
+vnothing : ToType a => Val (Maybe a)
+vnothing = V (toType (Maybe a)) "Nothing"
