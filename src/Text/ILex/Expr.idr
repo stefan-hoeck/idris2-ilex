@@ -377,7 +377,7 @@ opt x = (x >>> arr vjust) <|> Expr.pure vnothing
 --------------------------------------------------------------------------------
 
 public export
-data Exprs : Bool -> (e : type) -> (is : Types) -> (ts : LTypes) -> Type where
+data Exprs : Bool -> (e : Type) -> (is : Types) -> (ts : LTypes) -> Type where
   Nil  : Exprs False e is []
   (::) :
        Expr b1 e is (is:<a)

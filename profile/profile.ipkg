@@ -5,6 +5,7 @@ langversion >= 0.7
 depends = ilex
         , profiler
         , idris2
+        , chem
 
 sourcedir = "src"
 prebuild  = "codegen/genlexers.sh"
