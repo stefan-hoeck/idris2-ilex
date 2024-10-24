@@ -58,25 +58,25 @@ validStrChar '"' = False
 validStrChar c   = not (isControl c)
 
 export
-ident : {is : _} -> Expr True e is (is:<String)
+ident : Expr True e is (is:<String)
 ident =
   mpred isIdentStart >>> vwrap ->> snocAll (mpred isIdentTrailing) >>- vpack
 
 export
-pkgName : {is : _} -> Expr True e is (is:<String)
+pkgName : Expr True e is (is:<String)
 pkgName = lower >>> vwrap ->> snocAll (mpred isIdentTrailing) >>- vpack
 
-integer : {is : _} -> Expr True e is (is:<Integer)
+integer : Expr True e is (is:<Integer)
 integer = (str "-" >>> decimal >>> marr negate) <|> decimal
 
-stringLit : {is : _} -> Expr True e is (is:<String)
+stringLit : Expr True e is (is:<String)
 stringLit = chr_ '"' >>> many strChar >>> chr_ '"' >>- vpack
   where
     strChar : Expr True e is (is:<Char)
     strChar = (chr_ '\\' >>> dot) <|> mpred validStrChar
 
 export
-tok : {is : _} -> Expr True e is (is:<Token)
+tok : Expr True e is (is:<Token)
 tok =
       (str "==" $> EqOp)
   <|> (str "--" >>> many dot >>> marr comment)
