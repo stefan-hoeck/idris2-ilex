@@ -96,16 +96,16 @@ export
 props : Group
 props =
   MkGroup "Text.ILex.Char.Range"
-    [("prop_emptyHas", prop_emptyHas)
-    ,("prop_singletonHas", prop_singletonHas)
-    ,("prop_rangeHas", prop_rangeHas)
-    ,("prop_unionOverlap", prop_unionOverlap)
-    ,("prop_unionAdjacent", prop_unionAdjacent)
-    ,("prop_unionCommutative", prop_unionCommutative)
-    ,("prop_unionEmpty", prop_unionEmpty)
-    ,("prop_unionFull", prop_unionFull)
-    ,("prop_intersectionAssociative", prop_intersectionAssociative)
-    ,("prop_intersectionCommutative", prop_intersectionCommutative)
-    ,("prop_intersectionEmpty", prop_intersectionEmpty)
-    ,("prop_intersectionFull", prop_intersectionFull)
+    [ ("prop_emptyHas", prop_emptyHas)
+    , ("prop_singletonHas", prop_singletonHas)
+    , ("prop_rangeHas", prop_rangeHas)
+    , ("prop_unionOverlap", prop_unionOverlap)
+    , ("prop_unionAdjacent", prop_unionAdjacent)
+    , ("prop_unionCommutative", prop_unionCommutative)
+    , ("prop_unionEmpty", prop_unionEmpty)
+    , ("prop_unionFull", prop_unionFull)
+    , ("prop_intersectionAssociative", prop_intersectionAssociative)
+    , ("prop_intersectionCommutative", prop_intersectionCommutative)
+    , ("prop_intersectionEmpty", prop_intersectionEmpty)
+    , ("prop_intersectionFull", prop_intersectionFull)
     ]

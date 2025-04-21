@@ -12,3 +12,4 @@ sourcedir = "src"
 
 modules = Text.ILex
         , Text.ILex.Char.Range
+        , Text.ILex.Char.Set
