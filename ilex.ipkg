@@ -5,14 +5,9 @@ brief   = "Generating fast Lexers from an Idris2 DSL"
 langversion >= 0.7
 depends = elab-util
         , elab-pretty
+        , array
 
 sourcedir = "src"
 
 modules = Text.ILex
-        , Text.ILex.Args
-        , Text.ILex.Codegen
-        , Text.ILex.DFA
-        , Text.ILex.Expr
-        , Text.ILex.Set
-        , Text.ILex.Util
-        , Text.ILex.Val
+        = Text.ILex.Range
