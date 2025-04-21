@@ -6,8 +6,9 @@ langversion >= 0.7
 depends = elab-util
         , elab-pretty
         , array
+        , refined
 
 sourcedir = "src"
 
 modules = Text.ILex
-        = Text.ILex.Range
+        , Text.ILex.Range
