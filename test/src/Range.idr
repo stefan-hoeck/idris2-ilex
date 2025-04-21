@@ -46,6 +46,48 @@ prop_unionAdjacent =
     [x,y] <- forAll $ hlist [ranges, ranges]
     when (adjacent x y) (Left (span x y) === union x y)
 
+prop_unionCommutative : Property
+prop_unionCommutative =
+  property $ do
+    [x,y] <- forAll $ hlist [ranges, ranges]
+    union x y === union y x
+
+prop_unionEmpty : Property
+prop_unionEmpty =
+  property $ do
+    r <- forAll ranges
+    union r Empty === Left r
+
+prop_unionFull : Property
+prop_unionFull =
+  property $ do
+    r <- forAll ranges
+    union r fullRange === Left fullRange
+
+prop_intersectionCommutative : Property
+prop_intersectionCommutative =
+  property $ do
+    [x,y] <- forAll $ hlist [ranges, ranges]
+    intersection x y === intersection y x
+
+prop_intersectionAssociative : Property
+prop_intersectionAssociative =
+  property $ do
+    [x,y,z] <- forAll $ hlist [ranges, ranges, ranges]
+    intersection x (intersection y z) === intersection (intersection y x) z
+
+prop_intersectionEmpty : Property
+prop_intersectionEmpty =
+  property $ do
+    x <- forAll ranges
+    intersection x Empty === Empty
+
+prop_intersectionFull : Property
+prop_intersectionFull =
+  property $ do
+    x <- forAll ranges
+    intersection x fullRange === x
+
 --------------------------------------------------------------------------------
 -- props
 --------------------------------------------------------------------------------
@@ -59,4 +101,11 @@ props =
     ,("prop_rangeHas", prop_rangeHas)
     ,("prop_unionOverlap", prop_unionOverlap)
     ,("prop_unionAdjacent", prop_unionAdjacent)
+    ,("prop_unionCommutative", prop_unionCommutative)
+    ,("prop_unionEmpty", prop_unionEmpty)
+    ,("prop_unionFull", prop_unionFull)
+    ,("prop_intersectionAssociative", prop_intersectionAssociative)
+    ,("prop_intersectionCommutative", prop_intersectionCommutative)
+    ,("prop_intersectionEmpty", prop_intersectionEmpty)
+    ,("prop_intersectionFull", prop_intersectionFull)
     ]
