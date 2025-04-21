@@ -6,10 +6,15 @@ langversion >= 0.7
 depends = elab-util
         , elab-pretty
         , array
+        , bytestring
         , refined
 
 sourcedir = "src"
 
 modules = Text.ILex
+
+        , Text.ILex.RExp
+        , Text.ILex.Val
+
         , Text.ILex.Char.Range
         , Text.ILex.Char.Set
