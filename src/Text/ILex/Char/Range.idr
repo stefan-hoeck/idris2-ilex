@@ -1,4 +1,4 @@
-module Text.ILex.Range
+module Text.ILex.Char.Range
 
 import Data.Refined.Bits32
 import Derive.Prelude
@@ -7,6 +7,9 @@ import Derive.Prelude
 %language ElabReflection
 
 ||| A range of unicode code points.
+|||
+||| Actually, it's a range of 32-bit numbers, but we use it for describing
+||| ranges of codepoints in this library.
 public export
 data Range : Type where
   Empty : Range

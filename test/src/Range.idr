@@ -3,7 +3,7 @@ module Range
 import Data.List.Quantifiers
 import Data.Vect
 import Hedgehog
-import Text.ILex.Range
+import Text.ILex.Char.Range
 
 %default total
 
@@ -53,7 +53,7 @@ prop_unionAdjacent =
 export
 props : Group
 props =
-  MkGroup "Text.ILex.Range"
+  MkGroup "Text.ILex.Char.Range"
     [("prop_emptyHas", prop_emptyHas)
     ,("prop_singletonHas", prop_singletonHas)
     ,("prop_rangeHas", prop_rangeHas)
