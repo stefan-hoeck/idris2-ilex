@@ -7,15 +7,15 @@ import Text.ILex.Char.Set
 
 %default total
 
-sets : Gen Set
+sets : Gen Set8
 sets = rangeSet <$> list (linear 0 10) rngs
   where
-    rng : Gen Range
+    rng : Gen Range8
     rng =
-      (\[x,y] => range (min x y) (max x y)) <$> hlist [anyBits32, anyBits32]
+      (\[x,y] => range (min x y) (max x y)) <$> hlist [anyBits8, anyBits8]
 
-    rngs : Gen Range
-    rngs = frequency [(1, pure Empty), (20, rng)]
+    rngs : Gen Range8
+    rngs = frequency [(1, pure empty), (20, rng)]
 
 prop_unionAssociative : Property
 prop_unionAssociative =

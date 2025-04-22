@@ -15,130 +15,141 @@ import public Text.ILex.Char.Range
 ||| represented internally as an ordered list of disjoint character
 ||| ranges.
 export
-record Set where
+record SetOf t where
   constructor S
   ||| A list of ordered, non-overlapping, non-adjacent, and non-empty ranges
-  ranges_ : List Range
+  ranges_ : List (RangeOf t)
 
-%runElab derive "Set" [Show,Eq,Ord]
+%runElab derive "SetOf" [Show,Eq,Ord]
+
+public export
+0 Set8 : Type
+Set8 = SetOf Bits8
+
+public export
+0 Set32 : Type
+Set32 = SetOf Bits32
 
 ||| Returns the inner list of ranges of a character set.
 |||
 ||| The returned list is sorted and the ranges it contains are disjoint
 ||| and non-adjacent.
 export %inline
-ranges : Set -> List Range
+ranges : SetOf t -> List (RangeOf t)
 ranges = ranges_
-
--- precondition: the list is already sorted
-normalise : SnocList Range -> Vect n Range -> List Range
-normalise sc []       = sc <>> []
-normalise sc [Empty]  = sc <>> []
-normalise sc [r]      = sc <>> [r]
-normalise sc (r1 :: r2 :: t) =
-  case union r1 r2 of
-    Left Empty  => normalise sc t
-    Left r      => normalise sc (r::t)
-    Right (x,y) => normalise (sc:<x) (y::t)
-
-||| Creates a character set from the given list of ranges.
-|||
-||| The ranges are first sorted and overlapping or adjacent ranges
-||| are unified before wrapping them up.
-export
-rangeSet : List Range -> Set
-rangeSet rs = S . normalise [<] $ fromList (sort rs)
 
 ||| The empty set of codepoints.
 export
-empty : Set
+empty : SetOf t
 empty = S []
 
 ||| The set holding only the given codepoint.
 export
-singleton : Bits32 -> Set
+singleton : t -> SetOf t
 singleton x = S [singleton x]
 
+||| The set holding all characters in the given range.
+export
+range : RangeOf t -> SetOf t
+range r = if isEmpty r then empty else S [r]
+
+||| `True` if the character set is empty.
 export %inline
-FromChar Set where
+isEmpty : SetOf t -> Bool
+isEmpty (S []) = True
+isEmpty _      = False
+
+||| True if the value is within the set.
+export %inline
+has : Ord t => SetOf t -> t -> Bool
+has (S rs) v = any (`has` v) rs
+
+parameters {0 t : Type}
+           {auto ord : Bounded t}
+           {auto ng  : Neg t}
+
+  -- precondition: the list is already sorted
+  normalise : SnocList (RangeOf t) -> Vect n (RangeOf t) -> List (RangeOf t)
+  normalise sc []       = sc <>> []
+  normalise sc [r]      = if isEmpty r then [] else sc <>> [r]
+  normalise sc (r1 :: r2 :: t) =
+    case union r1 r2 of
+      Left r      => if isEmpty r then normalise sc t else normalise sc (r::t)
+      Right (x,y) => normalise (sc:<x) (y::t)
+
+  ||| Creates a character set from the given list of ranges.
+  |||
+  ||| The ranges are first sorted and overlapping or adjacent ranges
+  ||| are unified before wrapping them up.
+  export
+  rangeSet : List (RangeOf t) -> SetOf t
+  rangeSet rs = S . normalise [<] $ fromList (sort rs)
+
+  ||| Set union.
+  export
+  union : SetOf t -> SetOf t -> SetOf t
+  union (S rs) (S ss) = rangeSet (rs ++ ss)
+
+  appendNonEmpty : SnocList (RangeOf t) -> RangeOf t -> SnocList (RangeOf t)
+  appendNonEmpty sr r = if isEmpty r then sr else sr :< r
+
+  inters :
+       SnocList (RangeOf t)
+    -> List (RangeOf t)
+    -> List (RangeOf t)
+    -> List (RangeOf t)
+  inters sr l@(x::xs) r@(y::ys) =
+    let sr2 := appendNonEmpty sr (intersection x y)
+     in case upperBound x < upperBound y of
+          True  => inters sr2 xs r
+          False => inters sr2 l  ys
+  inters sr _         _         = sr <>> []
+
+  ||| Set intersection.
+  export %inline
+  intersection : SetOf t -> SetOf t -> SetOf t
+  intersection (S rs) (S ss) = S (inters [<] rs ss)
+
+  ||| Set negation.
+  export
+  negation : SetOf t -> SetOf t
+  negation (S rs) = S $ go [<] 0 rs
+    where
+      go : SnocList (RangeOf t) -> t -> List (RangeOf t) -> List (RangeOf t)
+      go sx m []        = sx <>> [range m maxBound]
+      go sx m (x :: xs) =
+        case isEmpty x of
+          True  => go sx m xs
+          False =>
+           let l   := lowerBound x
+               u   := upperBound x
+               sx2 := if l > m then sx :< range m (l-1) else sx
+            in if u == maxBound then sx2 <>> [] else go sx2 (u+1) xs
+
+  ||| Set difference.
+  export
+  difference : SetOf t -> SetOf t -> SetOf t
+  difference x y = intersection x (negation y)
+
+export %inline
+FromChar Set32 where
   fromChar = singleton . cast
 
 ||| The set holding the codepoints (characters) in the given
 ||| string.
 export
-chars : String -> Set
+chars : String -> Set32
 chars = rangeSet . map (singleton . cast) . unpack
-
-||| The set holding all characters in the given range.
-export
-range : Range -> Set
-range Empty = empty
-range r     = S [r]
-
-||| `True` if the character set is empty.
-export %inline
-isEmpty : Set -> Bool
-isEmpty = (== empty)
 
 ||| The set holding all 32-bit values.
 export %inline
-fullSet : Set
+fullSet : Bounded t => SetOf t
 fullSet = range fullRange
 
 ||| `True` if this set holds all 32-bit values.
 export %inline
-isFull : Set -> Bool
+isFull : Bounded t => SetOf t -> Bool
 isFull = (== fullSet)
-
-||| True if the value is within the set.
-export %inline
-has : Set -> Bits32 -> Bool
-has (S rs) v = any (`has` v) rs
-
-||| Set union.
-export
-union : Set -> Set -> Set
-union (S rs) (S ss) = rangeSet (rs ++ ss)
-
-upperBound : Range -> Bits32
-upperBound (Rng _ u) = u
-upperBound Empty     = 0
-
-appendNonEmpty : SnocList Range -> Range -> SnocList Range
-appendNonEmpty sr Empty = sr
-appendNonEmpty sr r     = sr :< r
-
-inters : SnocList Range -> List Range -> List Range -> List Range
-inters sr l@(x::xs) r@(y::ys) =
-  let sr2 := appendNonEmpty sr (intersection x y)
-   in case upperBound x < upperBound y of
-        True  => inters sr2 xs r
-        False => inters sr2 l  ys
-inters sr _         _         = sr <>> []
-
-||| Set intersection.
-export %inline
-intersection : Set -> Set -> Set
-intersection (S rs) (S ss) = S (inters [<] rs ss)
-
-||| Set negation.
-export
-negation : Set -> Set
-negation (S rs) = S $ go [<] 0 rs
-  where
-    go : SnocList Range -> Bits32 -> List Range -> List Range
-    go sx m []        = sx <>> [range m 0xffff_ffff]
-    go sx m (x :: xs) =
-      case x of
-        Empty   => go sx m xs
-        Rng l u =>
-          let sx2 := if l > m then sx :< range m (l-1) else sx
-           in if u == 0xffff_ffff then sx2 <>> [] else go sx2 (u+1) xs
-
-||| Set difference.
-export
-difference : Set -> Set -> Set
-difference x y = intersection x (negation y)
 
 --------------------------------------------------------------------------------
 -- Specific Char Sets
@@ -146,67 +157,67 @@ difference x y = intersection x (negation y)
 
 ||| A range of unicode code points.
 export %inline
-charRange : Char -> Char -> Set
+charRange : Char -> Char -> Set32
 charRange x y = range $ charRange x y
 
 ||| The set of lower-case letters.
 export
-lower : Set
+lower : Set32
 lower = charRange 'a' 'z'
 
 ||| The set of upper-case letters.
 export
-upper : Set
+upper : Set32
 upper = charRange 'A' 'Z'
 
 ||| The set of letters.
 export
-alpha : Set
+alpha : Set32
 alpha = union lower upper
 
 ||| The set of digits.
 export
-digit : Set
+digit : Set32
 digit = charRange '0' '9'
 
 ||| The set of positive digits.
 export
-posdigit : Set
+posdigit : Set32
 posdigit = charRange '1' '9'
 
 ||| The set of digits and letters.
 export
-alphaNum : Set
+alphaNum : Set32
 alphaNum = union alpha digit
 
 ||| The set of control characters.
 export
-control : Set
+control : Set32
 control = charRange '\NUL' '\US' `union` charRange '\DEL' '\159'
 
 ||| The set of printable characters.
 |||
 ||| This is the negation of `control`.
 export
-printable : Set
+printable : Set32
 printable = negation control
 
 ||| The set of ASCII characters.
 export
-ascii : Set
+ascii : Set32
 ascii = range $ range 0 127
 
 ||| The set of non-control ASCII characters.
 export
-printableAscii : Set
+printableAscii : Set32
 printableAscii = intersection ascii printable
 
 ||| The newline character ('\n')
 export
-nl : Set
+nl : Set32
 nl = '\n'
 
 ||| The set of unicode code points (minus surrogate pairs).
 export
-unicode : Set
+unicode : Set32
 unicode = difference (range codepoint) (range surrogate)

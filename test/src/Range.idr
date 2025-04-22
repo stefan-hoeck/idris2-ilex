@@ -7,29 +7,29 @@ import Text.ILex.Char.Range
 
 %default total
 
-ranges : Gen Range
-ranges = frequency [(1, pure Empty), (20, rng)]
+ranges : Gen Range8
+ranges = frequency [(1, pure empty), (20, rng)]
   where
-    rng : Gen Range
+    rng : Gen Range8
     rng =
-      (\[x,y] => range (min x y) (max x y)) <$> hlist [anyBits32, anyBits32]
+      (\[x,y] => range (min x y) (max x y)) <$> hlist [anyBits8, anyBits8]
 
 prop_emptyHas : Property
 prop_emptyHas =
   property $ do
-    b <- forAll anyBits32
-    has Empty b === False
+    b <- forAll anyBits8
+    has empty b === False
 
 prop_singletonHas : Property
 prop_singletonHas =
   property $ do
-    b <- forAll $ anyBits32
+    b <- forAll $ anyBits8
     has (singleton b) b === True
 
 prop_rangeHas : Property
 prop_rangeHas =
   property $ do
-    [x,y] <- forAll $ hlist [anyBits32, anyBits32]
+    [x,y] <- forAll $ hlist [anyBits8, anyBits8]
     let rng := range (min x y) (max x y)
     has rng x === True
     has rng y === True
@@ -56,7 +56,7 @@ prop_unionEmpty : Property
 prop_unionEmpty =
   property $ do
     r <- forAll ranges
-    union r Empty === Left r
+    union r empty === Left r
 
 prop_unionFull : Property
 prop_unionFull =
@@ -80,7 +80,7 @@ prop_intersectionEmpty : Property
 prop_intersectionEmpty =
   property $ do
     x <- forAll ranges
-    intersection x Empty === Empty
+    intersection x empty === empty
 
 prop_intersectionFull : Property
 prop_intersectionFull =

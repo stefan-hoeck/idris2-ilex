@@ -17,21 +17,29 @@ import Derive.Prelude
 ||| The `Bool` flag indicates, if the regular expression consumes
 ||| at least one character of input or not.
 public export
-data RExp : Bool -> Type where
-  Eps  : RExp False
-  Ch   : Set -> RExp True
-  And  : RExp b1 -> RExp b2 -> RExp (b1 || b2)
-  Or   : RExp b1 -> RExp b2 -> RExp (b1 && b2)
-  Star : RExp True -> RExp False
+data RExpOf : Bool -> Type -> Type where
+  Eps  : RExpOf False t
+  Ch   : SetOf t -> RExpOf True t
+  And  : RExpOf b1 t -> RExpOf b2 t -> RExpOf (b1 || b2) t
+  Or   : RExpOf b1 t -> RExpOf b2 t -> RExpOf (b1 && b2) t
+  Star : RExpOf True t -> RExpOf False t
 
-%runElab deriveIndexed "RExp" [Show]
+%runElab derivePattern "RExpOf" [I,P] [Show]
 
 public export
-data IsCh : RExp t -> Type where
+0 RExp : Bool -> Type
+RExp b = RExpOf b Bits32
+
+public export
+0 RExp8 : Bool -> Type
+RExp8 b = RExpOf b Bits8
+
+public export
+data IsCh : RExpOf b t -> Type where
   ItIsCh : IsCh (Ch s)
 
 export
-adjRanges : (Set -> RExp True) -> RExp b -> RExp b
+adjRanges : (SetOf t -> RExpOf True s) -> RExpOf b t -> RExpOf b s
 adjRanges f Eps       = Eps
 adjRanges f (Ch x)    = f x
 adjRanges f (And x y) = And (adjRanges f x) (adjRanges f y)
