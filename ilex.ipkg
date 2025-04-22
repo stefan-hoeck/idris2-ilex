@@ -13,9 +13,14 @@ sourcedir = "src"
 
 modules = Text.ILex
 
-        , Text.ILex.RExp
-        , Text.ILex.Val
-
         , Text.ILex.Char.Range
         , Text.ILex.Char.Set
         , Text.ILex.Char.UTF8
+
+        , Text.ILex.Internal.DFA
+        , Text.ILex.Internal.ENFA
+        , Text.ILex.Internal.NFA
+        , Text.ILex.Internal.Types
+
+        , Text.ILex.RExp
+        , Text.ILex.Val

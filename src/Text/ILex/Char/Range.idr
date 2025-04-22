@@ -5,6 +5,10 @@ import Derive.Prelude
 %default total
 %language ElabReflection
 
+--------------------------------------------------------------------------------
+--- Bounded Interface
+--------------------------------------------------------------------------------
+
 public export
 interface Ord a => Bounded a where
   minBound : a
@@ -29,6 +33,10 @@ export %inline
 Bounded Bits64 where
   minBound = 0
   maxBound = 0xffff_ffff_ffff_ffff
+
+--------------------------------------------------------------------------------
+--- Range
+--------------------------------------------------------------------------------
 
 ||| A range of unicode code points.
 |||
