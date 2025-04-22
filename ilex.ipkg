@@ -18,3 +18,4 @@ modules = Text.ILex
 
         , Text.ILex.Char.Range
         , Text.ILex.Char.Set
+        , Text.ILex.Char.UTF8
