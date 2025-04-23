@@ -1,0 +1,10 @@
+package ilex-examplex
+version = 0.1.0
+authors = "stefan-hoeck"
+langversion >= 0.7
+depends = ilex
+
+sourcedir = "src"
+
+modules = Examples.Basics
+        , Examples.Types

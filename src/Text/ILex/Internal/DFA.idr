@@ -58,7 +58,7 @@ normalize g =
     translate : SortedMap Nat Nat -> (Nat,Node a) -> (Nat,Node a)
     translate m (x, N pos acc out) =
       let tx   := safeLookup x m
-       in (tx, N tx acc $ map ?fooo out)
+       in (tx, N tx acc $ map {tgt $= (`safeLookup` m)} out)
 
 export covering
 toDFA : TokenMap a -> (adj : Set32 -> RExp8 True) -> Norm a (Graph a)

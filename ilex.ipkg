@@ -22,5 +22,6 @@ modules = Text.ILex
         , Text.ILex.Internal.NFA
         , Text.ILex.Internal.Types
 
+        , Text.ILex.Debug
         , Text.ILex.RExp
         , Text.ILex.Val
