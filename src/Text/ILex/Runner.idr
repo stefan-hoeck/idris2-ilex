@@ -17,11 +17,10 @@ data Info : Type -> Type where
   Ignore : Info a
   Final  : (val : a) -> Info a
 
-parameters {0 a    : Type}
-           {states : Nat}
-           (next   : IArray (S states) (IArray 256 (Fin (S states))))
-           (term   : IArray (S states) (Info a))
-
+parameters {0 a      : Type}
+           {0 states : Nat}
+           (next     : IArray (S states) (IArray 256 (Fin (S states))))
+           (term     : IArray (S states) (Info a))
 
   loop :
        (vals   : SnocList a)
