@@ -24,40 +24,42 @@ split x y =
         False => (NE ry y.tgts,ei,NE rx x.tgts)
 
 insertEdge : NEdges -> NEdge -> NEdges
-insertEdge []           x     = [x]
+insertEdge []           x     = if isEmpty x.rule then [] else [x]
 insertEdge es@(y :: ys) x     =
-  case x.tgts == y.tgts of
-    False => case overlap x.rule y.rule of
-      False => case x.rule < y.rule of
-        True  => prep x es
-        False => y :: insertEdge ys x
-      True  =>
-        let (ex,ei,ey) := split x y
-         in prep ex . prep ei $ insertEdge ys ey
+  case isEmpty x.rule of
+    True  => es
+    False => case x.tgts == y.tgts of
+      False => case overlap x.rule y.rule of
+        False => case x.rule < y.rule of
+          True  => prep x es
+          False => y :: insertEdge ys x
+        True  =>
+          let (ex,ei,ey) := split x y
+           in prep ex . prep ei $ insertEdge ys ey
 
-    -- They share the same targets. We try and build one large range
-    -- from the two.
-    True  => case adjacent x.rule y.rule of
-      False => case x.rule < y.rule of
-        True  => prep x es
-        False => y :: insertEdge ys x
-      True  => NE (span x.rule y.rule) x.tgts :: ys
+      -- They share the same targets. We try and build one large range
+      -- from the two.
+      True  => case overlap x.rule y.rule || adjacent x.rule y.rule of
+        False => case x.rule < y.rule of
+          True  => prep x es
+          False => y :: insertEdge ys x
+        True  => NE (span x.rule y.rule) x.tgts :: ys
 
 outUnion : NEdges -> NEdges -> NEdges
 outUnion xs ys = foldl insertEdge ys xs
 
 export
-joinNNode : NNode a -> NNode a -> NNode a
-joinNNode x y = NN x.pos (aunion x.acc y.acc) (outUnion x.out y.out)
+joinNNode : NNode -> NNode -> NNode
+joinNNode x y = NN x.pos (sunion x.acc y.acc) (outUnion x.out y.out)
 
 fromEdge : Edge -> NEdge
 fromEdge (E r t) = (NE r [t])
 
-fromENode : Nat -> ENode a -> NNode a
+fromENode : Nat -> ENode -> NNode
 fromENode n x = NN n x.acc $ map fromEdge x.out
 
 covering
-eclosure : Nat -> Norm a (NNode a)
+eclosure : Nat -> Norm a NNode
 eclosure x = do
   Nothing <- lookupNNode x | Just v => pure v
   n       <- getENode x
@@ -67,11 +69,11 @@ eclosure x = do
   pure nn
 
 covering
-closures : EGraph a -> Norm a ()
+closures : EGraph -> Norm a ()
 closures g = ignore $ for (keys g) eclosure
 
 export covering
-toNFA : TokenMap a -> (adj : Set32 -> RExp8 True) -> Norm a (NGraph a)
+toNFA : TokenMap a -> (adj : Set32 -> RExp8 True) -> Norm a NGraph
 toNFA xs f = do
   toENFA xs f >>= closures
   modify {ngraph $= connectedComponent nchildren 0}

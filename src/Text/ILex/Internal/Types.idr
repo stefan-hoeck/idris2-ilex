@@ -29,35 +29,6 @@ export %inline
 sunion : NSet -> NSet -> NSet
 sunion = union_ [<]
 
-public export
-record Acc a where
-  constructor A
-  tgt  : Nat
-  conv : Conv a
-
-%runElab deriveIndexed "Acc" [Show]
-
-export
-Eq (Acc a) where
-  A t1 c1 == A t2 c2 = t1 == t2 && c1 == c2
-
-public export
-0 Accs : Type -> Type
-Accs = List . Acc
-
-aunion_ : SnocList (Acc a) -> Accs a -> Accs a -> Accs a
-aunion_ sx l@(x::xs) r@(y::ys) =
-  case compare x.tgt y.tgt of
-    LT => aunion_ (sx:<x) xs r
-    GT => aunion_ (sx:<y) l  ys
-    EQ => aunion_ (sx:<x) xs ys
-aunion_ sx [] ys = sx <>> ys
-aunion_ sx xs [] = sx <>> xs
-
-export %inline
-aunion : Accs a -> Accs a -> Accs a
-aunion = aunion_ [<]
-
 --------------------------------------------------------------------------------
 -- Call Graphs
 --------------------------------------------------------------------------------
@@ -80,17 +51,17 @@ public export
 Edges = List Edge
 
 public export
-record ENode a where
+record ENode where
   constructor EN
-  acc : Accs a
+  acc : List Nat
   eps : List Nat
   out : Edges
 
 %runElab deriveIndexed "ENode" [Show]
 
 public export
-0 EGraph : Type -> Type
-EGraph = SortedMap Nat . ENode
+0 EGraph : Type
+EGraph = SortedMap Nat ENode
 
 ||| A transformation pointing from one node to a set
 ||| of others
@@ -111,38 +82,38 @@ public export
 NEdges = List NEdge
 
 public export
-record NNode a where
+record NNode where
   constructor NN
   pos : Nat
-  acc : Accs a
+  acc : List Nat
   out : NEdges
 
 %runElab deriveIndexed "NNode" [Show]
 
 export
-nchildren : NNode a -> List Nat
+nchildren : NNode -> List Nat
 nchildren (NN _ _ out) = out >>= tgts
 
 public export
-0 NGraph : Type -> Type
-NGraph = SortedMap Nat . NNode
+0 NGraph : Type
+NGraph = SortedMap Nat NNode
 
 public export
-record Node a where
+record Node where
   constructor N
   pos : Nat
-  acc : Accs a
+  acc : List Nat
   out : Edges
 
 %runElab deriveIndexed "Node" [Show]
 
 export
-children : Node a -> List Nat
+children : Node -> List Nat
 children n = tgt <$> n.out
 
 public export
-0 Graph : Type -> Type
-Graph = SortedMap Nat . Node
+0 Graph : Type
+Graph = SortedMap Nat Node
 
 --------------------------------------------------------------------------------
 -- Utilities
@@ -162,10 +133,11 @@ safeLookup n g =
 public export
 record NormState a where
   constructor ST
+  accs   : SortedMap Nat (Conv a)
   sets   : SortedMap NSet Nat
-  egraph : EGraph a
-  ngraph : NGraph a
-  graph  : Graph a
+  egraph : EGraph
+  ngraph : NGraph
+  graph  : Graph
   cur    : Nat
 
 public export
@@ -191,48 +163,54 @@ lookupSet : NSet -> Norm a (Maybe Nat)
 lookupSet set = lookup set . sets <$> get
 
 export
-insertENode : Nat -> ENode a -> Norm a Nat
+insertENode : Nat -> ENode -> Norm a Nat
 insertENode k n = modify {egraph $= insert k n} $> k
 
 export
-createENode : ENode a -> Norm a Nat
+insertTerminal : (Nat,t,Conv a) -> Norm a ()
+insertTerminal (k,_,c) = do
+  _ <- insertENode k (EN [k] [] [])
+  modify {accs $= insert k c}
+
+export
+createENode : ENode -> Norm a Nat
 createENode n = inc >>= (`insertENode` n)
 
 export
-lookupENode : Nat -> Norm a (Maybe $ ENode a)
+lookupENode : Nat -> Norm a (Maybe ENode)
 lookupENode n = lookup n . egraph <$> get
 
 export
-getENode : Nat -> Norm a (ENode a)
+getENode : Nat -> Norm a ENode
 getENode n = safeLookup n . egraph <$> get
 
 export
-insertNNode : Nat -> NNode a -> Norm a ()
+insertNNode : Nat -> NNode -> Norm a ()
 insertNNode k n = modify {ngraph $= insert k n}
 
 export
-lookupNNode : Nat -> Norm a (Maybe $ NNode a)
+lookupNNode : Nat -> Norm a (Maybe NNode)
 lookupNNode n = lookup n . ngraph <$> get
 
 export
-getNNode : Nat -> Norm a (NNode a)
+getNNode : Nat -> Norm a NNode
 getNNode n = safeLookup n . ngraph <$> get
 
 export
-insertNode : Nat -> Node a -> Norm a ()
+insertNode : Nat -> Node -> Norm a ()
 insertNode k n = modify {graph $= insert k n}
 
 export
-lookupNode : Nat -> Norm a (Maybe $ Node a)
+lookupNode : Nat -> Norm a (Maybe Node)
 lookupNode n = lookup n . graph <$> get
 
 export
-getNode : Nat -> Norm a (Node a)
+getNode : Nat -> Norm a Node
 getNode n = safeLookup n . graph <$> get
 
 export
 runNorm : Norm a b -> (NormState a, b)
-runNorm = runState (ST empty empty empty empty 1)
+runNorm = runState (ST empty empty empty empty empty 1)
 
 export
 evalNorm : Norm a b -> b

@@ -17,6 +17,8 @@ modules = Text.ILex
         , Text.ILex.Char.Set
         , Text.ILex.Char.UTF8
 
+        , Text.ILex.Codegen
+
         , Text.ILex.Internal.DFA
         , Text.ILex.Internal.ENFA
         , Text.ILex.Internal.NFA

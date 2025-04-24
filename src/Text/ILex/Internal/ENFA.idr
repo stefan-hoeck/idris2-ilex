@@ -60,10 +60,10 @@ enfa (Star x)  tgt = do
 
 ||| Compiles an expression to a graph with epsilon transitions
 export
-toENFA : TokenMap a -> (adj : Set32 -> RExp8 True) -> Norm a (EGraph a)
+toENFA : TokenMap a -> (adj : Set32 -> RExp8 True) -> Norm a EGraph
 toENFA rs f = do
   ps <- traverse (\x => (,x) <$> inc) rs
-  for_ ps $ \(n,r,c) => ignore $ insertENode n (EN [A n c] [] [])
+  for_ ps insertTerminal
   ts <- traverse (\(n,r,c) => enfa (adjRanges f r) n) ps
   ignore $ insertENode 0 (EN [] ts [])
   st <- get

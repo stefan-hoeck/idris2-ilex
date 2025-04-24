@@ -40,10 +40,6 @@ Pretty (Conv a) where
   prettyPrec p (Len v1)   = line "Len"   <+> colon <+> pretty v1
 
 export
-Pretty (Acc a) where
-  prettyPrec p (A tgt c) = line (show tgt) <+> colon <+> pretty c
-
-export
 Pretty Range8 where
   prettyPrec p r =
     let l := lowerBound r
@@ -58,10 +54,10 @@ prettyEdge : {d : _} -> Edge -> Doc d
 prettyEdge (E r tgt) = pretty r <+> colon <++> line (show tgt)
 
 export
-prettyENode : {d : _} -> (Nat,ENode a) -> Doc d
+prettyENode : {d : _} -> (Nat,ENode) -> Doc d
 prettyENode (n, EN accs eps ds) =
   appLst (line "Node" <++> pretty n)
-    [ line   "acc:      " <+> prettyNats (map tgt accs)
+    [ line   "acc:      " <+> prettyNats accs
     , line   "eps:      " <+> prettyNats eps
     , strLst "deltas:   " (map prettyEdge ds)
     ]
@@ -71,44 +67,69 @@ prettyNEdge : {d : _} -> NEdge -> Doc d
 prettyNEdge (NE r tgts) = pretty r <+> colon <++> line (show tgts)
 
 export
-prettyNNode : {d : _} -> (Nat,NNode a) -> Doc d
+prettyNNode : {d : _} -> (Nat,NNode) -> Doc d
 prettyNNode (n, NN _ accs ds) =
   appLst (line "Node" <++> pretty n)
-    [ line   "acc:      " <+> prettyNats (map tgt accs)
+    [ line   "acc:      " <+> prettyNats accs
     , strLst "deltas:   " (map prettyNEdge ds)
     ]
 
 export
-prettyNode : {d : _} -> (Nat,Node a) -> Doc d
+prettyNode : {d : _} -> (Nat,Node) -> Doc d
 prettyNode (n, N _ acc ds) =
   appLst (line "Node" <++> pretty n)
-    [ line   "acc:      " <+> prettyNats (map tgt acc)
+    [ line   "acc:      " <+> prettyNats acc
     , strLst "deltas:   " (map prettyEdge ds)
     ]
 
 export
-Pretty (EGraph a) where
+Pretty EGraph where
   prettyPrec p g =
     strLst "graph:" (map prettyENode $ SortedMap.toList g)
 
 export
-Pretty (NGraph a) where
+Pretty NGraph where
   prettyPrec p g =
     strLst "graph:" (map prettyNNode $ SortedMap.toList g)
 
 export
-Pretty (Graph a) where
+Pretty Graph where
   prettyPrec p g =
     strLst "graph:" (map prettyNode $ SortedMap.toList g)
 
+public export
+record Machine a b where
+  constructor M
+  terminals : SortedMap Nat (Conv a)
+  graph     : b
+
+terminal : {d : _} -> (Nat, Conv a) -> Doc d
+terminal (n,c) = line (show n) <+> colon <++> pretty c
+
+export
+Pretty b => Pretty (Machine a b) where
+  prettyPrec p (M sm g) =
+    vsep
+      [ appLst (line "Terminals") (map terminal $ SortedMap.toList sm)
+      , pretty g
+      ]
+
+export
+machine : Norm a b -> Machine a b
+machine grph =
+  evalNorm $ do
+    g  <- grph
+    st <- get
+    pure $ M st.accs g
+
 export covering
 prettyENFA : TokenMap a -> IO ()
-prettyENFA tm = putPretty $ evalNorm $ toENFA tm toByteRanges
+prettyENFA tm = putPretty $ machine $ toENFA tm toByteRanges
 
 export covering
 prettyNFA : TokenMap a -> IO ()
-prettyNFA tm = putPretty $ evalNorm $ toNFA tm toByteRanges
+prettyNFA tm = putPretty $ machine $ toNFA tm toByteRanges
 
 export covering
 prettyDFA : TokenMap a -> IO ()
-prettyDFA tm = putPretty $ evalNorm $ toDFA tm toByteRanges
+prettyDFA tm = putPretty $ machine $ toDFA tm toByteRanges

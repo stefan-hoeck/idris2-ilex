@@ -46,22 +46,22 @@ process sx (NE r ts :: xs) = do
           process (sx:<E r t) xs
 
 covering
-nodes : NGraph a -> Norm a ()
+nodes : NGraph -> Norm a ()
 nodes g = for_ (keys g) discrete
 
-normalize : Graph a -> Graph a
+normalize : Graph -> Graph
 normalize g =
   let nm := SM.fromList . map swap $ zipWithIndex (keys g)
    in  SM.fromList . map (translate nm) $ SM.toList g
 
   where
-    translate : SortedMap Nat Nat -> (Nat,Node a) -> (Nat,Node a)
+    translate : SortedMap Nat Nat -> (Nat,Node) -> (Nat,Node)
     translate m (x, N pos acc out) =
       let tx   := safeLookup x m
        in (tx, N tx acc $ map {tgt $= (`safeLookup` m)} out)
 
 export covering
-toDFA : TokenMap a -> (adj : Set32 -> RExp8 True) -> Norm a (Graph a)
+toDFA : TokenMap a -> (adj : Set32 -> RExp8 True) -> Norm a Graph
 toDFA xs f = do
   toNFA xs f >>= nodes
   ng <- map ngraph get

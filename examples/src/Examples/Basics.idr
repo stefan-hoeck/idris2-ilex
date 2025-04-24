@@ -30,3 +30,13 @@ expr =
   , (')', const PC)
   , (spaces, Ignore)
   ]
+
+identifier : RExp True
+identifier = plus $ alphaNum <|> '_'
+
+export
+ident : TokenMap Ident
+ident =
+  [ ("else" >> opt identifier, const Else)
+  , (identifier, bytes Id)
+  ]

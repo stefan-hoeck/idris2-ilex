@@ -25,3 +25,10 @@ data Expr : Type where
 
 export
 toNat : ByteString -> Expr
+
+public export
+data Ident : Type where
+  Id   : ByteString -> Ident
+  Else : Ident
+
+%runElab derive "Ident" [Show,Eq]
