@@ -26,4 +26,5 @@ modules = Text.ILex
 
         , Text.ILex.Debug
         , Text.ILex.RExp
+        , Text.ILex.Runner
         , Text.ILex.Val
