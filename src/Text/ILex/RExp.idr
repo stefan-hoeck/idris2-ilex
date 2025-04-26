@@ -56,16 +56,12 @@ data Conv : Type -> Type where
   Ignore : Conv a
   Const  : Val a -> Conv a
   Txt    : Val (ByteString -> a) -> Conv a
-  Chr    : Val (Bits8 -> a) -> Conv a
-  Len    : Val (Nat -> a) -> Conv a
 
 export
 Eq (Conv a) where
   Ignore   == Ignore   = True
   Const v1 == Const v2 = v1 == v2
   Txt   v1 == Txt v2   = v1 == v2
-  Len   v1 == Len v2   = v1 == v2
-  Chr   v1 == Chr v2   = v1 == v2
   _        == _        = False
 
 export
@@ -73,8 +69,6 @@ Show (Conv a) where
   showPrec p Ignore    = "Ignore"
   showPrec p (Const x) = showCon p "Const" (showArg x)
   showPrec p (Txt x)   = showCon p "Txt" (showArg x)
-  showPrec p (Len x)   = showCon p "Len" (showArg x)
-  showPrec p (Chr x)   = showCon p "Chr" (showArg x)
 
 export %macro
 const : (0 x : a) -> Elab (Conv a)
@@ -87,18 +81,6 @@ bytes : (0 x : ByteString -> a) -> Elab (Conv a)
 bytes x = do
   v <- lift x
   pure (Txt v)
-
-export %macro
-char : (0 x : Bits8 -> a) -> Elab (Conv a)
-char x = do
-  v <- lift x
-  pure (Chr v)
-
-export %macro
-count : (0 x : Nat -> a) -> Elab (Conv a)
-count x = do
-  v <- lift x
-  pure (Len v)
 
 public export
 0 TokenMap : Type -> Type

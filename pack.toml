@@ -17,3 +17,9 @@ ipkg = "ilex-examples.ipkg"
 type = "local"
 path = "profile"
 ipkg = "profile.ipkg"
+
+[custom.all.bytestring]
+type   = "github"
+url    = "https://github.com/stefan-hoeck/idris2-bytestring"
+commit = "latest:main"
+ipkg   = "bytestring.ipkg"

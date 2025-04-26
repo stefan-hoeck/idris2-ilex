@@ -36,8 +36,6 @@ Pretty (Conv a) where
   prettyPrec p Ignore     = line "Ignore"
   prettyPrec p (Const v1) = line "Const" <+> colon <+> pretty v1
   prettyPrec p (Txt v1)   = line "Txt"   <+> colon <+> pretty v1
-  prettyPrec p (Chr v1)   = line "Chr"   <+> colon <+> pretty v1
-  prettyPrec p (Len v1)   = line "Len"   <+> colon <+> pretty v1
 
 export
 Pretty Range8 where
