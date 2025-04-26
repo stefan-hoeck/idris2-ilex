@@ -2,8 +2,9 @@ package ilex-profile
 version = 0.1.0
 authors = "stefan-hoeck"
 langversion >= 0.7
-depends = ilex
+depends = ilex-examples
         , profiler
+        , parser-json
 
 sourcedir = "src"
 

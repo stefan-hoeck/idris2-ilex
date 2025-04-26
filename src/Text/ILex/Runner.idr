@@ -1,16 +1,24 @@
 module Text.ILex.Runner
 
 import public Data.ByteString
-import Data.Array.Core
-import Data.Array.Indexed
+import public Data.Array.Core
+import public Data.Array.Indexed
+import public Data.Vect
+
 import Data.Buffer
 import Data.Buffer.Core
 import Data.Buffer.Indexed
-import Data.Vect
 import Derive.Prelude
 
 %default total
 %language ElabReflection
+
+export
+fromIPairs : (n : _) -> List (Bits8,Integer) -> IArray 256 (Fin (S n))
+fromIPairs n = fromPairs 256 0 . mapMaybe adj
+  where
+    adj : (Bits8,Integer) -> Maybe (Nat, Fin (S n))
+    adj (x,y) = (cast x,) <$> tryNatToFin (cast y)
 
 public export
 data Info : Type -> Type where

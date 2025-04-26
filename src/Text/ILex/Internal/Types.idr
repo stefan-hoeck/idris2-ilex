@@ -43,6 +43,16 @@ record Edge where
   ||| The target of the given rule
   tgt  : Nat
 
+export
+transitions : Edge -> List (Bits8,Nat)
+transitions (E rule tgt) =
+  let l := lowerBound rule
+      u := upperBound rule
+   in case compare l u of
+        LT => (,tgt) <$> [l..u]
+        EQ => [(l,tgt)]
+        GT => []
+
 %runElab derive "Edge" [Show,Eq]
 
 ||| State transitions in a finite, discrete automaton
@@ -215,3 +225,23 @@ runNorm = runState (ST empty empty empty empty empty 1)
 export
 evalNorm : Norm a b -> b
 evalNorm = snd . runNorm
+
+||| A finite state machine with terminal states and
+||| a graph representation for the state transitions.
+|||
+||| State 0 is the initial state.
+public export
+record Machine a b where
+  constructor M
+  terminals : SortedMap Nat (Conv a)
+  graph     : b
+
+||| Evaluate a state normalizer and return the resulting
+||| machine.
+export
+machine : Norm a b -> Machine a b
+machine grph =
+  evalNorm $ do
+    g  <- grph
+    st <- get
+    pure $ M st.accs g

@@ -52,13 +52,14 @@ nodes g = for_ (keys g) discrete
 normalize : Graph -> Graph
 normalize g =
   let nm := SM.fromList . map swap $ zipWithIndex (keys g)
-   in  SM.fromList . map (translate nm) $ SM.toList g
+   in SM.fromList . map (translate nm) $ SM.toList g
 
   where
     translate : SortedMap Nat Nat -> (Nat,Node) -> (Nat,Node)
     translate m (x, N pos acc out) =
-      let tx   := safeLookup x m
-       in (tx, N tx acc $ map {tgt $= (`safeLookup` m)} out)
+      let x2   := safeLookup x m
+          out2 := map {tgt $= (`safeLookup` m)} out
+       in (x2, N x2 acc out2)
 
 export covering
 toDFA : TokenMap a -> (adj : Set32 -> RExp8 True) -> Norm a Graph

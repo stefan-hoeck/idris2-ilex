@@ -95,12 +95,6 @@ Pretty Graph where
   prettyPrec p g =
     strLst "graph:" (map prettyNode $ SortedMap.toList g)
 
-public export
-record Machine a b where
-  constructor M
-  terminals : SortedMap Nat (Conv a)
-  graph     : b
-
 terminal : {d : _} -> (Nat, Conv a) -> Doc d
 terminal (n,c) = line (show n) <+> colon <++> pretty c
 
@@ -111,14 +105,6 @@ Pretty b => Pretty (Machine a b) where
       [ appLst (line "Terminals") (map terminal $ SortedMap.toList sm)
       , pretty g
       ]
-
-export
-machine : Norm a b -> Machine a b
-machine grph =
-  evalNorm $ do
-    g  <- grph
-    st <- get
-    pure $ M st.accs g
 
 export covering
 prettyENFA : TokenMap a -> IO ()
