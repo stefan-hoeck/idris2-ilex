@@ -32,16 +32,17 @@ extraBS = (_ ** fromString extra)
 lexBS : (n ** IBuffer n) -> Either (Nat,Bits8) (List Examples.Types.JSON)
 lexBS (n ** buf) = lex json buf
 
-export
+-- This profiles our JSON lexer against the one from parser-json
+-- to know what we are up against.
 bench : Benchmark Void
 bench = Group "Chem.AtomTypes" [
     Single "short"      (basic lexBS shortBS)
   , Single "long"       (basic lexBS longBS)
   , Single "extra"      (basic lexBS extraBS)
---   , Single "short lex"  (basic lexJSON short)
---   , Single "long lex"   (basic lexJSON long)
---   , Single "extra lex"  (basic lexJSON extra)
---   , Single "short prs"  (basic (parseJSON Virtual) short)
+  , Single "short lex"  (basic lexJSON short)
+  , Single "long lex"   (basic lexJSON long)
+  , Single "extra lex"  (basic lexJSON extra)
+  , Single "short prs"  (basic (parseJSON Virtual) short)
   ]
 
 main : IO ()
