@@ -32,12 +32,6 @@ prettyNats [n]     = line (show n)
 prettyNats (n::ns) = line (show n) <+> comma <+> prettyNats ns
 
 export
-Pretty (Conv a) where
-  prettyPrec p Ignore     = line "Ignore"
-  prettyPrec p (Const v1) = line "Const" <+> colon <+> pretty v1
-  prettyPrec p (Txt v1)   = line "Txt"   <+> colon <+> pretty v1
-
-export
 Pretty Range8 where
   prettyPrec p r =
     let l := lowerBound r
@@ -95,11 +89,11 @@ Pretty Graph where
   prettyPrec p g =
     strLst "graph:" (map prettyNode $ SortedMap.toList g)
 
-terminal : {d : _} -> (Nat, Conv a) -> Doc d
+terminal : Pretty a => {d : _} -> (Nat, a) -> Doc d
 terminal (n,c) = line (show n) <+> colon <++> pretty c
 
 export
-Pretty b => Pretty (Machine a b) where
+Pretty a => Pretty b => Pretty (Machine a b) where
   prettyPrec p (M sm g) =
     vsep
       [ appLst (line "Terminals") (map terminal $ SortedMap.toList sm)
@@ -107,13 +101,13 @@ Pretty b => Pretty (Machine a b) where
       ]
 
 export covering
-prettyENFA : TokenMap a -> IO ()
+prettyENFA : Pretty a => TokenMap a -> IO ()
 prettyENFA tm = putPretty $ machine $ toENFA tm toByteRanges
 
 export covering
-prettyNFA : TokenMap a -> IO ()
+prettyNFA : Pretty a => TokenMap a -> IO ()
 prettyNFA tm = putPretty $ machine $ toNFA tm toByteRanges
 
 export covering
-prettyDFA : TokenMap a -> IO ()
+prettyDFA : Pretty a => TokenMap a -> IO ()
 prettyDFA tm = putPretty $ machine $ toDFA tm toByteRanges

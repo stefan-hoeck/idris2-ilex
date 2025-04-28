@@ -20,7 +20,7 @@ export covering
 gencode :
      {auto tt  : ToType a}
   -> (name     : String)
-  -> (tm       : TokenMap a)
+  -> (tm       : TokenMap (Val $ Conv a))
   -> {auto 0 p : NonEmpty tm}
   -> List String
 
@@ -28,18 +28,10 @@ gencode :
 -- Implementation
 --------------------------------------------------------------------------------
 
-toVal : Conv a -> Value
-toVal Ignore    = "Ignore"
-toVal (Const x) = VApp "Const" x.val
-toVal (Txt x)   = VApp "Txt" x.val
+pair : (Nat, Val $ Conv a) -> String
+pair (n,v) = "(\{show n}, \{v.val})"
 
-Interpolation (Conv a) where
-  interpolate c = interpolate (VApp "Just" $ toVal c)
-
-pair : (Nat, Conv a) -> String
-pair (n,v) = "(\{show n}, \{v})"
-
-terminals : ToType a => Nat -> List (Nat, Conv a) -> List String
+terminals : ToType a => Nat -> List (Nat, Val $ Conv a) -> List String
 terminals size ps =
   let infTpe := App "Maybe" (App "Info" $ tpeof a)
       arrTpe := App (App "IArray" $ Plain (show size)) infTpe
@@ -56,7 +48,7 @@ terminals size ps =
 node : Nat -> Node -> String
 node n (N _ acc out) = "fromIPairs \{show n} " ++ show (out >>= transitions)
 
-term : SortedMap Nat (Conv a) -> Node -> Maybe (Nat,Conv a)
+term : SortedMap Nat (Val $ Conv a) -> Node -> Maybe (Nat,Val $ Conv a)
 term m (N _ []     _) = Nothing
 term m (N n (t::_) _) = (n,) <$> lookup t m
 

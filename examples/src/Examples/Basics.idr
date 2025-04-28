@@ -19,11 +19,11 @@ ToType AorB where
   toType_ = TO "AorB"
 
 export
-aOrB : TokenMap AorB
+aOrB : TokenMap (Val $ Conv AorB)
 aOrB =
   [ (plus ('A' <|> 'a'), const A)
   , (plus ('B' <|> 'b'), const B)
-  , (spaces, Ignore)
+  , (spaces, ignore)
   ]
 
 export
@@ -31,14 +31,14 @@ ToType Expr where
   toType_ = TO "Expr"
 
 export
-expr : TokenMap Expr
+expr : TokenMap (Val $ Conv Expr)
 expr =
   [ (natural, bytes toNat)
   , ('+', const Plus)
   , ('*', const Mult)
   , ('(', const PO)
   , (')', const PC)
-  , (spaces, Ignore)
+  , (spaces, ignore)
   ]
 
 identifier : RExp True
@@ -49,11 +49,11 @@ ToType Ident where
   toType_ = TO "Ident"
 
 export
-ident : TokenMap Ident
+ident : TokenMap (Val $ Conv Ident)
 ident =
   [ ("else", const Else)
   , (identifier, bytes (Id . toString))
-  , (spaces, Ignore)
+  , (spaces, ignore)
   ]
 
 export
@@ -73,7 +73,7 @@ jstr = '"' >> star (chr <|> esc <|> uni) >> '"'
     uni = "\\u" >> hexdigit >> hexdigit >> hexdigit >> hexdigit
 
 export
-json : TokenMap JSON
+json : TokenMap (Val $ Conv JSON)
 json =
   [ ("null",  const Null)
   , ("true",  const (JBool True))
@@ -87,5 +87,5 @@ json =
   , (jstr,    bytes (JStr . toString))
   , (decimal, bytes (JInt . decNat))
   , ('-' >> decimal, bytes (JInt . negate . decNat))
-  , (spaces,  Ignore)
+  , (spaces,  ignore)
   ]

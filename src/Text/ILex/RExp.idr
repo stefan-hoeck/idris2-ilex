@@ -54,37 +54,28 @@ adjRanges f (Star x)  = Star (adjRanges f x)
 public export
 data Conv : Type -> Type where
   Ignore : Conv a
-  Const  : Val a -> Conv a
-  Txt    : Val (ByteString -> a) -> Conv a
-
-export
-Eq (Conv a) where
-  Ignore   == Ignore   = True
-  Const v1 == Const v2 = v1 == v2
-  Txt   v1 == Txt v2   = v1 == v2
-  _        == _        = False
-
-export
-Show (Conv a) where
-  showPrec p Ignore    = "Ignore"
-  showPrec p (Const x) = showCon p "Const" (showArg x)
-  showPrec p (Txt x)   = showCon p "Txt" (showArg x)
+  Const  : a -> Conv a
+  Txt    : (ByteString -> a) -> Conv a
 
 export %macro
-const : (0 x : a) -> Elab (Conv a)
+const : (0 x : a) -> Elab (Val $ Conv a)
 const x = do
-  v <- lift x
-  pure (Const v)
+  V t v <- lift x
+  pure (V (TO $ App "Conv" t.tpe) $ VApp "Const" v)
 
 export %macro
-bytes : (0 x : ByteString -> a) -> Elab (Conv a)
+bytes : (0 x : ByteString -> a) -> Elab (Val $ Conv a)
 bytes x = do
-  v <- lift x
-  pure (Txt v)
+  V t v <- lift x
+  pure (V (TO $ App "Conv" t.tpe) $ VApp "Txt" v)
+
+export
+ignore :  ToType a => Val (Conv a)
+ignore = V (TO $ App "Conv" (tpeof a)) "Ignore"
 
 public export
 0 TokenMap : Type -> Type
-TokenMap a = List (RExp True, Conv a)
+TokenMap a = List (RExp True, a)
 
 --------------------------------------------------------------------------------
 -- Utilities

@@ -143,7 +143,7 @@ safeLookup n g =
 public export
 record NormState a where
   constructor ST
-  accs   : SortedMap Nat (Conv a)
+  accs   : SortedMap Nat a
   sets   : SortedMap NSet Nat
   egraph : EGraph
   ngraph : NGraph
@@ -177,7 +177,7 @@ insertENode : Nat -> ENode -> Norm a Nat
 insertENode k n = modify {egraph $= insert k n} $> k
 
 export
-insertTerminal : (Nat,t,Conv a) -> Norm a ()
+insertTerminal : (Nat,t,a) -> Norm a ()
 insertTerminal (k,_,c) = do
   _ <- insertENode k (EN [k] [] [])
   modify {accs $= insert k c}
@@ -233,7 +233,7 @@ evalNorm = snd . runNorm
 public export
 record Machine a b where
   constructor M
-  terminals : SortedMap Nat (Conv a)
+  terminals : SortedMap Nat a
   graph     : b
 
 ||| Evaluate a state normalizer and return the resulting
