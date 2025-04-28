@@ -1,13 +1,9 @@
 module Examples.Basics
 
-import Data.ByteString
-import Data.List
 import Examples.Types
-import Language.Reflection
 
-import Text.ILex.Codegen
+import Text.ILex.Runner
 import Text.ILex.Debug
-import Text.ILex.RExp
 
 %default total
 
@@ -15,50 +11,36 @@ spaces : RExp True
 spaces = plus (oneof [' ', '\n', '\r', '\t'])
 
 export
-ToType AorB where
-  toType_ = TO "AorB"
-
-export
-aOrB : TokenMap (Val $ Conv AorB)
+aOrB : Lexer AorB
 aOrB =
-  [ (plus ('A' <|> 'a'), const A)
-  , (plus ('B' <|> 'b'), const B)
-  , (spaces, ignore)
-  ]
+  lexer
+    [ (plus ('A' <|> 'a'), Const A)
+    , (plus ('B' <|> 'b'), Const B)
+    , (spaces, Ignore)
+    ]
 
 export
-ToType Expr where
-  toType_ = TO "Expr"
-
-export
-expr : TokenMap (Val $ Conv Expr)
+expr : TokenMap (Conv Expr)
 expr =
-  [ (natural, bytes toNat)
-  , ('+', const Plus)
-  , ('*', const Mult)
-  , ('(', const PO)
-  , (')', const PC)
-  , (spaces, ignore)
+  [ (natural, Txt toNat)
+  , ('+', Const Plus)
+  , ('*', Const Mult)
+  , ('(', Const PO)
+  , (')', Const PC)
+  , (spaces, Ignore)
   ]
 
 identifier : RExp True
 identifier = plus $ alphaNum <|> '_'
 
 export
-ToType Ident where
-  toType_ = TO "Ident"
-
-export
-ident : TokenMap (Val $ Conv Ident)
+ident : Lexer Ident
 ident =
-  [ ("else", const Else)
-  , (identifier, bytes (Id . toString))
-  , (spaces, ignore)
-  ]
-
-export
-ToType JSON where
-  toType_ = TO "JSON"
+  lexer
+    [ ("else", Const Else)
+    , (identifier, Txt (Id . toString))
+    , (spaces, Ignore)
+    ]
 
 jstr : RExp True
 jstr = '"' >> star (chr <|> esc <|> uni) >> '"'
@@ -73,19 +55,20 @@ jstr = '"' >> star (chr <|> esc <|> uni) >> '"'
     uni = "\\u" >> hexdigit >> hexdigit >> hexdigit >> hexdigit
 
 export
-json : TokenMap (Val $ Conv JSON)
+json : Lexer JSON
 json =
-  [ ("null",  const Null)
-  , ("true",  const (JBool True))
-  , ("false", const (JBool False))
-  , ('{',     const JPO)
-  , ('}',     const JPC)
-  , ('[',     const JBO)
-  , (']',     const JBC)
-  , (',',     const JComma)
-  , (':',     const JColon)
-  , (jstr,    bytes (JStr . toString))
-  , (decimal, bytes (JInt . decNat))
-  , ('-' >> decimal, bytes (JInt . negate . decNat))
-  , (spaces,  ignore)
-  ]
+  lexer
+    [ ("null",  Const Null)
+    , ("true",  Const (JBool True))
+    , ("false", Const (JBool False))
+    , ('{',     Const JPO)
+    , ('}',     Const JPC)
+    , ('[',     Const JBO)
+    , (']',     Const JBC)
+    , (',',     Const JComma)
+    , (':',     Const JColon)
+    , (jstr,    Txt (JStr . toString))
+    , (decimal, Txt (JInt . decNat))
+    , ('-' >> decimal, Txt (JInt . negate . decNat))
+    , (spaces,  Ignore)
+    ]

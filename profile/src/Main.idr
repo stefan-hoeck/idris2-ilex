@@ -4,46 +4,48 @@ import JSON.Parser
 import Data.Buffer
 import Data.ByteString
 import Data.List
-import Examples.Generated
+import Examples.Basics
 import Examples.Types
 import Profile
 import Text.ILex.Runner
 
 %default total
 
-short : String
-short = #"{"Add":{"id":98,"pth":{"PBio":{"path":[1060,186,57]}},"ed":{"name":"Raw Data","path":"Assay_005_MMP-14_SP.xls","comment":"","tags":[],"projects":[7],"created":1528797970229,"modified":{"timestamp":1528797970229,"id":5}}}}"#
+parameters (js : Lexer Types.JSON)
 
-long : String
-long = fastConcat $ replicate 10 short
+  short : String
+  short = #"{"Add":{"id":98,"pth":{"PBio":{"path":[1060,186,57]}},"ed":{"name":"Raw Data","path":"Assay_005_MMP-14_SP.xls","comment":"","tags":[],"projects":[7],"created":1528797970229,"modified":{"timestamp":1528797970229,"id":5}}}}"#
 
-extra : String
-extra = fastConcat $ replicate 10 long
+  long : String
+  long = fastConcat $ replicate 10 short
 
-shortBS : (n ** IBuffer n)
-shortBS = (_ ** fromString short)
+  extra : String
+  extra = fastConcat $ replicate 10 long
 
-longBS : (n ** IBuffer n)
-longBS = (_ ** fromString long)
+  shortBS : (n ** IBuffer n)
+  shortBS = (_ ** fromString short)
 
-extraBS : (n ** IBuffer n)
-extraBS = (_ ** fromString extra)
+  longBS : (n ** IBuffer n)
+  longBS = (_ ** fromString long)
 
-lexBS : (n ** IBuffer n) -> Either (Nat,Bits8) (List Examples.Types.JSON)
-lexBS (n ** buf) = lex json buf
+  extraBS : (n ** IBuffer n)
+  extraBS = (_ ** fromString extra)
 
--- This profiles our JSON lexer against the one from parser-json
--- to know what we are up against.
-bench : Benchmark Void
-bench = Group "Chem.AtomTypes" [
-    Single "short"      (basic lexBS shortBS)
-  , Single "long"       (basic lexBS longBS)
-  , Single "extra"      (basic lexBS extraBS)
-  , Single "short lex"  (basic lexJSON short)
-  , Single "long lex"   (basic lexJSON long)
-  , Single "extra lex"  (basic lexJSON extra)
-  , Single "short prs"  (basic (parseJSON Virtual) short)
-  ]
+  lexBS : (n ** IBuffer n) -> Either (Nat,Bits8) (List Examples.Types.JSON)
+  lexBS (n ** buf) = lex js buf
+
+  -- This profiles our JSON lexer against the one from parser-json
+  -- to know what we are up against.
+  bench : Benchmark Void
+  bench = Group "Chem.AtomTypes" [
+      Single "short"      (basic lexBS shortBS)
+    , Single "long"       (basic lexBS longBS)
+    , Single "extra"      (basic lexBS extraBS)
+    , Single "short lex"  (basic lexJSON short)
+    , Single "long lex"   (basic lexJSON long)
+    , Single "extra lex"  (basic lexJSON extra)
+    , Single "short prs"  (basic (parseJSON Virtual) short)
+    ]
 
 main : IO ()
-main = runDefault (const True) Table show bench
+main = runDefault (Prelude.const True) Table show (bench json)
