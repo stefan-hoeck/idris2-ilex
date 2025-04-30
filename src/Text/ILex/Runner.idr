@@ -33,7 +33,7 @@ public export
 record Lexer a where
   constructor L
   states : Nat
-  next   : IArray (S states * 256) (Fin (2 * (S states) + 1))
+  next   : IArray (S states) (IArray 256 (Fin (S states)))
   term   : IArray (S states) (Maybe $ Conv a)
 
 export %inline
@@ -43,62 +43,33 @@ export
 lexString : Lexer a -> String -> Either (Nat,Bits8) (List a)
 lexString l s = lex l (fromString s)
 
---------------------------------------------------------------------------------
--- FFI and black magic
---------------------------------------------------------------------------------
-
-%foreign "scheme:(lambda (x y z) (vector-ref x (fx+ z (fx* y 256))))"
-         "javascript:lambda:(x y z) => x[Number(y) * 256 + z]"
-prim__get256 : AnyPtr -> Integer -> Bits8 -> AnyPtr
-
--- Note: The inner call to `believe_me` is based on the fact that `IArray`
---       is a newtype wrapper around raw array data. The outer call converts
---       the returned value which is guaranteed to be of the correct type.
---       It allows us to avoid adding one more (erased) argument to `prim__get256`.
-%inline
-get256 : IArray (S n * 256) a -> Fin (S n) -> Bits8 -> a
-get256 arr x byte = believe_me (prim__get256 (believe_me arr) (cast x) byte)
-
--- A node is a terminal if its last bit has been set. This avoids an
--- array lookup and pattern match on a `Maybe`.
-%inline
-isTerminal : Fin (2 * (S n) + 1) -> Integer
-isTerminal x = prim__and_Integer (cast x) 1
-
--- we get the state out by right shifting the value. Alas, this requires a
--- prim-op on `Integer`, and we'd like to avoid going from `Integer` to `Nat`
--- and use `natToFinLT`, because the cast from `Integer` to `Nat` makes sure
--- the integer is non-negative, but we know that already. So, it's
--- `believe_me` again, for the sake of performance.
-getState : Fin (2 * (S n) + 1) -> Fin (S n)
-getState n = believe_me (prim__shr_Integer (cast n) 1)
-
+-- --------------------------------------------------------------------------------
+-- -- FFI and black magic
+-- --------------------------------------------------------------------------------
+--
+-- %foreign "scheme:(lambda (x y z) (vector-ref x (fx+ z (fx* y 256))))"
+--          "javascript:lambda:(x y z) => x[Number(y) * 256 + z]"
+-- prim__get256 : AnyPtr -> Integer -> Bits8 -> AnyPtr
+--
 --------------------------------------------------------------------------------
 -- Lexer Generator
 --------------------------------------------------------------------------------
 
+emptyRow : IArray 256 (Fin (S n))
+emptyRow = fill _ 0
+
 emptyLexer : Lexer a
-emptyLexer = L 0 (fill _ 0) (fill _ Nothing)
+emptyLexer = L 0 (fill _ emptyRow) (fill _ Nothing)
 
 term : SortedMap Nat a -> Node -> Maybe (Nat, Maybe a)
 term m (N _ []     _) = Nothing
 term m (N n (t::_) _) = ((n,) . Just) <$> lookup t m
 
-pairs :
-     {n : _}
-  -> IArray (S n) (Maybe a)
-  -> Node
-  -> List (Nat, Fin (2 * (S n) + 1))
-pairs arr (N k _ out) = mapMaybe pair (out >>= transitions)
+node : {n : _} -> Node -> (Nat, IArray 256 (Fin (S n)))
+node (N k _ out) = (k, fromPairs _ 0 $ mapMaybe pair (out >>= transitions))
   where
-    termAdd : Nat -> Nat
-    termAdd k =
-      case tryNatToFin k >>= at arr of
-        Nothing => 0
-        Just _  => 1
-
-    pair : (Bits8,Nat) -> Maybe (Nat, Fin (2 * (S n) + 1))
-    pair (b,t) = (k * 256 + cast b,) <$> tryNatToFin (2 * t + termAdd t)
+    pair : (Bits8,Nat) -> Maybe (Nat, Fin (S n))
+    pair (b,t) = (cast b,) <$> tryNatToFin t
 
 export covering
 lexer : (m : TokenMap (Conv a)) -> (0 p : NonEmpty m) => Lexer a
@@ -107,7 +78,7 @@ lexer m =
       nodes       := values graph
       S len       := length nodes | 0 => emptyLexer
       terms       := fromPairs (S len) Nothing (mapMaybe (term tms) nodes)
-      trans       := fromPairs (S len * 256) 0 (nodes >>= pairs terms)
+      trans       := fromPairs (S len) emptyRow (map node nodes)
    in L len trans terms
 
 --------------------------------------------------------------------------------
@@ -117,15 +88,15 @@ lexer m =
 app :
      {n : _}
   -> SnocList a
-  -> Maybe (Conv a)
+  -> Conv a
   -> IBuffer n
   -> (from        : Nat)
   -> (0    till   : Nat)
   -> {auto ix     : Ix (S till) n}
   -> {auto 0  lte : LTE from (ixToNat ix)}
   -> SnocList a
-app sx (Just $ Const val) buf from till = sx :< val
-app sx (Just $ Txt f)     buf from till =
+app sx (Const val) buf from till = sx :< val
+app sx (Txt f)     buf from till =
   let bv := fromIBuffer buf
       bs := BS _ $ substringFromTo from (ixToNat ix) {lt = ixLT ix} bv
    in sx :< f bs
@@ -134,13 +105,13 @@ app sx _                  buf from till = sx
 parameters {0 a      : Type}
            {0 states : Nat}
            {n        : Nat}
-           (next     : IArray (S states * 256) (Fin (2 * (S states) + 1)))
+           (next     : IArray (S states) (IArray 256 (Fin (S states))))
            (term     : IArray (S states) (Maybe $ Conv a))
            (buf      : IBuffer n)
 
   covering
   inner :
-       (last        : Fin (S states))   -- last encountered terminal state
+       (last        : Maybe $ Conv a)   -- last encountered terminal state
     -> (start       : Nat)              -- start of current token
     -> (lastPos     : Nat)              -- counter for last byte in `last`
     -> {auto y      : Ix (S lastPos) n} -- end position in the byte array of `last`
@@ -162,27 +133,23 @@ parameters {0 a      : Type}
     -> Either (Nat,Bits8) (List a)
   loop vals 0     = Right (vals <>> [])
   loop vals (S k) =
-    case get256 next FZ (buf `ix` k) of
+    case (next `at` 0) `atByte` (buf `ix` k) of
       0 => Left (ixToNat x, buf `ix` k)
-      s =>
-        let st := getState s
-         in case isTerminal s of
-              1 => inner st (ixToNat x) k vals k st
-              _ => inner 0  (ixToNat x) k vals k st
+      s => inner (term `at` s) (ixToNat x) k vals k s
 
   inner last start lastPos vals 0     cur =
     case last of
-      0 => Left (ixToNat x, 0)
-      s => loop (app vals (term `at` s) buf start lastPos) lastPos
+      Nothing => Left (ixToNat x, 0)
+      Just i  => loop (app vals i buf start lastPos) lastPos
   inner last start lastPos vals (S k) cur =
-    case get256 next cur (buf `ix` k) of
-      0 => case last of
-        0 => Left (ixToNat x, buf `ix` k)
-        s => loop (app vals (term `at` s) buf start lastPos) lastPos
-      s =>
-        let st := getState s
-         in case isTerminal s of
-              1 => inner st   start k       vals k st
-              _ => inner last start lastPos vals k st
+    let arr  := next `at` cur
+        byte := ix buf k
+     in case arr `atByte` byte of
+          FZ => case last of
+            Nothing => Left (ixToNat x, buf `ix` k)
+            Just i  => loop (app vals i buf start lastPos) lastPos
+          x  => case term `at` x of
+            Nothing => inner last     start lastPos vals k x
+            Just i  => inner (Just i) start k       vals k x
 
 lex (L ss nxt t) buf = assert_total $ loop nxt t buf [<] n
