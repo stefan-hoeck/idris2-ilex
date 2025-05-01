@@ -24,7 +24,7 @@ parameters (children : a -> List Nat)
     case lookup x v of
       Just () => visit sp v xs
       Nothing =>
-        let n := safeLookup x graph
+        let Just n := lookup x graph | Nothing => visit sp v xs
          in visit (sp:<(x,n)) (insert x () v) (children n ++ xs)
 
 export

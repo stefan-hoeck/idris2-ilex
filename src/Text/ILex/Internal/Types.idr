@@ -132,13 +132,11 @@ Graph = SortedMap Nat Node
 ||| For internal use only:
 ||| Looking up a node in a graph we are certain must be there
 export
-safeLookup : Nat -> SortedMap Nat a -> a
-safeLookup n g =
+safeLookup : Nat -> Lazy a -> SortedMap Nat a -> a
+safeLookup n dflt g =
   case SortedMap.lookup n g of
     Just v  => v
-    Nothing =>
-      assert_total $ idris_crash
-        "Text.ILex.DFA.Internal.safeLookup returned Nothing"
+    Nothing => dflt
 
 public export
 record NormState a where
@@ -192,7 +190,7 @@ lookupENode n = lookup n . egraph <$> get
 
 export
 getENode : Nat -> Norm a ENode
-getENode n = safeLookup n . egraph <$> get
+getENode n = safeLookup n (EN [] [] []) . egraph <$> get
 
 export
 insertNNode : Nat -> NNode -> Norm a ()
@@ -204,7 +202,7 @@ lookupNNode n = lookup n . ngraph <$> get
 
 export
 getNNode : Nat -> Norm a NNode
-getNNode n = safeLookup n . ngraph <$> get
+getNNode n = safeLookup n (NN n [] []) . ngraph <$> get
 
 export
 insertNode : Nat -> Node -> Norm a ()
@@ -216,7 +214,7 @@ lookupNode n = lookup n . graph <$> get
 
 export
 getNode : Nat -> Norm a Node
-getNode n = safeLookup n . graph <$> get
+getNode n = safeLookup n (N n [] []) . graph <$> get
 
 export
 runNorm : Norm a b -> (NormState a, b)

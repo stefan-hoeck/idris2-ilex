@@ -57,8 +57,8 @@ normalize g =
   where
     translate : SortedMap Nat Nat -> (Nat,Node) -> (Nat,Node)
     translate m (x, N pos acc out) =
-      let x2   := safeLookup x m
-          out2 := map {tgt $= (`safeLookup` m)} out
+      let x2   := safeLookup x 0 m
+          out2 := map {tgt $= (\v => safeLookup v 0 m)} out
        in (x2, N x2 acc out2)
 
 export covering
