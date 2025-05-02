@@ -7,5 +7,4 @@ depends = ilex
 sourcedir = "src"
 
 modules = Examples.Basics
-        , Examples.Generated
         , Examples.Types

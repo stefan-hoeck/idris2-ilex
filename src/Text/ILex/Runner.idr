@@ -43,14 +43,6 @@ export
 lexString : Lexer a -> String -> Either (Nat,Bits8) (List a)
 lexString l s = lex l (fromString s)
 
--- --------------------------------------------------------------------------------
--- -- FFI and black magic
--- --------------------------------------------------------------------------------
---
--- %foreign "scheme:(lambda (x y z) (vector-ref x (fx+ z (fx* y 256))))"
---          "javascript:lambda:(x y z) => x[Number(y) * 256 + z]"
--- prim__get256 : AnyPtr -> Integer -> Bits8 -> AnyPtr
---
 --------------------------------------------------------------------------------
 -- Lexer Generator
 --------------------------------------------------------------------------------
