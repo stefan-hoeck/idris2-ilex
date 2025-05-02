@@ -1,11 +1,10 @@
-package ilex-test
+package ilex-examples
 version = 0.1.0
 authors = "stefan-hoeck"
 langversion >= 0.7
 depends = ilex
-        , hedgehog
 
 sourcedir = "src"
 
-main       = Main
-executable = "ilex-test"
+modules = Examples.Basics
+        , Examples.Types

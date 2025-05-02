@@ -1,0 +1,7 @@
+Chem.AtomTypes/short                                 1.961 μs   2.849 μs 0.999
+Chem.AtomTypes/long                                  20.00 μs   20.11 μs 0.999
+Chem.AtomTypes/extra                                 207.4 μs   209.8 μs 0.999
+Chem.AtomTypes/short lex                             4.468 μs   4.598 μs 0.999
+Chem.AtomTypes/long lex                              46.26 μs   46.47 μs 0.999
+Chem.AtomTypes/extra lex                             542.3 μs   565.0 μs 1.000
+Chem.AtomTypes/short prs                             4.768 μs   4.798 μs 0.999

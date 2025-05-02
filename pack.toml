@@ -1,6 +1,6 @@
 [install]
 
-whitelist = ["ilex-test", "ilex-profile"]
+whitelist = ["ilex-profile"]
 
 [custom.all.ilex]
 type = "local"
@@ -8,7 +8,24 @@ path = "."
 ipkg = "ilex.ipkg"
 test = "test/test.ipkg"
 
+[custom.all.ilex-examples]
+type = "local"
+path = "examples"
+ipkg = "ilex-examples.ipkg"
+
 [custom.all.ilex-profile]
 type = "local"
 path = "profile"
 ipkg = "profile.ipkg"
+
+[custom.all.array]
+type   = "github"
+url    = "https://github.com/stefan-hoeck/idris2-array"
+commit = "latest:main"
+ipkg   = "array.ipkg"
+
+[custom.all.bytestring]
+type   = "github"
+url    = "https://github.com/stefan-hoeck/idris2-bytestring"
+commit = "latest:main"
+ipkg   = "bytestring.ipkg"
