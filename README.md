@@ -18,7 +18,7 @@ import Text.ILex
 ## A basic CSV Lexer
 
 A [lexer](https://en.wikipedia.org/wiki/Lexical_analysis) cuts text
-(or a raw byte vector) into syntactically meaning full tokens. For
+(or a raw byte vector) into syntactically meaningful tokens. For
 instance, assume we have a CSV file with the following content:
 
 ```idris
@@ -79,19 +79,19 @@ with a conversion function. Character literals just match themselves,
 so the first entry matches a single comma and converts it to a `Comma0`
 value. The same goes for the line break character.
 
-Cell tokens are a bit more involved: We one or more (`plus`)
+Cell tokens are a bit more involved: We expect one or more (`plus`)
 printable characters (`dot`) that are also not commas (`&& not ','`)
 and convert them to a `Cell0` token. Please note that `Txt` converts
 a `ByteString`, so we use `toString` to convert it correctly.
 
 ### Additional Cell Types
 
-While our first example already demonstrate how we can tokenize
-a very basic language, one could argue that the same could be
-achieved just by using `lines` and `split` from `Data.String`.
+While our first example already demonstrates how we can tokenize
+a very basic language, one could argue that something similar could be
+achieved just by using functions `lines` and `split` from `Data.String`.
 Therefore, we are going to enhance our lexer in several ways.
 
-First, we'd like to support boolean literal (`"true"` and `"false"`).
+First, we'd like to support boolean literals (`"true"` and `"false"`).
 Next, we'd like to support positive and negative integer literals.
 And finally, we'd like to be able to not only read data with
 Unix-style line breaks, but also ASCII sequences from other
@@ -138,10 +138,10 @@ see, if it behaves as expected.
 
 Before we continue enhancing our lexer, we have to quickly explain
 two important concepts. When you look at the definition of `csv1`,
-you will note that there is some overlap between certain tokens.
+you will note that there is some overlap between certain token types.
 For instance, `"true"` could be interpreted both as a boolean
 and as a text token. In addition `"\r\n"` could be read as
-a single or as two line breaks. Go ahead and check at the REPL
+one or two line breaks. Go ahead and check at the REPL
 how `lexString` deals with these cases.
 
 As you can easily verify, `"foo"` is interpreted as a single text token
@@ -175,12 +175,13 @@ csvStr2 =
   """
 ```
 
-There are several strategies that would help us here. For instance,
+There are several strategies that could help us here. For instance,
 we could enhance all our tokens to accept a pre- and postfix of
 arbitrary whitespace. However, this would require us to manually
-trim text tokens. The alternative is to add a specific whitespace
+trim text tokens, and it would lead to quite some code duplication
+in our token expressions. The alternative is to add a specific whitespace
 token. With this, only the text token has to be adjusted: It must
-now start and end with a non-whitespace character:
+now start and end with a non-whitespace character.
 
 ```idris
 text : RExp True
@@ -193,9 +194,10 @@ text = nonspace >> opt (star textChar >> nonspace)
 
 The above defines a text character as any printable character (`dot`)
 that's not a comma (`&& not ','`), and a non-space character as
-a text character that's not a space (`&& not ' '`). A text
+a text character that's not a space (`&& not ' '`) (and not a
+quote, which we are going to need once we look at quoted strings). A text
 token is then a non-space character followed by an optional
-suffix consisting of an arbitrary number of text characters and
+suffix consisting of an arbitrary number of text characters
 terminated by another non-space.
 
 With this, we can now define a whitespace token that we silently
@@ -226,15 +228,16 @@ commas. Likewise, it is not possible to include any control
 characters such as tabs or line breaks in our text tokens.
 We'd now like to add support for these.
 
-Again, there are several strategies we can use here. What we are
+Again, there are several strategies we could use here. What we are
 going to do is to add support for quoted strings. This will allow
-us to have text with commas. Likewise, it allows us to have
+us to have text with commas by wrapping the corresponding text
+in double quotes. Likewise, it allows us to have
 text tokens that start or end with whitespace. However, a quoted
 string can no longer contain double quote characters, so we need
 a way to escape those. Likewise, we need a way to escape the control
 characters we'd like to support.
 
-Here's a regular expression for quoted string:
+Here's a regular expression for quoted strings:
 
 ```idris
 quoted : RExp True
@@ -271,7 +274,7 @@ csv1_3 =
 ```
 
 In order to keep things simple, we are going use character lists
-to implement unquote:
+to implement `unquote`:
 
 ```idris
 unquote = go [<] . unpack . toString
@@ -289,6 +292,9 @@ unquote = go [<] . unpack . toString
 
 We are going to look at how to do this in a more performant
 and elegant manner in a later section.
+
+I suggest you fire up a REPL session an experiment a bit with what kind
+of tokens our lexer is now capable of recognizing.
 
 <!-- vi: filetype=idris2:syntax=markdown
 -->
