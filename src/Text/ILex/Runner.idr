@@ -22,13 +22,6 @@ import Text.ILex.Internal.Types
 %default total
 %language ElabReflection
 
-export
-fromIPairs : (n : _) -> List (Bits8,Integer) -> IArray 256 (Fin (S n))
-fromIPairs n = fromPairs 256 0 . mapMaybe adj
-  where
-    adj : (Bits8,Integer) -> Maybe (Nat, Fin (S n))
-    adj (x,y) = (cast x,) <$> tryNatToFin (cast y)
-
 public export
 record Lexer a where
   constructor L

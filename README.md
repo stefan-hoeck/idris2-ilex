@@ -1,1 +1,294 @@
 # ilex: Generating fast Lexers from an Idris2 DSL
+
+This is a library for generating performant lexers that can
+be derived from a simple regular expression DSL.
+
+This is a literate Idris file, so we start with some imports.
+
+```idris
+module README
+
+import Derive.Prelude
+import Text.ILex
+
+%default total
+%language ElabReflection
+```
+
+## A basic CSV Lexer
+
+A [lexer](https://en.wikipedia.org/wiki/Lexical_analysis) cuts text
+(or a raw byte vector) into syntactically meaning full tokens. For
+instance, assume we have a CSV file with the following content:
+
+```idris
+csvStr1 : String
+csvStr1 =
+  """
+  foo,12,true
+  bar,13,true
+  baz,14,false
+  """
+```
+
+What kind of token can we recognize here? We certainly have the
+commas separating the fields on every line. We also have line
+breaks separating table rows. In between those, we have arbitrary
+data. Let us start with these very basic observations and
+define and test a lexer for this structure. Since we are
+going to implement several iterations of a `.csv` lexer,
+we use an integer suffix in our names:
+
+```idris
+data CSV0 : Type where
+  Comma0 : CSV0
+  NL0    : CSV0
+  Cell0  : String -> CSV0
+
+%runElab derive "CSV0" [Show,Eq]
+```
+
+Without further ado, here is our first `.csv` lexer:
+
+```idris
+csv0 : Lexer CSV0
+csv0 =
+  lexer
+    [ (','                  , Const Comma0)
+    , ('\n'                 , Const NL0)
+    , (plus (dot && not ','), Txt (Cell0 . toString))
+    ]
+```
+
+Before we describe the definition above in some detail, let's quickly
+test it at the REPL:
+
+```repl
+README> :exec printLn (lexString csv0 csvStr1)
+Right [Cell0 "foo", Comma0, Cell0 "12", Comma0, Cell0 "true", NL0, ...]
+```
+
+As you can see, the input has been cut into a list of tokens. Please note
+that the functions in this library cannot be evaluated directly at the
+REPL, so we have to actually compile a small program and run it using
+`:exec`.
+
+Now, let us have a closer look at the definition of `csv0`: We use
+a `TokenMap` to describe a lexer: a list of regular expressions each paired
+with a conversion function. Character literals just match themselves,
+so the first entry matches a single comma and converts it to a `Comma0`
+value. The same goes for the line break character.
+
+Cell tokens are a bit more involved: We one or more (`plus`)
+printable characters (`dot`) that are also not commas (`&& not ','`)
+and convert them to a `Cell0` token. Please note that `Txt` converts
+a `ByteString`, so we use `toString` to convert it correctly.
+
+### Additional Cell Types
+
+While our first example already demonstrate how we can tokenize
+a very basic language, one could argue that the same could be
+achieved just by using `lines` and `split` from `Data.String`.
+Therefore, we are going to enhance our lexer in several ways.
+
+First, we'd like to support boolean literal (`"true"` and `"false"`).
+Next, we'd like to support positive and negative integer literals.
+And finally, we'd like to be able to not only read data with
+Unix-style line breaks, but also ASCII sequences from other
+systems.
+
+First, our updated token type:
+
+```idris
+data CSV1 : Type where
+  Comma1 : CSV1
+  NL1    : CSV1
+  Txt1   : String -> CSV1
+  Bool1  : Bool -> CSV1
+  Int1   : Integer -> CSV1
+
+%runElab derive "CSV1" [Show,Eq]
+```
+
+And here's the corresponding lexer:
+
+```idris
+linebreak : RExp True
+linebreak = '\n' <|> "\n\r" <|> "\r\n" <|> '\r' <|> '\RS'
+
+csv1 : Lexer CSV1
+csv1 =
+  lexer
+    [ (','                  , Const Comma1)
+    , (linebreak            , Const NL1)
+    , ("true"               , Const (Bool1 True))
+    , ("false"              , Const (Bool1 False))
+    , (decimal              , Txt (Int1 . decimal))
+    , ('-' >> decimal       , Txt (Int1 . negate . decimal . drop 1))
+    , (plus (dot && not ','), Txt (Txt1 . toString))
+    ]
+```
+
+The above is *much* more powerful that our original `csv0` lexer, and
+trying to implement this manually might be quite a frustrating
+experience. Go ahead and experiment with this a bit at the REPL, and
+see, if it behaves as expected.
+
+### Overlapping Expressions and Maximal Munch
+
+Before we continue enhancing our lexer, we have to quickly explain
+two important concepts. When you look at the definition of `csv1`,
+you will note that there is some overlap between certain tokens.
+For instance, `"true"` could be interpreted both as a boolean
+and as a text token. In addition `"\r\n"` could be read as
+a single or as two line breaks. Go ahead and check at the REPL
+how `lexString` deals with these cases.
+
+As you can easily verify, `"foo"` is interpreted as a single text token
+instead of three tokens (one for each character), even though an interpretation
+as three tokens would be in agreement with the regular expressions
+we defined. Likewise, '"\r\n"' is interpreted as a single
+line break instead of two. This strategy is called
+the [maximal munch](https://en.wikipedia.org/wiki/Maximal_munch)
+or *longest match* principle: The lexer tries to generate the longest possible
+token that matches an expression.
+
+In addition, there can be some overlap between tokens of the same
+length, so that they could be interpreted in more than one way.
+In this case, the first matching expression takes precedence.
+Therefore, `"true"` is interpreted as a boolean and `"123"` as
+an integer, although both would also be valid text tokens.
+
+### Dealing with Whitespace
+
+We'd like to further generalize our lexer, so that it properly deals
+with whitespace that might surround our tokens. We expect the
+following to be interpreted the same way as `csvStr1`:
+
+```idris
+csvStr2 : String
+csvStr2 =
+  """
+    foo ,  12,  true\t\t
+  bar,13  ,   true
+    baz,  14,false
+  """
+```
+
+There are several strategies that would help us here. For instance,
+we could enhance all our tokens to accept a pre- and postfix of
+arbitrary whitespace. However, this would require us to manually
+trim text tokens. The alternative is to add a specific whitespace
+token. With this, only the text token has to be adjusted: It must
+now start and end with a non-whitespace character:
+
+```idris
+text : RExp True
+text = nonspace >> opt (star textChar >> nonspace)
+  where
+    nonspace, textChar : RExp True
+    textChar = dot && not ','
+    nonspace = textChar && not ' ' && not '"'
+```
+
+The above defines a text character as any printable character (`dot`)
+that's not a comma (`&& not ','`), and a non-space character as
+a text character that's not a space (`&& not ' '`). A text
+token is then a non-space character followed by an optional
+suffix consisting of an arbitrary number of text characters and
+terminated by another non-space.
+
+With this, we can now define a whitespace token that we silently
+drop during lexing:
+
+```idris
+spaces : RExp True
+spaces = plus $ oneof [' ', '\t']
+
+csv1_2 : Lexer CSV1
+csv1_2 =
+  lexer
+    [ (','           , Const Comma1)
+    , (linebreak     , Const NL1)
+    , ("true"        , Const (Bool1 True))
+    , ("false"       , Const (Bool1 False))
+    , (decimal       , Txt (Int1 . decimal))
+    , ('-' >> decimal, Txt (Int1 . negate . decimal . drop 1))
+    , (text          , Txt (Txt1 . toString))
+    , (spaces        , Ignore)
+    ]
+```
+
+### Quoted Text
+
+Currently, our `.csv` lexer cannot process any text that contains
+commas. Likewise, it is not possible to include any control
+characters such as tabs or line breaks in our text tokens.
+We'd now like to add support for these.
+
+Again, there are several strategies we can use here. What we are
+going to do is to add support for quoted strings. This will allow
+us to have text with commas. Likewise, it allows us to have
+text tokens that start or end with whitespace. However, a quoted
+string can no longer contain double quote characters, so we need
+a way to escape those. Likewise, we need a way to escape the control
+characters we'd like to support.
+
+Here's a regular expression for quoted string:
+
+```idris
+quoted : RExp True
+quoted = '"' >> star qchar >> '"'
+  where
+    qchar : RExp True
+    qchar =
+          (dot && not '"' && not '\\')
+      <|> #"\""#
+      <|> #"\n"#
+      <|> #"\r"#
+      <|> #"\t"#
+      <|> #"\\"#
+```
+
+With this, we can enhance our lexer:
+
+```idris
+unquote : ByteString -> String
+
+csv1_3 : Lexer CSV1
+csv1_3 =
+  lexer
+    [ (','           , Const Comma1)
+    , (linebreak     , Const NL1)
+    , ("true"        , Const (Bool1 True))
+    , ("false"       , Const (Bool1 False))
+    , (decimal       , Txt (Int1 . decimal))
+    , ('-' >> decimal, Txt (Int1 . negate . decimal . drop 1))
+    , (text          , Txt (Txt1 . toString))
+    , (quoted        , Txt (Txt1 . unquote))
+    , (spaces        , Ignore)
+    ]
+```
+
+In order to keep things simple, we are going use character lists
+to implement unquote:
+
+```idris
+unquote = go [<] . unpack . toString
+  where
+    go : SnocList Char -> List Char -> String
+    go sc []              = pack (sc <>> [])
+    go sc ('\\'::'"' ::xs) = go (sc :< '"') xs
+    go sc ('\\'::'\\'::xs) = go (sc :< '\\') xs
+    go sc ('\\'::'t' ::xs) = go (sc :< '\t') xs
+    go sc ('\\'::'n' ::xs) = go (sc :< '\n') xs
+    go sc ('\\'::'r' ::xs) = go (sc :< '\r') xs
+    go sc ('"'::xs)        = go sc xs
+    go sc (x::xs)          = go (sc :< x) xs
+```
+
+We are going to look at how to do this in a more performant
+and elegant manner in a later section.
+
+<!-- vi: filetype=idris2:syntax=markdown
+-->
