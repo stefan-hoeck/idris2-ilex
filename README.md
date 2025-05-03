@@ -297,6 +297,12 @@ and elegant manner in a moment.
 I suggest you fire up a REPL session an experiment a bit with what kind
 of tokens our lexer is now capable of recognizing.
 
+As promised, here's an alternative version of `unquote`: We just tokenize
+the byte string again. This avoids having to convert the byte string
+to a list of characters and traversing that. In general, this should be
+faster than the above, but I suggest to profile this properly if it
+is used in performance critical code.
+
 ```idris
 lexUQ : Lexer String
 lexUQ =
