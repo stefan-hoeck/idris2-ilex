@@ -13,6 +13,7 @@ import Text.ILex
 
 %default total
 %language ElabReflection
+%hide Data.Linear.(.)
 ```
 
 ## A basic CSV Lexer
@@ -291,10 +292,31 @@ unquote = go [<] . unpack . toString
 ```
 
 We are going to look at how to do this in a more performant
-and elegant manner in a later section.
+and elegant manner in a moment.
 
 I suggest you fire up a REPL session an experiment a bit with what kind
 of tokens our lexer is now capable of recognizing.
+
+```idris
+lexUQ : Lexer String
+lexUQ =
+  lexer
+    [ (#"\""#, Const "\"")
+    , (#"\\"#, Const "\\")
+    , (#"\n"#, Const "\n")
+    , (#"\r"#, Const "\r")
+    , (#"\t"#, Const "\t")
+    , (#"""# , Ignore)
+    , (plus (dot && not '"' && not '\\'), Txt toString)
+    ]
+
+fastUnquote : ByteString -> String
+fastUnquote bs =
+  case lexBytes lexUQ bs of
+    Toks _ [s] => s
+    Toks _ xs  => fastConcat xs
+    _          => ""
+```
 
 <!-- vi: filetype=idris2:syntax=markdown
 -->
