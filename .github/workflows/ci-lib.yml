@@ -30,5 +30,7 @@ jobs:
         uses: actions/checkout@v2
       - name: Build ilex
         run: pack typecheck ilex
+      - name: Build examples
+        run: pack typecheck ilex-examples
       - name: Test ilex
         run: pack test ilex

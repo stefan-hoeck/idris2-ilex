@@ -8,3 +8,4 @@ sourcedir = "src"
 
 modules = Examples.Basics
         , Examples.Types
+        , README
