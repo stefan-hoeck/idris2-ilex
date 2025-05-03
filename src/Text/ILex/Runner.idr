@@ -3,6 +3,7 @@ module Text.ILex.Runner
 import public Data.Array.Core
 import public Data.Array.Indexed
 import public Data.ByteString
+import public Data.Linear.Token
 import public Data.List
 import public Data.Vect
 import public Text.ILex.RExp
@@ -88,6 +89,18 @@ lex l buf = lexChunk l init (n ** buf)
 export
 lexString : (l : Lexer a) -> String -> LexRes l.states a
 lexString l s = lex l (fromString s)
+
+bvcopy : {n : _} -> ByteVect n -> IBuffer n
+bvcopy (BV buf o lte) =
+  Buffer.Core.alloc n $ \mb,t =>
+   let _ # t := Buffer.Core.icopy buf o 0 n mb t
+    in unsafeFreeze mb t
+
+||| Like `lexChunk` but processes data from a single byte string.
+export
+lexBytes : (l : Lexer a) -> ByteString -> LexRes l.states a
+lexBytes l (BS s $ BV buf 0 lte) = lex l (take s buf)
+lexBytes l (BS s bv)             = lex l (bvcopy bv)
 
 --------------------------------------------------------------------------------
 -- Lexer Generator
