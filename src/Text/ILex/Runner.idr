@@ -22,18 +22,71 @@ import Text.ILex.Internal.Types
 %default total
 %language ElabReflection
 
+||| A discrete finite automaton (DFA) encoded as
+||| an array of state transitions plus an array
+||| describing the terminal states.
 public export
 record Lexer a where
   constructor L
+  ||| Number of non-zero states in the automaton.
   states : Nat
+
+  ||| State transitions matrix.
+  |||
+  ||| If `cur` is the current state (encoded as a `Fin (S states)`
+  ||| and `b` is the current input byte, the next state is determined
+  ||| by `next[cur][b]` (in pseudo C-syntax).
   next   : IArray (S states) (IArray 256 (Fin (S states)))
+
+  ||| Terminal states and the corresponding conversions.
   term   : IArray (S states) (Maybe $ Conv a)
 
-export %inline
-lex : {n : _} -> Lexer a -> IBuffer n -> Either (Nat,Bits8) (List a)
+||| Lexing state.
+|||
+||| This encapsulates the current state as well as
+||| the remainder of the previous chunk that marks
+||| the beginning of the current token.
+public export
+record LexState (n : Nat) where
+  constructor LST
+  cur  : Fin (S n)
+  prev : ByteString
+
+%runElab deriveIndexed "LexState" [Show]
 
 export
-lexString : Lexer a -> String -> Either (Nat,Bits8) (List a)
+init : LexState n
+init = LST 0 empty
+
+public export
+data LexRes : (n : Nat) -> Type -> Type where
+  EOI  : Nat -> LexRes n a
+  Err  : Nat -> Bits8 -> LexRes n a
+  Toks : LexState n -> List a -> LexRes n a
+
+%runElab derivePattern "LexRes" [I,P] [Show]
+
+||| Operates a lexer on a chunk of bytes returning
+||| starting from the given lexer state.
+|||
+||| This is the most general form, allowing us to
+||| begin and stop in the middle of a token, which
+||| is important for streaming.
+export %inline
+lexChunk :
+     (l : Lexer a)
+  -> LexState l.states
+  -> (n ** IBuffer n)
+  -> LexRes l.states a
+
+||| Like `lexChunk` but processes data from a single buffer.
+export %inline
+lex : {n : _} -> (l : Lexer a) -> IBuffer n -> LexRes l.states a
+lex l buf = lexChunk l init (n ** buf)
+
+||| Like `lexChunk` but processes data from a single buffer.
+export
+lexString : (l : Lexer a) -> String -> LexRes l.states a
 lexString l s = lex l (fromString s)
 
 --------------------------------------------------------------------------------
@@ -70,9 +123,9 @@ lexer m =
 -- Lexer run loop
 --------------------------------------------------------------------------------
 
-export
 app :
      {n : _}
+  -> ByteString
   -> SnocList a
   -> Conv a
   -> IBuffer n
@@ -81,12 +134,12 @@ app :
   -> {auto ix     : Ix (S till) n}
   -> {auto 0  lte : LTE from (ixToNat ix)}
   -> SnocList a
-app sx (Const val) buf from till = sx :< val
-app sx (Txt f)     buf from till =
+app prev sx (Const val) buf from till = sx :< val
+app prev sx (Txt f)     buf from till =
   let bv := fromIBuffer buf
       bs := BS _ $ substringFromTo from (ixToNat ix) {lt = ixLT ix} bv
-   in sx :< f bs
-app sx _                  buf from till = sx
+   in sx :< f (prev <+> bs)
+app prev sx _           buf from till = sx
 
 parameters {0 a      : Type}
            {0 states : Nat}
@@ -97,7 +150,8 @@ parameters {0 a      : Type}
 
   covering
   inner :
-       (last        : Maybe $ Conv a)   -- last encountered terminal state
+       (prev        : ByteString)
+    -> (last        : Maybe $ Conv a)   -- last encountered terminal state
     -> (start       : Nat)              -- start of current token
     -> (lastPos     : Nat)              -- counter for last byte in `last`
     -> {auto y      : Ix (S lastPos) n} -- end position in the byte array of `last`
@@ -107,35 +161,38 @@ parameters {0 a      : Type}
     -> {auto 0 lte1 : LTE start (ixToNat y)}
     -> {auto 0 lte2 : LTE start (ixToNat x)}
     -> (cur         : Fin (S states))   -- current automaton state
-    -> Either (Nat,Bits8) (List a)
+    -> LexRes states a
 
   -- Accumulates lexemes by applying the maximum munch strategy:
   -- The largest matched lexeme is consumed and kept.
   covering
   loop :
-       (vals    : SnocList a)       -- accumulated tokens
+       (prev    : ByteString)       -- beginning of current token
+    -> (vals    : SnocList a)       -- accumulated tokens
     -> (pos     : Nat)              -- reverse position in the byte array
+    -> (cur     : Fin (S states))
     -> {auto x  : Ix pos n}         -- position in the byte array
-    -> Either (Nat,Bits8) (List a)
-  loop vals 0     = Right (vals <>> [])
-  loop vals (S k) =
-    case (next `at` 0) `atByte` (buf `ix` k) of
-      0 => Left (ixToNat x, buf `ix` k)
-      s => inner (term `at` s) (ixToNat x) k vals k s
+    -> LexRes states a
+  loop prev vals 0     cur = Toks (LST cur prev) (vals <>> [])
+  loop prev vals (S k) cur =
+    case (next `at` cur) `atByte` (buf `ix` k) of
+      0 => Err (ixToNat x) (buf `ix` k)
+      s => inner prev (term `at` s) (ixToNat x) k vals k s
 
-  inner last start lastPos vals 0     cur =
+  inner prev last start lastPos vals 0     cur =
     case last of
-      Nothing => Left (ixToNat x, 0)
-      Just i  => loop (app vals i buf start lastPos) lastPos
-  inner last start lastPos vals (S k) cur =
+      Nothing => EOI (ixToNat x)
+      Just i  => loop empty (app prev vals i buf start lastPos) lastPos 0
+  inner prev last start lastPos vals (S k) cur =
     let arr  := next `at` cur
         byte := ix buf k
      in case arr `atByte` byte of
           FZ => case last of
-            Nothing => Left (ixToNat x, buf `ix` k)
-            Just i  => loop (app vals i buf start lastPos) lastPos
+            Nothing => Err (ixToNat x) (buf `ix` k)
+            Just i  => loop empty (app prev vals i buf start lastPos) lastPos 0
           x  => case term `at` x of
-            Nothing => inner last     start lastPos vals k x
-            Just i  => inner (Just i) start k       vals k x
+            Nothing => inner prev last     start lastPos vals k x
+            Just i  => inner prev (Just i) start k       vals k x
 
-lex (L ss nxt t) buf = assert_total $ loop nxt t buf [<] n
+lexChunk (L ss nxt t) (LST cur prev) (n ** buf) =
+  assert_total $ loop nxt t buf prev [<] n cur
