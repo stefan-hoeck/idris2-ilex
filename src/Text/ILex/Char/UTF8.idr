@@ -118,3 +118,7 @@ convert (x :: xs) = foldr (\r,y => fromRange r <|> y) (fromRange x) xs
 export
 toByteRanges : Set32 -> RExp8 True
 toByteRanges = convert . ranges . intersection unicode
+
+export
+toUTF8 : (RExp b, a) -> (RExp8 b, a)
+toUTF8 (x,v) = (adjRanges toByteRanges x, v)
