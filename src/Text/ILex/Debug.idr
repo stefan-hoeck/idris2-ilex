@@ -101,13 +101,13 @@ Pretty a => Pretty b => Pretty (Machine a b) where
       ]
 
 export covering
-prettyENFA : Pretty a => TokenMap a -> IO ()
-prettyENFA tm = putPretty $ machine $ toENFA tm toByteRanges
+prettyENFA : Pretty a => TokenMap8 a -> IO ()
+prettyENFA tm = putPretty $ machine $ toENFA tm
 
 export covering
-prettyNFA : Pretty a => TokenMap a -> IO ()
-prettyNFA tm = putPretty $ machine $ toNFA tm toByteRanges
+prettyNFA : Pretty a => TokenMap8 a -> IO ()
+prettyNFA tm = putPretty $ machine $ toNFA tm
 
 export covering
-prettyDFA : Pretty a => TokenMap a -> IO ()
-prettyDFA tm = putPretty $ machine $ toDFA tm toByteRanges
+prettyDFA : Pretty a => TokenMap8 a -> IO ()
+prettyDFA tm = putPretty $ machine $ toDFA tm

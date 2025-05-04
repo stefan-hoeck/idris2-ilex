@@ -77,6 +77,10 @@ public export
 0 TokenMap : Type -> Type
 TokenMap a = List (RExp True, a)
 
+public export
+0 TokenMap8 : Type -> Type
+TokenMap8 a = List (RExp8 True, a)
+
 --------------------------------------------------------------------------------
 -- Utilities
 --------------------------------------------------------------------------------

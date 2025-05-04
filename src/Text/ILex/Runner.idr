@@ -122,15 +122,24 @@ node (N k _ out) = (k, fromPairs _ 0 $ mapMaybe pair (out >>= transitions))
     pair : (Bits8,Nat) -> Maybe (Nat, Fin (S n))
     pair (b,t) = (cast b,) <$> tryNatToFin t
 
+||| A lexer operating on raw bytes.
 export covering
-lexer : (m : TokenMap (Conv a)) -> (0 p : NonEmpty m) => Lexer a
-lexer m =
-  let M tms graph := machine (toDFA m toByteRanges)
+byteLexer :
+     (m        : TokenMap8 (Conv a))
+  -> {auto 0 p : NonEmpty m}
+  -> Lexer a
+byteLexer m =
+  let M tms graph := machine (toDFA m)
       nodes       := values graph
       S len       := length nodes | 0 => emptyLexer
       terms       := fromPairs (S len) Nothing (mapMaybe (term tms) nodes)
       trans       := fromPairs (S len) emptyRow (map node nodes)
    in L len trans terms
+
+||| A utf-8 aware lexer operating on text.
+export covering
+lexer : (m : TokenMap (Conv a)) -> (0 p : NonEmpty m) => Lexer a
+lexer (p::ps) = byteLexer (toUTF8 p :: map toUTF8 ps)
 
 --------------------------------------------------------------------------------
 -- Lexer run loop

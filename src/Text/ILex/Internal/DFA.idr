@@ -62,9 +62,9 @@ normalize g =
        in (x2, N x2 acc out2)
 
 export covering
-toDFA : TokenMap a -> (adj : Set32 -> RExp8 True) -> Norm a Graph
-toDFA xs f = do
-  toNFA xs f >>= nodes
+toDFA : TokenMap8 a -> Norm a Graph
+toDFA xs = do
+  toNFA xs >>= nodes
   ng <- map ngraph get
   modify {graph $= normalize . connectedComponent children 0}
   st <- get

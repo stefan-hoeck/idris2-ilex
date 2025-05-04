@@ -73,9 +73,9 @@ closures : EGraph -> Norm a ()
 closures g = ignore $ for (keys g) eclosure
 
 export covering
-toNFA : TokenMap a -> (adj : Set32 -> RExp8 True) -> Norm a NGraph
-toNFA xs f = do
-  toENFA xs f >>= closures
+toNFA : TokenMap8 a -> Norm a NGraph
+toNFA xs = do
+  toENFA xs >>= closures
   modify {ngraph $= connectedComponent nchildren 0}
   st <- get
   pure st.ngraph
