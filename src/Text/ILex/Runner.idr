@@ -136,6 +136,18 @@ lexer m =
 -- Lexer run loop
 --------------------------------------------------------------------------------
 
+toByteString :
+     ByteString
+  -> IBuffer n
+  -> (from        : Nat)
+  -> (0    till   : Nat)
+  -> {auto ix     : Ix (S till) n}
+  -> {auto 0  lte : LTE from (ixToNat ix)}
+  -> ByteString
+toByteString prev buf from till =
+  let bv := fromIBuffer buf
+   in prev <+> (BS _ $ substringFromTo from (ixToNat ix) {lt = ixLT ix} bv)
+
 app :
      {n : _}
   -> ByteString
@@ -148,10 +160,7 @@ app :
   -> {auto 0  lte : LTE from (ixToNat ix)}
   -> SnocList a
 app prev sx (Const val) buf from till = sx :< val
-app prev sx (Txt f)     buf from till =
-  let bv := fromIBuffer buf
-      bs := BS _ $ substringFromTo from (ixToNat ix) {lt = ixLT ix} bv
-   in sx :< f (prev <+> bs)
+app prev sx (Txt f)     buf from till = sx :< f (toByteString prev buf from till)
 app prev sx _           buf from till = sx
 
 parameters {0 a      : Type}
@@ -194,7 +203,7 @@ parameters {0 a      : Type}
 
   inner prev last start lastPos vals 0     cur =
     case last of
-      Nothing => EOI (ixToNat x)
+      Nothing => Toks (LST cur (toByteString prev buf start lastPos)) (vals <>> [])
       Just i  => loop empty (app prev vals i buf start lastPos) lastPos 0
   inner prev last start lastPos vals (S k) cur =
     let arr  := next `at` cur
