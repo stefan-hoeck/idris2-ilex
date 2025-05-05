@@ -191,6 +191,23 @@ parameters {0 a      : Type}
     -> {auto x      : Ix pos n}         -- position in the byte array
     -> {auto 0 lte1 : LTE start (ixToNat y)}
     -> {auto 0 lte2 : LTE start (ixToNat x)}
+    -> (arr         : IArray 256 (Fin (S states)))
+    -> (cur         : Fin (S states))   -- current automaton state
+    -> LexRes states a
+
+  covering
+  innerTerm :
+       (prev        : ByteString)
+    -> (last        : Conv a)           -- last encountered terminal state
+    -> (start       : Nat)              -- start of current token
+    -> (lastPos     : Nat)              -- counter for last byte in `last`
+    -> {auto y      : Ix (S lastPos) n} -- end position in the byte array of `last`
+    -> (vals        : SnocList a)       -- accumulated tokens
+    -> (pos         : Nat)              -- reverse position in the byte array
+    -> {auto x      : Ix pos n}         -- position in the byte array
+    -> {auto 0 lte1 : LTE start (ixToNat y)}
+    -> {auto 0 lte2 : LTE start (ixToNat x)}
+    -> (arr         : IArray 256 (Fin (S states)))
     -> (cur         : Fin (S states))   -- current automaton state
     -> LexRes states a
 
@@ -208,22 +225,37 @@ parameters {0 a      : Type}
   loop prev vals (S k) cur =
     case (next `at` cur) `atByte` (buf `ix` k) of
       0 => Err (ixToNat x) (buf `ix` k)
-      s => inner prev (term `at` s) (ixToNat x) k vals k s
+      s => case at term s of
+        Nothing => inner     prev Nothing (ixToNat x) k vals k (next `at` s) s
+        Just i  => innerTerm prev i       (ixToNat x) k vals k (next `at` s) s
 
-  inner prev last start lastPos vals 0     cur =
+  inner prev last start lastPos vals 0     arr cur =
     case last of
       Nothing => Toks (LST cur (toByteString prev buf start lastPos)) (vals <>> [])
       Just i  => loop empty (app prev vals i buf start lastPos) lastPos 0
-  inner prev last start lastPos vals (S k) cur =
-    let arr  := next `at` cur
-        byte := ix buf k
+  inner prev last start lastPos vals (S k) arr cur =
+    let byte := ix buf k
      in case arr `atByte` byte of
           FZ => case last of
             Nothing => Err (ixToNat x) (buf `ix` k)
             Just i  => loop empty (app prev vals i buf start lastPos) lastPos 0
-          x  => case term `at` x of
-            Nothing => inner prev last     start lastPos vals k x
-            Just i  => inner prev (Just i) start k       vals k x
+          x  => case x == cur of
+            True  => inner prev last start lastPos vals k arr cur
+            False => case term `at` x of
+              Nothing => inner     prev last start lastPos vals k (at next x) x
+              Just i  => innerTerm prev i    start k       vals k (at next x) x
+
+  innerTerm prev last start lastPos vals 0     arr cur =
+    loop empty (app prev vals last buf start lastPos) lastPos 0
+  innerTerm prev last start lastPos vals (S k) arr cur =
+    let byte := ix buf k
+     in case arr `atByte` byte of
+          FZ => loop empty (app prev vals last buf start lastPos) lastPos 0
+          x  => case x == cur of
+            True  => innerTerm prev last start k vals k arr cur
+            False => case term `at` x of
+              Nothing => inner     prev (Just last) start lastPos vals k (at next x) x
+              Just i  => innerTerm prev i           start k       vals k (at next x) x
 
 lexChunk (L ss nxt t) (LST cur prev) (n ** buf) =
   assert_total $ loop nxt t buf prev [<] n cur
