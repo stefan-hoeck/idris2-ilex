@@ -67,6 +67,14 @@ data LexRes : (n : Nat) -> Type -> Type where
 
 %runElab derivePattern "LexRes" [I,P] [Show]
 
+lexFrom :
+     (l : Lexer a)
+  -> LexState l.states
+  -> (pos : Nat)
+  -> {auto x : Ix pos n}
+  -> IBuffer n
+  -> LexRes l.states a
+
 ||| Operates a lexer on a chunk of bytes returning
 ||| starting from the given lexer state.
 |||
@@ -79,6 +87,7 @@ lexChunk :
   -> LexState l.states
   -> (n ** IBuffer n)
   -> LexRes l.states a
+lexChunk l s (n ** buf) = lexFrom l s n buf
 
 ||| Like `lexChunk` but processes data from a single buffer.
 export %inline
@@ -96,11 +105,15 @@ bvcopy (BV buf o lte) =
    let _ # t := Buffer.Core.icopy buf o 0 n mb t
     in unsafeFreeze mb t
 
+offsetToIx : (o : Nat) -> Ix s (o+s)
+offsetToIx 0     = IZ
+offsetToIx (S k) = rewrite plusSuccRightSucc k s in IS (offsetToIx k)
+
 ||| Like `lexChunk` but processes data from a single byte string.
-export
+export %inline
 lexBytes : (l : Lexer a) -> ByteString -> LexRes l.states a
-lexBytes l (BS s $ BV buf 0 lte) = lex l (take s buf)
-lexBytes l (BS s bv)             = lex l (bvcopy bv)
+lexBytes l (BS s $ BV buf o lte) =
+  lexFrom l init s {x = offsetToIx o} (take (o+s) buf)
 
 --------------------------------------------------------------------------------
 -- Lexer Generator
@@ -158,7 +171,7 @@ toByteString prev buf from till =
    in prev <+> (BS _ $ substringFromTo from (ixToNat ix) {lt = ixLT ix} bv)
 
 app :
-     {n : _}
+     {0 n : _}
   -> ByteString
   -> SnocList a
   -> Conv a
@@ -174,7 +187,7 @@ app prev sx _           buf from till = sx
 
 parameters {0 a      : Type}
            {0 states : Nat}
-           {n        : Nat}
+           {0 n      : Nat}
            (next     : IArray (S states) (IArray 256 (Fin (S states))))
            (term     : IArray (S states) (Maybe $ Conv a))
            (buf      : IBuffer n)
@@ -225,5 +238,5 @@ parameters {0 a      : Type}
             Nothing => inner prev last     start lastPos vals k x
             Just i  => inner prev (Just i) start k       vals k x
 
-lexChunk (L ss nxt t) (LST cur prev) (n ** buf) =
-  assert_total $ loop nxt t buf prev [<] n cur
+lexFrom (L ss nxt t) (LST cur prev) pos buf =
+  assert_total $ loop nxt t buf prev [<] pos cur
