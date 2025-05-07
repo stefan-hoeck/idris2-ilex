@@ -23,6 +23,7 @@ modules = Text.ILex
         , Text.ILex.Internal.Types
 
         , Text.ILex.Debug
+        , Text.ILex.Lexer
         , Text.ILex.RExp
         , Text.ILex.Runner
         , Text.ILex.Util
