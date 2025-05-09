@@ -8,6 +8,11 @@ path = "."
 ipkg = "ilex.ipkg"
 test = "test/test.ipkg"
 
+[custom.all.ilex-streams]
+type = "local"
+path = "streams"
+ipkg = "ilex-streams.ipkg"
+
 [custom.all.ilex-examples]
 type = "local"
 path = "examples"
