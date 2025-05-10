@@ -3,7 +3,6 @@ module Text.ILex.RExp
 import Data.Bool
 import Data.ByteString
 import public Text.ILex.Char.Set
-import public Text.ILex.Val
 import Derive.Prelude
 
 %default total
@@ -56,22 +55,6 @@ data Conv : Type -> Type where
   Ignore : Conv a
   Const  : a -> Conv a
   Txt    : (ByteString -> a) -> Conv a
-
-export %macro
-const : (0 x : a) -> Elab (Val $ Conv a)
-const x = do
-  V t v <- lift x
-  pure (V (TO $ App "Conv" t.tpe) $ VApp "Const" v)
-
-export %macro
-bytes : (0 x : ByteString -> a) -> Elab (Val $ Conv a)
-bytes x = do
-  V t v <- lift x
-  pure (V (TO $ App "Conv" t.tpe) $ VApp "Txt" v)
-
-export
-ignore :  ToType a => Val (Conv a)
-ignore = V (TO $ App "Conv" (tpeof a)) "Ignore"
 
 public export
 0 TokenMap : Type -> Type
