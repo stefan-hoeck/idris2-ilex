@@ -7,12 +7,14 @@ import public Data.List
 import Control.Monad.State
 
 import Data.SortedMap
+import Derive.Prelude
 
 import Text.ILex.Char.UTF8
 import Text.ILex.Internal.DFA
 import Text.ILex.Internal.Types
 
 %default total
+%language ElabReflection
 
 ||| An array of arrays describing a lexer's state machine.
 public export
@@ -73,3 +75,47 @@ byteLexer m =
 export
 lexer : (m : TokenMap (Conv a)) -> (0 p : NonEmpty m) => Lexer a
 lexer (p::ps) = byteLexer (toUTF8 p :: map toUTF8 ps)
+
+--------------------------------------------------------------------------------
+-- Bounded
+--------------------------------------------------------------------------------
+
+||| Upper and lower bounds of a region in a byte array.
+public export
+data Bounds : Type where
+  Empty : Bounds
+  BS    : (x,y : Nat) -> (0 prf : LTE x y) => Bounds
+
+%runElab derive "Bounds" [Show,Eq,Ord]
+
+0 minLemma : (u,x : Nat) -> LTE (min u x) u
+minLemma 0     0     = LTEZero
+minLemma 0     (S k) = LTEZero
+minLemma (S k) 0     = LTEZero
+minLemma (S k) (S j) with (compareNat k j == LT) proof eq
+  _ | True  = reflexive
+  _ | False = ?baaar
+
+0 maxLemma : (v,y : Nat) -> LTE v (max v y)
+
+0 appProof :
+     (u,v,x,y : Nat)
+  -> {auto p1 : LTE u v}
+  -> {auto p2 : LTE x y}
+  -> LTE (min u x) (max v y)
+appProof u v x y =
+  transitive (transitive (minLemma u x) p1) (maxLemma v y)
+
+app : Bounds -> Bounds -> Bounds
+app Empty     y       = y
+app x         Empty   = x
+app (BS u v) (BS x y) =
+  BS (min u x) (max v y) @{appProof u v x y}
+
+public export
+record Bounded a where
+  constructor B
+  bounds : Bounds
+  value  : a
+
+%runElab derive "Bounded" [Show,Eq,Ord]
