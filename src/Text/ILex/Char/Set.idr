@@ -65,7 +65,7 @@ has : Ord t => SetOf t -> t -> Bool
 has (S rs) v = any (`has` v) rs
 
 parameters {0 t : Type}
-           {auto ord : Bounded t}
+           {auto ord : WithBounds t}
            {auto ng  : Neg t}
 
   -- precondition: the list is already sorted
@@ -143,12 +143,12 @@ chars = rangeSet . map (singleton . cast) . unpack
 
 ||| The set holding all 32-bit values.
 export %inline
-fullSet : Bounded t => SetOf t
+fullSet : WithBounds t => SetOf t
 fullSet = range fullRange
 
 ||| `True` if this set holds all 32-bit values.
 export %inline
-isFull : Bounded t => SetOf t -> Bool
+isFull : WithBounds t => SetOf t -> Bool
 isFull = (== fullSet)
 
 --------------------------------------------------------------------------------

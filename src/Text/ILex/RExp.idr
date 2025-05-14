@@ -51,10 +51,11 @@ adjRanges f (Star x)  = Star (adjRanges f x)
 --------------------------------------------------------------------------------
 
 public export
-data Conv : Type -> Type where
-  Ignore : Conv a
-  Const  : a -> Conv a
-  Txt    : (ByteString -> a) -> Conv a
+data Conv : Type -> Type -> Type where
+  Ignore : Conv e a
+  Const  : a -> Conv e a
+  Txt    : (ByteString -> Either e a) -> Conv e a
+  Err    : e -> Conv e a
 
 public export
 0 TokenMap : Type -> Type
@@ -89,7 +90,7 @@ public export %inline
 fromChar : Char -> RExp True
 fromChar = chr
 
-parameters {auto bnd : Bounded t}
+parameters {auto bnd : WithBounds t}
            {auto neg : Neg t}
 
   public export %inline

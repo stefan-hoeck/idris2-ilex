@@ -28,6 +28,11 @@ app Empty     y       = y
 app x         Empty   = x
 app (BS u v) (BS x y) = BS (min u x) (max v y) @{appProof u v x y}
 
+export
+atPos : Nat -> Bounds
+atPos n = BS n n @{reflexive}
+
+
 export %inline
 Semigroup Bounds where (<+>) = app
 

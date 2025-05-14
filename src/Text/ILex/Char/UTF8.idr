@@ -43,6 +43,7 @@ hexChar 13 = 'd'
 hexChar 14 = 'e'
 hexChar _  = 'f'
 
+export
 toHex : Bits8 -> String
 toHex x = pack ['0','x',hexChar (shiftR x 4), hexChar (x .&. 15)]
 

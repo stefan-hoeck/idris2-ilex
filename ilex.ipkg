@@ -24,6 +24,7 @@ modules = Text.ILex
 
         , Text.ILex.Bounds
         , Text.ILex.Debug
+        , Text.ILex.Error
         , Text.ILex.FC
         , Text.ILex.Lexer
         , Text.ILex.RExp
