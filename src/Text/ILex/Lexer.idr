@@ -43,6 +43,10 @@ record Lexer e a where
   ||| End of input token (if any)
   eoi    : Maybe a
 
+export %inline
+setEOI : a -> Lexer e a -> Lexer e a
+setEOI v = {eoi := Just v}
+
 --------------------------------------------------------------------------------
 -- Lexer Generator
 --------------------------------------------------------------------------------

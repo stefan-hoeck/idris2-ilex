@@ -5,11 +5,14 @@ import public Data.Linear.Token
 import public Data.Vect
 import public Text.ILex.Bounds
 import public Text.ILex.Error
+import public Text.ILex.FC
 import public Text.ILex.Lexer
 
 import Data.Buffer
 import Data.Buffer.Core
 import Data.Buffer.Indexed
+import Data.Nat.BSExtra
+import Data.Maybe0
 import Derive.Prelude
 
 %default total
@@ -35,36 +38,85 @@ init = LST 0 empty
 public export
 data LexRes : (n : Nat) -> Type -> Type -> Type where
   Err  : Bounds -> InnerError a e -> LexRes n e a
-  Toks : LexState n -> List (Bounded a) -> LexRes n e a
+  Toks : LexState n -> SnocList (Bounded a) -> LexRes n e a
 
 %runElab derivePattern "LexRes" [I,P,P] [Show]
 
-lexFrom :
+plexFrom :
      (l      : Lexer e a)
   -> (pos    : Nat)
   -> {auto x : Ix pos n}
   -> IBuffer n
   -> LexRes l.states e a
 
-||| Like `lexChunk` but processes data from a single buffer.
-export %inline
-lex : {n : _} -> (l : Lexer e a) -> IBuffer n -> LexRes l.states e a
-lex l buf = lexFrom l n buf
+lexFrom :
+     {n      : Nat}
+  -> (o      : Origin)
+  -> (l      : Lexer e a)
+  -> (pos    : Nat)
+  -> {auto x : Ix pos n}
+  -> IBuffer n
+  -> Either (ParseError a e) (List (Bounded a))
+lexFrom o l pos buf =
+  case plexFrom l pos buf of
+    Err bs x               => Left (PE o bs bytes x)
+    Toks (LST cur prev) sx => case prev.size of
+      0 => appEOI sx
+      _ => case l.term `at` cur of
+        Nothing => Left (PE o (atPos n) bytes EOI)
+        Just y  => case y of
+          Ignore  => appEOI sx
+          Const z => ?fooo_1
+          Txt f   => ?fooo_2
+          Err z   => ?fooo_3
 
-||| Like `lexChunk` but processes data from a single buffer.
+  where
+    appEOI : SnocList (Bounded a) -> Either c (List (Bounded a))
+    appEOI sb =
+      case l.eoi of
+        Nothing => Right $ sb <>> []
+        Just v  => Right $ sb <>> [B v $ atPos n]
+
+    bytes : ByteString
+
+    bounds : Nat -> Bounds
+    bounds m =
+      let pn := pred n
+          s  := n `minus` m
+       in case tryLTE {n = pn} s of
+            Nothing0 => Empty
+            Just0 p  => BS s pn
+
+||| Partially lexes a string returning the remainder and
+||| final state (if any).
+export %inline
+plex : {n : _} -> (l : Lexer e a) -> IBuffer n -> LexRes l.states e a
+plex l buf = plexFrom l n buf
+
+||| Like `plex` but tries to lex the whole string.
 export
-lexString : (l : Lexer e a) -> String -> LexRes l.states e a
-lexString l s = lex l (fromString s)
+lex :
+     {n : _}
+  -> (o : Origin)
+  -> (l : Lexer e a)
+  -> IBuffer n
+  -> Either (ParseError a e) (List (Bounded a))
+lex o l buf = lexFrom o l n buf
+
+||| Like `plex` but processes a UTF-8 string instead.
+export
+plexString : (l : Lexer e a) -> String -> LexRes l.states e a
+plexString l s = plex l (fromString s)
 
 offsetToIx : (o : Nat) -> Ix s (o+s)
 offsetToIx 0     = IZ
 offsetToIx (S k) = rewrite plusSuccRightSucc k s in IS (offsetToIx k)
 
-||| Like `lexChunk` but processes data from a single byte string.
+||| Like `plex` but processes data byte string
 export %inline
-lexBytes : (l : Lexer e a) -> ByteString -> LexRes l.states e a
-lexBytes l (BS s $ BV buf o lte) =
-  lexFrom l s {x = offsetToIx o} (take (o+s) buf)
+plexBytes : (l : Lexer e a) -> ByteString -> LexRes l.states e a
+plexBytes l (BS s $ BV buf o lte) =
+  plexFrom l s {x = offsetToIx o} (take (o+s) buf)
 
 --------------------------------------------------------------------------------
 -- Lexer run loop
@@ -111,7 +163,7 @@ parameters {0 e,a    : Type}
     -> (pos     : Nat)                  -- reverse position in the byte array
     -> {auto x  : Ix pos n}             -- position in the byte array
     -> LexRes states e a
-  loop vals 0     = Toks (LST 0 empty) (vals <>> [])
+  loop vals 0     = Toks (LST 0 empty) vals
   loop vals (S k) =
     case (next `at` 0) `atByte` (buf `ix` k) of
       0 => Err (atPos $ ixToNat x) (Byte $ buf `ix` k)
@@ -137,7 +189,7 @@ parameters {0 e,a    : Type}
 
   inner last start lastPos vals 0     cur =
     case last of
-      Nothing => Toks (LST cur (toByteString buf start lastPos)) (vals <>> [])
+      Nothing => Toks (LST cur (toByteString buf start lastPos)) vals
       Just i  => app vals i start lastPos
   inner last start lastPos vals (S k) cur =
     let arr  := next `at` cur
@@ -150,4 +202,4 @@ parameters {0 e,a    : Type}
             Nothing => inner last     start lastPos vals k x
             Just i  => inner (Just i) start k       vals k x
 
-lexFrom (L ss nxt t) pos buf = assert_total $ loop nxt t buf [<] pos
+plexFrom (L ss nxt t _) pos buf = assert_total $ loop nxt t buf [<] pos

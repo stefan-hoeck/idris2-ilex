@@ -11,18 +11,18 @@ spaces : RExp True
 spaces = plus (oneof [' ', '\n', '\r', '\t'])
 
 export
-aOrB : Lexer AorB
+aOrB : Lexer Void AorB
 aOrB =
-  lexer
+  setEOI E $ lexer
     [ (plus ('A' <|> 'a'), Const A)
     , (plus ('B' <|> 'b'), Const B)
     , (spaces, Ignore)
     ]
 
 export
-expr : TokenMap (Conv Expr)
+expr : TokenMap (Conv Void Expr)
 expr =
-  [ (natural, Txt toNat)
+  [ (natural, Txt (Right . toNat))
   , ('+', Const Plus)
   , ('*', Const Mult)
   , ('(', Const PO)
@@ -34,11 +34,11 @@ identifier : RExp True
 identifier = plus $ alphaNum <|> '_'
 
 export
-ident : Lexer Ident
+ident : Lexer Void Ident
 ident =
-  lexer
+  setEOI IE $ lexer
     [ ("else", Const Else)
-    , (identifier, Txt (Id . toString))
+    , (identifier, Txt (Right . Id . toString))
     , (spaces, Ignore)
     ]
 
@@ -55,9 +55,9 @@ jstr = '"' >> star (chr <|> esc <|> uni) >> '"'
     uni = "\\u" >> hexdigit >> hexdigit >> hexdigit >> hexdigit
 
 export
-json : Lexer JSON
+json : Lexer Void JSON
 json =
-  lexer
+  setEOI JEOI $ lexer
     [ ("null",  Const Null)
     , ("true",  Const (JBool True))
     , ("false", Const (JBool False))
@@ -67,8 +67,8 @@ json =
     , (']',     Const JBC)
     , (',',     Const JComma)
     , (':',     Const JColon)
-    , (jstr,    Txt (JStr . toString))
-    , (decimal, Txt (JInt . decNat))
-    , ('-' >> decimal, Txt (JInt . negate . decNat))
+    , (jstr,    Txt (Right . JStr . toString))
+    , (decimal, Txt (Right . JInt . decNat))
+    , ('-' >> decimal, Txt (Right . JInt . negate . decNat))
     , (spaces,  Ignore)
     ]
