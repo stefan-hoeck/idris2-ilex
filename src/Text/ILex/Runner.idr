@@ -71,11 +71,6 @@ lexFrom o l pos buf =
           Err z   => ?fooo_3
 
   where
-    appEOI : SnocList (Bounded a) -> Either c (List (Bounded a))
-    appEOI sb =
-      case l.eoi of
-        Nothing => Right $ sb <>> []
-        Just v  => Right $ sb <>> [B v $ atPos n]
 
     bytes : ByteString
 
