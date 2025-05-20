@@ -30,13 +30,13 @@ longBS = (_ ** fromString long)
 extraBS : (n ** IBuffer n)
 extraBS = (_ ** fromString extra)
 
-lexBS : (n ** IBuffer n) -> Either (Nat,Bits8) (List Examples.Types.JSON)
-lexBS (n ** buf) = lex json buf
+lexBS : (n ** IBuffer n) -> LexRes Void Examples.Types.JSON
+lexBS (n ** buf) = lex Virtual json buf
 
 -- This profiles our JSON lexer against the one from parser-json
 -- to know what we are up against.
 bench : Benchmark Void
-bench = Group "Chem.AtomTypes" [
+bench = Group "JSON" [
     Single "short"      (basic lexBS shortBS)
   , Single "long"       (basic lexBS longBS)
   , Single "extra"      (basic lexBS extraBS)
