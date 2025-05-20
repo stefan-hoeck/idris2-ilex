@@ -22,7 +22,7 @@ aOrB =
 export
 expr : TokenMap (Conv Void Expr)
 expr =
-  [ (natural, Txt (Right . toNat))
+  [ (natural, txt toNat)
   , ('+', Const Plus)
   , ('*', Const Mult)
   , ('(', Const PO)
@@ -38,7 +38,7 @@ ident : Lexer Void Ident
 ident =
   setEOI IE $ lexer
     [ ("else", Const Else)
-    , (identifier, Txt (Right . Id . toString))
+    , (identifier, txt (Id . toString))
     , (spaces, Ignore)
     ]
 
@@ -67,8 +67,8 @@ json =
     , (']',     Const JBC)
     , (',',     Const JComma)
     , (':',     Const JColon)
-    , (jstr,    Txt (Right . JStr . toString))
-    , (decimal, Txt (Right . JInt . decNat))
-    , ('-' >> decimal, Txt (Right . JInt . negate . decNat))
+    , (jstr,    txt (JStr . toString))
+    , (decimal, txt (JInt . decNat))
+    , ('-' >> decimal, txt (JInt . negate . decNat))
     , (spaces,  Ignore)
     ]

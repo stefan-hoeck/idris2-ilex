@@ -57,6 +57,10 @@ data Conv : Type -> Type -> Type where
   Txt    : (ByteString -> Either e a) -> Conv e a
   Err    : e -> Conv e a
 
+export %inline
+txt : (ByteString -> a) -> Conv e a
+txt f = Txt (Right . f)
+
 public export
 0 TokenMap : Type -> Type
 TokenMap a = List (RExp True, a)

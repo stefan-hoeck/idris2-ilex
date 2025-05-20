@@ -20,6 +20,7 @@ modules = Text.ILex
         , Text.ILex.Internal.DFA
         , Text.ILex.Internal.ENFA
         , Text.ILex.Internal.NFA
+        , Text.ILex.Internal.Runner
         , Text.ILex.Internal.Types
 
         , Text.ILex.Bounds

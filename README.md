@@ -52,12 +52,12 @@ data CSV0 : Type where
 Without further ado, here is our first `.csv` lexer:
 
 ```idris
-csv0 : Lexer CSV0
+csv0 : Lexer Void CSV0
 csv0 =
   lexer
     [ (','                  , Const Comma0)
     , ('\n'                 , Const NL0)
-    , (plus (dot && not ','), Txt (Cell0 . toString))
+    , (plus (dot && not ','), txt (Cell0 . toString))
     ]
 ```
 
@@ -65,8 +65,8 @@ Before we describe the definition above in some detail, let's quickly
 test it at the REPL:
 
 ```repl
-README> :exec printLn (lexString csv0 csvStr1)
-Right [Cell0 "foo", Comma0, Cell0 "12", Comma0, Cell0 "true", NL0, ...]
+README> :exec printLn (lexString Virtual csv0 csvStr1)
+Right [ ... ]
 ```
 
 As you can see, the input has been cut into a list of tokens. Please note
@@ -82,7 +82,7 @@ value. The same goes for the line break character.
 
 Cell tokens are a bit more involved: We expect one or more (`plus`)
 printable characters (`dot`) that are also not commas (`&& not ','`)
-and convert them to a `Cell0` token. Please note that `Txt` converts
+and convert them to a `Cell0` token. Please note that `txt` converts
 a `ByteString`, so we use `toString` to convert it correctly.
 
 ### Additional Cell Types
@@ -107,6 +107,7 @@ data CSV1 : Type where
   Txt1   : String -> CSV1
   Bool1  : Bool -> CSV1
   Int1   : Integer -> CSV1
+  EOI    : CSV1
 
 %runElab derive "CSV1" [Show,Eq]
 ```
@@ -117,16 +118,16 @@ And here's the corresponding lexer:
 linebreak : RExp True
 linebreak = '\n' <|> "\n\r" <|> "\r\n" <|> '\r' <|> '\RS'
 
-csv1 : Lexer CSV1
+csv1 : Lexer Void CSV1
 csv1 =
-  lexer
+  setEOI EOI $ lexer
     [ (','                  , Const Comma1)
     , (linebreak            , Const NL1)
     , ("true"               , Const (Bool1 True))
     , ("false"              , Const (Bool1 False))
-    , (decimal              , Txt (Int1 . decimal))
-    , ('-' >> decimal       , Txt (Int1 . negate . decimal . drop 1))
-    , (plus (dot && not ','), Txt (Txt1 . toString))
+    , (decimal              , txt (Int1 . decimal))
+    , ('-' >> decimal       , txt (Int1 . negate . decimal . drop 1))
+    , (plus (dot && not ','), txt (Txt1 . toString))
     ]
 ```
 
@@ -208,16 +209,16 @@ drop during lexing:
 spaces : RExp True
 spaces = plus $ oneof [' ', '\t']
 
-csv1_2 : Lexer CSV1
+csv1_2 : Lexer Void CSV1
 csv1_2 =
-  lexer
+  setEOI EOI $ lexer
     [ (','           , Const Comma1)
     , (linebreak     , Const NL1)
     , ("true"        , Const (Bool1 True))
     , ("false"       , Const (Bool1 False))
-    , (decimal       , Txt (Int1 . decimal))
-    , ('-' >> decimal, Txt (Int1 . negate . decimal . drop 1))
-    , (text          , Txt (Txt1 . toString))
+    , (decimal       , txt (Int1 . decimal))
+    , ('-' >> decimal, txt (Int1 . negate . decimal . drop 1))
+    , (text          , txt (Txt1 . toString))
     , (spaces        , Ignore)
     ]
 ```
@@ -259,17 +260,17 @@ With this, we can enhance our lexer:
 ```idris
 unquote : ByteString -> String
 
-csv1_3 : Lexer CSV1
+csv1_3 : Lexer Void CSV1
 csv1_3 =
-  lexer
+  setEOI EOI $ lexer
     [ (','           , Const Comma1)
     , (linebreak     , Const NL1)
     , ("true"        , Const (Bool1 True))
     , ("false"       , Const (Bool1 False))
-    , (decimal       , Txt (Int1 . decimal))
-    , ('-' >> decimal, Txt (Int1 . negate . decimal . drop 1))
-    , (text          , Txt (Txt1 . toString))
-    , (quoted        , Txt (Txt1 . unquote))
+    , (decimal       , txt (Int1 . decimal))
+    , ('-' >> decimal, txt (Int1 . negate . decimal . drop 1))
+    , (text          , txt (Txt1 . toString))
+    , (quoted        , txt (Txt1 . unquote))
     , (spaces        , Ignore)
     ]
 ```
@@ -304,7 +305,7 @@ faster than the above, but I suggest to profile this properly if it
 is used in performance critical code.
 
 ```idris
-lexUQ : Lexer String
+lexUQ : Lexer Void String
 lexUQ =
   lexer
     [ (#"\""#, Const "\"")
@@ -313,15 +314,14 @@ lexUQ =
     , (#"\r"#, Const "\r")
     , (#"\t"#, Const "\t")
     , (#"""# , Ignore)
-    , (plus (dot && not '"' && not '\\'), Txt toString)
+    , (plus (dot && not '"' && not '\\'), txt toString)
     ]
 
 fastUnquote : ByteString -> String
 fastUnquote bs =
-  case lexBytes lexUQ bs of
-    Toks _ [s] => s
-    Toks _ xs  => fastConcat xs
-    _          => ""
+  case lexBytes Virtual lexUQ bs of
+    Left  _  => ""
+    Right xs => fastConcat (map val xs)
 ```
 
 <!-- vi: filetype=idris2:syntax=markdown
