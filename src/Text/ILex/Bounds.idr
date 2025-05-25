@@ -32,7 +32,6 @@ export
 atPos : Nat -> Bounds
 atPos n = BS n n @{reflexive}
 
-
 export %inline
 Semigroup Bounds where (<+>) = app
 
@@ -51,11 +50,6 @@ record Bounded ty where
   bounds : Bounds
 
 %runElab derive "Bounded" [Show,Eq,Ord]
-
--- ||| Smart costructor for `Bounded`.
--- public export
--- bounded : a -> (start,end : Position) -> Bounded a
--- bounded v s e = B v $ BS s e
 
 -- Implementation of `(<*>)`
 appb : Bounded (a -> b) -> Bounded a -> Bounded b

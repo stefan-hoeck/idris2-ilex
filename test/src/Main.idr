@@ -1,6 +1,7 @@
 module Main
 
 import Hedgehog
+import FC
 import Range
 import Set
 
@@ -11,4 +12,5 @@ main =
   test
     [ Range.props
     , Set.props
+    , FC.props
     ]
