@@ -14,6 +14,9 @@ data AorB : Type where
 
 %runElab derive "AorB" [Show,Eq]
 
+export
+Interpolation AorB where interpolate = show
+
 public export
 data Expr : Type where
   Lit  : Nat -> Expr
@@ -26,6 +29,9 @@ data Expr : Type where
 %runElab derive "Expr" [Show,Eq]
 
 export
+Interpolation Expr where interpolate = show
+
+export
 toNat : ByteString -> Expr
 
 public export
@@ -35,6 +41,9 @@ data Ident : Type where
   IE   : Ident -- end of input
 
 %runElab derive "Ident" [Show,Eq]
+
+export
+Interpolation Ident where interpolate = show
 
 export
 decNat : ByteString -> Integer
@@ -60,3 +69,6 @@ data JSON : Type where
   JEOI   : JSON
 
 %runElab derive "JSON" [Show,Eq]
+
+export
+Interpolation JSON where interpolate = show
