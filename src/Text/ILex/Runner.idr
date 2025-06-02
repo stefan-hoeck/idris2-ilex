@@ -150,9 +150,9 @@ parameters {0 e,a    : Type}
   -- The largest matched lexeme is consumed and kept.
   covering
   loop :
-       (vals    : SnocList $ Bounded a) -- accumulated tokens
-    -> (pos     : Nat)                  -- reverse position in the byte array
-    -> {auto x  : Ix pos n}             -- position in the byte array
+       (vals   : SnocList $ Bounded a) -- accumulated tokens
+    -> (pos    : Nat)                  -- reverse position in the byte array
+    -> {auto x : Ix pos n}             -- position in the byte array
     -> PLexRes states e a
   loop vals 0     = Toks (LST 0 empty) vals
   loop vals (S k) =
