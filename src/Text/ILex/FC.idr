@@ -41,7 +41,10 @@ record FileContext where
 
 export
 Interpolation FileContext where
-  interpolate (FC o s e) = "\{o}: \{s}--\{e}"
+  interpolate (FC o s e) =
+    if s == e
+       then "\{o}: \{s}"
+       else "\{o}: \{s}--\{e}"
 
 nextRem : Fin 4 -> Bits8 -> Fin 4
 nextRem FZ     m =
@@ -99,3 +102,45 @@ printFC fc@(FC o (P sr sc) (P er ec)) ls =
            emph  := indent (nsize + sc + 4) (replicate cemph '^')
            fr    := er `minus` 4 -- first row
         in lineNumbers [<"",head] nsize fr (range fr er ls) <>> [emph]
+
+--------------------------------------------------------------------------------
+--          Stream Bounds
+--------------------------------------------------------------------------------
+
+public export
+record StreamPos where
+  constructor SP
+  origin   : Origin
+  position : Position
+
+%runElab derive "StreamPos" [Show,Eq]
+
+public export
+record StreamBounds where
+  constructor SB
+  start : StreamPos
+  end   : StreamPos
+
+%runElab derive "StreamBounds" [Show,Eq]
+
+export
+Interpolation StreamBounds where
+  interpolate (SB (SP o1 p1) (SP o2 p2)) =
+    case o1 == o2 of
+      True  =>
+        """
+        \{FC o1 p1 p2}
+        """
+      False =>
+        """
+        \{FC o1 p1 p1} -
+        \{FC o2 p2 p2}
+        """
+
+public export
+record StreamBounded ty where
+  constructor B
+  val    : ty
+  bounds : StreamBounds
+
+%runElab derive "StreamBounded" [Show,Eq]

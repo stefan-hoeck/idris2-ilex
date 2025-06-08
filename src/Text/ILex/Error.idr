@@ -139,3 +139,23 @@ Interpolation t => Interpolation e => Interpolation (ParseError t e) where
       BS s e =>
        let fc := FC origin (toPosition s cont) (toPosition e cont)
         in unlines $ "Error: \{err}" :: printFC fc (lines $ toString cont)
+
+--------------------------------------------------------------------------------
+--          Stream Error
+--------------------------------------------------------------------------------
+
+public export
+record StreamError t e where
+  constructor SE
+  bounds : StreamBounds
+  error  : InnerError t e
+
+%runElab derive "StreamError" [Show,Eq]
+
+export
+Interpolation t => Interpolation e => Interpolation (StreamError t e) where
+  interpolate (SE bs err) =
+    """
+    Error: \{err}
+    \{bs}
+    """
