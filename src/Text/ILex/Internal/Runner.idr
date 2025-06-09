@@ -22,11 +22,6 @@ offsetToIx : (o : Nat) -> Ix s (o+s)
 offsetToIx 0     = IZ
 offsetToIx (S k) = rewrite plusSuccRightSucc k s in IS (offsetToIx k)
 
-||| Creates a bytestring from a buffer starting at the given offset.
-export
-bytes : {n : _} -> IBuffer n -> (p : Nat) -> (ix : Ix p n) => ByteString
-bytes buf p = BS _ $ drop (ixToNat ix) @{ixLTE ix} (fromIBuffer buf)
-
 export
 toByteString :
      IBuffer n
@@ -38,6 +33,18 @@ toByteString :
 toByteString buf from till =
   let bv := fromIBuffer buf
    in BS _ $ substringFromTo from (ixToNat ix) {lt = ixLT ix} bv
+
+export
+toBytes :
+     IBuffer n
+  -> (from        : Nat)
+  -> (0    to     : Nat)
+  -> {auto ix     : Ix to n}
+  -> {auto 0  lte : LTE from (ixToNat ix)}
+  -> ByteString
+toBytes buf from to =
+  let bv := fromIBuffer buf
+   in BS _ $ substringFromTill from (ixToNat ix) {lt2 = ixLTE ix} bv
 
 export %inline
 sp : Origin -> (l,c : Nat) -> StreamPos

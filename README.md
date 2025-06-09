@@ -11,9 +11,10 @@ module README
 import Derive.Prelude
 import Examples.Basics
 import Examples.Types
-import Text.ILex.FS
-import IO.Async.Loop.Posix
+import FS.Posix
 import IO.Async.Loop.Epoll
+import IO.Async.Loop.Posix
+import Text.ILex.FS
 
 %default total
 %language ElabReflection
@@ -338,6 +339,14 @@ streamJSON pth =
   |> streamLex json (FileSrc pth)
   |> P.mapOutput length
   |> printLnTo Stdout
+
+covering
+runProg : Prog Void () -> IO ()
+runProg prog = epollApp $ mpull (handle [stderrLn . interpolate, stderrLn . interpolate] prog)
+
+covering
+main : IO ()
+main = runProg $ streamJSON "/data/cyby/sub.json"
 ```
 
 <!-- vi: filetype=idris2:syntax=markdown

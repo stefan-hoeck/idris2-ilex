@@ -203,11 +203,9 @@ parameters {0 e,a    : Type}
     -> (col    : Nat)
     -> (vals   : SnocList $ StreamBounded a) -- accumulated tokens
     -> (pos    : Nat)                  -- reverse position in the byte array
-    -> {auto x : Ix pos n}             -- position in the byte array
+    -> {auto x : Ix (S pos) n}             -- position in the byte array
     -> PLexRes states e a
-  sloop l c vals 0     =
-    Right (LST (sp o l c) 0 empty $ sp o l c, vals <>> [])
-  sloop l c vals (S k) =
+  sloop l c vals k =
     case buf `ix` k of
       10 => case (next `at` 0) `atByte` 10 of
         0 => Left (seByte o l c 10)
@@ -240,7 +238,7 @@ parameters {0 e,a    : Type}
            Right v => sloop l c (sx :< B v bs) till
 
   sinner spos prev l c start vals 0       cur =
-    Right (LST (sp o l c) 0 empty $ sp o l c, vals <>> [])
+    Right (LST spos cur (prev <+> toBytes buf start 0) $ sp o l c, vals <>> [])
   sinner spos prev l c start vals (S k) cur =
     case ix buf k of
       10 => case (next `at` cur) `atByte` 0 of
