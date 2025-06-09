@@ -31,21 +31,18 @@ lexFrom :
   -> IBuffer n
   -> Either (ParseError a e) (List (Bounded a))
 
-offsetToIx : (o : Nat) -> Ix s (o+s)
-offsetToIx 0     = IZ
-offsetToIx (S k) = rewrite plusSuccRightSucc k s in IS (offsetToIx k)
-
-||| Like `plex` but tries to lex the whole string.
+||| Tries to lex a whole byte vector into a list of bounded
+||| tokens.
 export %inline
 lex : {n : _} -> Origin -> Lexer e a -> IBuffer n -> LexRes e a
 lex o l buf = lexFrom o l n buf
 
-||| Like `plex` but processes a UTF-8 string instead.
+||| Like `lex` but processes a UTF-8 string instead.
 export %inline
 lexString : Origin -> Lexer e a -> String -> LexRes e a
 lexString o l s = lex o l (fromString s)
 
-||| Like `plex` but processes a UTF-8 string instead.
+||| Like `lex` but processes a `ByteString` instead.
 export
 lexBytes : Origin -> Lexer e a -> ByteString -> LexRes e a
 lexBytes o l (BS s $ BV buf off lte) =
@@ -71,10 +68,6 @@ record LexState (n : Nat) where
 
 %runElab deriveIndexed "LexState" [Show]
 
-%inline
-sp : Origin -> (l,c : Nat) -> StreamPos
-sp o l c = SP o $ P l c
-
 export
 init : Origin -> LexState n
 init o = LST (sp o 0 0) 0 empty (sp o 0 0)
@@ -98,28 +91,16 @@ plexFrom :
 export %inline
 plexBytes :
      (l : Lexer e a)
-  -> LexState l.states
   -> Origin
+  -> LexState l.states
   -> ByteString
   -> PLexRes l.states e a
-plexBytes l st o (BS s $ BV buf off lte) =
+plexBytes l o st (BS s $ BV buf off lte) =
   plexFrom o l st s {x = offsetToIx off} (take (off+s) buf)
 
 --------------------------------------------------------------------------------
 -- Lexer run loop
 --------------------------------------------------------------------------------
-
-export
-toByteString :
-     IBuffer n
-  -> (from        : Nat)
-  -> (0    till   : Nat)
-  -> {auto ix     : Ix (S till) n}
-  -> {auto 0  lte : LTE from (ixToNat ix)}
-  -> ByteString
-toByteString buf from till =
-  let bv := fromIBuffer buf
-   in BS _ $ substringFromTo from (ixToNat ix) {lt = ixLT ix} bv
 
 parameters {0 e,a    : Type}
            {0 states : Nat}
@@ -190,14 +171,11 @@ parameters {0 e,a    : Type}
 lexFrom o l@(L ss nxt t _) pos buf =
   case loop nxt t buf [<] pos of
     Left (B x bs) => Left $ PE o bs (fromIBuffer buf) x
-    Right vs      => appEOI Virtual l buf pos vs
+    Right vs      => appEOI l pos vs
 
 --------------------------------------------------------------------------------
 -- Streaming run loop
 --------------------------------------------------------------------------------
-
-seByte : Origin -> (l,c : Nat) -> Bits8 -> StreamError t e
-seByte o l c b = let p := sp o l c in SE (SB p p) (Byte b)
 
 parameters {0 e,a    : Type}
            {0 states : Nat}

@@ -9,7 +9,11 @@ This is a literate Idris file, so we start with some imports.
 module README
 
 import Derive.Prelude
-import Text.ILex
+import Examples.Basics
+import Examples.Types
+import Text.ILex.FS
+import IO.Async.Loop.Posix
+import IO.Async.Loop.Epoll
 
 %default total
 %language ElabReflection
@@ -322,6 +326,18 @@ fastUnquote bs =
   case lexBytes Virtual lexUQ bs of
     Left  _  => ""
     Right xs => fastConcat (map val xs)
+```
+
+```idris
+0 Prog : Type -> Type -> Type
+Prog o r = Pull (Async Poll) o [StreamError JSON Void, Errno] r
+
+streamJSON : String -> Prog Void ()
+streamJSON pth =
+     readBytes pth
+  |> streamLex json (FileSrc pth)
+  |> P.mapOutput length
+  |> printLnTo Stdout
 ```
 
 <!-- vi: filetype=idris2:syntax=markdown

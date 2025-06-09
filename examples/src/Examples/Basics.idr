@@ -54,6 +54,12 @@ jstr = '"' >> star (chr <|> esc <|> uni) >> '"'
     uni : RExp True
     uni = "\\u" >> hexdigit >> hexdigit >> hexdigit >> hexdigit
 
+double : RExp True
+double =
+  let frac  = '.' >> plus digit
+      exp   = oneof ['e','E'] >> opt (oneof ['+','-']) >> plus digit
+   in opt '-' >> decimal >> opt frac >> opt exp
+
 export
 json : Lexer Void JSON
 json =
@@ -70,5 +76,6 @@ json =
     , (jstr,    txt (JStr . toString))
     , (decimal, txt (JInt . decNat))
     , ('-' >> decimal, txt (JInt . negate . decNat))
+    , (double,  txt (JNum . cast . toString))
     , (spaces,  Ignore)
     ]
