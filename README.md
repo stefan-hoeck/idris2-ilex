@@ -329,24 +329,69 @@ fastUnquote bs =
     Right xs => fastConcat (map val xs)
 ```
 
+## Streaming Files
+
+Functions such as `lex` and `lexBytes` are supposed to tokenize a
+(byte)string as a whole, so the whole data needs to fit into memory.
+Sometimes, however, we would like to process huge amounts of data.
+Package *ilex-streams*, which is also part of this project, provides
+utilities for this occasion.
+
+We are going to demonstrate how this is done when reading a large
+file containing JSON-encoded data. First, we define a type alias
+and runner for the data stream
+(see the [idris2-streams library](https://github.com/stefan-hoeck/idris2-streams)
+for proper documentation about `Pull` and `Stream`). Since
+we want to read stuff from file descriptors, so we use
+the `Async` monad (from [idris2-async](https://github.com/stefan-hoeck/idris2-async))
+with polling capabilities. We also want to deal with possible errors -
+parsing errors as well as errors from the operating system. This
+leads to the following type alias for our data stream plus a
+runner that will pretty print all errors to `stderr`:
+
 ```idris
 0 Prog : Type -> Type -> Type
-Prog o r = Pull (Async Poll) o [StreamError JSON Void, Errno] r
+Prog o r = AsyncPull Poll o [StreamError JSON Void, Errno] r
 
+covering
+runProg : Prog Void () -> IO ()
+runProg prog =
+ let handled := handle [stderrLn . interpolate, stderrLn . interpolate] prog
+  in epollApp $ mpull handled
+```
+
+And here's an example how to stream a single, possibly huge, JSON file
+(this will print the number of tokens found in each chunk of data read):
+
+```idris
 streamJSON : String -> Prog Void ()
 streamJSON pth =
      readBytes pth
   |> streamLex json (FileSrc pth)
   |> P.mapOutput length
   |> printLnTo Stdout
+```
 
-covering
-runProg : Prog Void () -> IO ()
-runProg prog = epollApp $ mpull (handle [stderrLn . interpolate, stderrLn . interpolate] prog)
+Functions `readBytes`, `mapOutput`, and `printLnTo` are just standard
+streaming utilities, while function `streamLex` is provided by
+the *ilex-streams* library. With the above, you can stream arbitrarily
+large JSON files in constant memory.
 
+However, there are some minor differences compared to tokenizing whole
+strings of data:
+
+* While we still follow a maximum-munch lexing strategy, there will
+  be no backtracking to previously encountered terminal states. This is
+  fine for most data formats, so it shouldn't be a big deal in practice.
+* For obvious reasons, we don't store the whole byte stream in memory,
+  so error messages will only contain the region (start and end line and
+  column) where the error occurred but not a highlighted excerpt of the
+  string with the error.
+
+```idris
 covering
 main : IO ()
-main = runProg $ streamJSON "/data/cyby/sub.json"
+main = runProg $ streamJSON "/home/gundi/downloads/large-file.json"
 ```
 
 <!-- vi: filetype=idris2:syntax=markdown
