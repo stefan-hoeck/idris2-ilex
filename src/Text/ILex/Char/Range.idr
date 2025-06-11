@@ -6,31 +6,31 @@ import Derive.Prelude
 %language ElabReflection
 
 --------------------------------------------------------------------------------
---- Bounded Interface
+--- WithBounds Interface
 --------------------------------------------------------------------------------
 
 public export
-interface Ord a => Bounded a where
+interface Ord a => WithBounds a where
   minBound : a
   maxBound : a
 
 export %inline
-Bounded Bits8 where
+WithBounds Bits8 where
   minBound = 0
   maxBound = 0xff
 
 export %inline
-Bounded Bits16 where
+WithBounds Bits16 where
   minBound = 0
   maxBound = 0xffff
 
 export %inline
-Bounded Bits32 where
+WithBounds Bits32 where
   minBound = 0
   maxBound = 0xffff_ffff
 
 export %inline
-Bounded Bits64 where
+WithBounds Bits64 where
   minBound = 0
   maxBound = 0xffff_ffff_ffff_ffff
 
@@ -178,20 +178,20 @@ charRange x y = range (cast x) (cast y)
 
 ||| The full range.  All 32 bit values are within it.
 export %inline
-fullRange : Bounded t => RangeOf t
+fullRange : WithBounds t => RangeOf t
 fullRange = Rng minBound maxBound
 
 ||| A range is full if it contains every possible value.
 export %inline
-isFull : Bounded t => RangeOf t -> Bool
+isFull : WithBounds t => RangeOf t -> Bool
 isFull = (== fullRange)
 
 export
-lowerBound : Bounded t => RangeOf t -> t
+lowerBound : WithBounds t => RangeOf t -> t
 lowerBound (Rng l _) = l
 lowerBound Empty     = maxBound
 
 export
-upperBound : Bounded t => RangeOf t -> t
+upperBound : WithBounds t => RangeOf t -> t
 upperBound (Rng _ u) = u
 upperBound Empty     = minBound

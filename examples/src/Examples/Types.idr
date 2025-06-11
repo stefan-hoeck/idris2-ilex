@@ -10,8 +10,12 @@ public export
 data AorB : Type where
   A : AorB
   B : AorB
+  E : AorB -- end of input
 
 %runElab derive "AorB" [Show,Eq]
+
+export
+Interpolation AorB where interpolate = show
 
 public export
 data Expr : Type where
@@ -20,8 +24,12 @@ data Expr : Type where
   Mult : Expr
   PO   : Expr
   PC   : Expr
+  EE   : Expr -- end of input
 
 %runElab derive "Expr" [Show,Eq]
+
+export
+Interpolation Expr where interpolate = show
 
 export
 toNat : ByteString -> Expr
@@ -30,8 +38,12 @@ public export
 data Ident : Type where
   Id   : String -> Ident
   Else : Ident
+  IE   : Ident -- end of input
 
 %runElab derive "Ident" [Show,Eq]
+
+export
+Interpolation Ident where interpolate = show
 
 export
 decNat : ByteString -> Integer
@@ -54,5 +66,9 @@ data JSON : Type where
   JBC    : JSON
   JComma : JSON
   JColon : JSON
+  JEOI   : JSON
 
 %runElab derive "JSON" [Show,Eq]
+
+export
+Interpolation JSON where interpolate = show
