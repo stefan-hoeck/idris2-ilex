@@ -367,7 +367,8 @@ And here's an example how to stream a single, possibly huge, JSON file
 streamJSON : String -> Prog Void ()
 streamJSON pth =
      readBytes pth
-  |> streamLex json (FileSrc pth)
+  |> P.mapOutput (FileSrc pth,)
+  |> streamLex json
   |> P.mapOutput length
   |> printLnTo Stdout
 ```
