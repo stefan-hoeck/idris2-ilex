@@ -12,6 +12,7 @@ import Derive.Prelude
 import Examples.Basics
 import Examples.Types
 import FS.Posix
+import FS.System
 import IO.Async.Loop.Epoll
 import IO.Async.Loop.Posix
 import Text.ILex.FS
@@ -367,7 +368,8 @@ And here's an example how to stream a single, possibly huge, JSON file
 streamJSON : String -> Prog Void ()
 streamJSON pth =
      readBytes pth
-  |> streamLex json (FileSrc pth)
+  |> P.mapOutput (FileSrc pth,)
+  |> streamLex json
   |> P.mapOutput length
   |> printLnTo Stdout
 ```
@@ -389,9 +391,18 @@ strings of data:
   string with the error.
 
 ```idris
+streamJSONFiles : Prog String () -> Prog Void ()
+streamJSONFiles pths =
+     flatMap pths (\p => readBytes p |> P.mapOutput (FileSrc p,))
+  |> streamLex json
+  |> P.mapOutput length
+  |> printLnTo Stdout
+```
+
+```idris
 covering
 main : IO ()
-main = runProg $ streamJSON "/home/gundi/downloads/large-file.json"
+main = runProg $ streamJSONFiles (P.tail args)
 ```
 
 <!-- vi: filetype=idris2:syntax=markdown
