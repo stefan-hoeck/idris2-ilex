@@ -241,7 +241,7 @@ parameters {0 e,a    : Type}
     Right (LST spos cur (prev <+> toBytes buf start 0) $ sp o l c, vals <>> [])
   sinner spos prev l c start vals (S k) cur =
     case ix buf k of
-      10 => case (next `at` cur) `atByte` 0 of
+      10 => case (next `at` cur) `atByte` 10 of
         FZ => case term `at` cur of
           Nothing   => Left (seByte o l c 10)
           Just conv => sapp spos prev l c vals conv start k
