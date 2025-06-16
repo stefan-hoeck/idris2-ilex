@@ -44,38 +44,45 @@ Monoid Bounds where neutral = Empty
 
 ||| Pairs a value with the textual bounds from where it was parsed.
 public export
-record Bounded ty where
+record GenBounded bs ty where
   constructor B
   val    : ty
-  bounds : Bounds
+  bounds : bs
 
-%runElab derive "Bounded" [Show,Eq,Ord]
+%runElab derive "GenBounded" [Show,Eq,Ord]
 
--- Implementation of `(<*>)`
-appb : Bounded (a -> b) -> Bounded a -> Bounded b
-appb (B vf b1) (B va b2) = B (vf va) (b1 <+> b2)
+public export
+0 Bounded : Type -> Type
+Bounded = GenBounded Bounds
 
--- Implementation of `(>>=)`
-bind : Bounded a -> (a -> Bounded b) -> Bounded b
-bind (B va b1) f =
-  let B vb b2 = f va
-   in B vb (b1 <+> b2)
+parameters {0 bs    : Type}
+           {auto sg : Semigroup bs}
+
+  -- Implementation of `(<*>)`
+  appb : GenBounded bs (a -> b) -> GenBounded bs a -> GenBounded bs b
+  appb (B vf b1) (B va b2) = B (vf va) (b1 <+> b2)
+
+  -- Implementation of `(>>=)`
+  bind : GenBounded bs a -> (a -> GenBounded bs b) -> GenBounded bs b
+  bind (B va b1) f =
+    let B vb b2 = f va
+     in B vb (b1 <+> b2)
 
 export
-Functor Bounded where
+Functor (GenBounded bs) where
   map f (B val bs) = B (f val) bs
 
 export %inline
-Applicative Bounded where
+Monoid bs => Applicative (GenBounded bs) where
   pure v = B v neutral
   (<*>) = appb
 
 export %inline
-Monad Bounded where
+Monoid bs => Monad (GenBounded bs) where
   (>>=) = bind
 
 export
-Foldable Bounded where
+Foldable (GenBounded bs) where
   foldr c n b = c b.val n
   foldl c n b = c n b.val
   foldMap f b = f b.val
@@ -83,7 +90,7 @@ Foldable Bounded where
   toList b = [b.val]
 
 export
-Traversable Bounded where
+Traversable (GenBounded bs) where
   traverse f (B v bs) = (`B` bs) <$> f v
 
 --------------------------------------------------------------------------------

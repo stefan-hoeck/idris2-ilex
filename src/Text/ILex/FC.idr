@@ -138,9 +138,5 @@ Interpolation StreamBounds where
         """
 
 public export
-record StreamBounded ty where
-  constructor B
-  val    : ty
-  bounds : StreamBounds
-
-%runElab derive "StreamBounded" [Show,Eq]
+0 StreamBounded : Type -> Type
+StreamBounded = GenBounded StreamBounds
