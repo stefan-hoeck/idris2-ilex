@@ -1,6 +1,7 @@
 module Text.ILex.Lexer
 
 import public Data.Array
+import public Text.ILex.Error
 import public Text.ILex.RExp
 import public Data.List
 

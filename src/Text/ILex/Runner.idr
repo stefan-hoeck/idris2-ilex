@@ -171,7 +171,7 @@ parameters {0 e,a    : Type}
 lexFrom o l@(L ss nxt t _) pos buf =
   case loop nxt t buf [<] pos of
     Left (B x bs) => Left $ PE o bs (fromIBuffer buf) x
-    Right vs      => appEOI l pos vs
+    Right vs      => appEOI l o (fromIBuffer buf) pos vs
 
 --------------------------------------------------------------------------------
 -- Streaming run loop

@@ -54,15 +54,20 @@ export
 seByte : Origin -> (l,c : Nat) -> Bits8 -> StreamError t e
 seByte o l c b = let p := sp o l c in SE (SB p p) (Byte b)
 
-parameters (l : Lexer e a)
-
-  ||| Appends the "end of input" token of a lexer (if any)
-  export
-  appEOI : Nat -> SnocList (Bounded a) -> Either c (List (Bounded a))
-  appEOI n sb =
-    case l.eoi of
-      Nothing => Right $ sb <>> []
-      Just v  => Right $ sb <>> [B v $ atPos n]
+||| Appends the "end of input" token of a lexer (if any)
+export
+appEOI :
+     Lexer e a
+  -> Origin
+  -> Lazy ByteString
+  -> Nat
+  -> SnocList (Bounded a)
+  -> Either (ParseError a e) (List (Bounded a))
+appEOI l o bs n sb =
+  case l.eoi of
+    Nothing        => Right $ sb <>> []
+    Just (Right v) => Right $ sb <>> [B v $ atPos n]
+    Just (Left v)  => Left (PE o (atPos n) bs v)
 
 
 parameters (l         : Lexer e a)
@@ -83,7 +88,7 @@ parameters (l         : Lexer e a)
   ||| append it to the already accumulated list of tokens.
   export
   appLast : ByteString -> Either (StreamError a e) (List (StreamBounded a))
-  appLast (BS 0 _) = Right sappEOI
+  appLast (BS 0 _) = sappEOI
   appLast bs       =
     case l.term `at` state of
       Nothing => Left (SE (SB end end) EOI)
