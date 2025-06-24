@@ -69,11 +69,12 @@ parameters (l         : Lexer e a)
            (start,end : StreamPos)
            (state     : Fin (S l.states))
 
-  sappEOI : List (StreamBounded a)
+  sappEOI : Either (StreamError a e) (List (StreamBounded a))
   sappEOI =
     case l.eoi of
-      Nothing => []
-      Just v  => [B v $ SB end end]
+      Nothing        => Right []
+      Just (Right v) => Right [B v $ SB end end]
+      Just (Left v)  => Left (SE (SB end end) v)
 
   bounds : StreamBounds
   bounds = SB start end
@@ -87,9 +88,9 @@ parameters (l         : Lexer e a)
     case l.term `at` state of
       Nothing => Left (SE (SB end end) EOI)
       Just y  => case y of
-        Ignore  => Right sappEOI
-        Const z => Right $ B z bounds :: sappEOI
+        Ignore  => sappEOI
+        Const z => (B z bounds ::) <$> sappEOI
         Err x   => Left (SE bounds (Custom x))
         Txt f   => case f bs of
           Left x  => Left (SE bounds (Custom x))
-          Right x => Right $ B x bounds :: sappEOI
+          Right x => (B x bounds ::) <$> sappEOI

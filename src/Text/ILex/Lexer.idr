@@ -41,11 +41,15 @@ record Lexer e a where
   term   : IArray (S states) (Maybe $ Conv e a)
 
   ||| End of input token (if any)
-  eoi    : Maybe a
+  eoi    : Maybe (Either (InnerError a e) a)
 
 export %inline
 setEOI : a -> Lexer e a -> Lexer e a
-setEOI v = {eoi := Just v}
+setEOI v = {eoi := Just (Right v)}
+
+export %inline
+errEOI : InnerError a e -> Lexer e a -> Lexer e a
+errEOI x = {eoi := Just (Left x)}
 
 --------------------------------------------------------------------------------
 -- Lexer Generator
