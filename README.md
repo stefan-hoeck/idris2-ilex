@@ -58,7 +58,7 @@ data CSV0 : Type where
 Without further ado, here is our first `.csv` lexer:
 
 ```idris
-csv0 : Lexer Void CSV0
+csv0 : Lexer Void () CSV0
 csv0 =
   lexer
     [ (','                  , Const Comma0)
@@ -124,7 +124,7 @@ And here's the corresponding lexer:
 linebreak : RExp True
 linebreak = '\n' <|> "\n\r" <|> "\r\n" <|> '\r' <|> '\RS'
 
-csv1 : Lexer Void CSV1
+csv1 : Lexer Void () CSV1
 csv1 =
   setEOI EOI $ lexer
     [ (','                  , Const Comma1)
@@ -215,7 +215,7 @@ drop during lexing:
 spaces : RExp True
 spaces = plus $ oneof [' ', '\t']
 
-csv1_2 : Lexer Void CSV1
+csv1_2 : Lexer Void () CSV1
 csv1_2 =
   setEOI EOI $ lexer
     [ (','           , Const Comma1)
@@ -266,7 +266,7 @@ With this, we can enhance our lexer:
 ```idris
 unquote : ByteString -> String
 
-csv1_3 : Lexer Void CSV1
+csv1_3 : Lexer Void () CSV1
 csv1_3 =
   setEOI EOI $ lexer
     [ (','           , Const Comma1)
@@ -311,7 +311,7 @@ faster than the above, but I suggest to profile this properly if it
 is used in performance critical code.
 
 ```idris
-lexUQ : Lexer Void String
+lexUQ : Lexer Void () String
 lexUQ =
   lexer
     [ (#"\""#, Const "\"")

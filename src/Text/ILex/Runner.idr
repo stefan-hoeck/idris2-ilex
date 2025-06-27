@@ -25,7 +25,7 @@ LexRes e a = Either (ParseError a e) (List (Bounded a))
 lexFrom :
      {n      : Nat}
   -> (o      : Origin)
-  -> (l      : Lexer e a)
+  -> (l      : Lexer e c a)
   -> (pos    : Nat)
   -> {auto x : Ix pos n}
   -> IBuffer n
@@ -34,17 +34,17 @@ lexFrom :
 ||| Tries to lex a whole byte vector into a list of bounded
 ||| tokens.
 export %inline
-lex : {n : _} -> Origin -> Lexer e a -> IBuffer n -> LexRes e a
+lex : {n : _} -> Origin -> Lexer e c a -> IBuffer n -> LexRes e a
 lex o l buf = lexFrom o l n buf
 
 ||| Like `lex` but processes a UTF-8 string instead.
 export %inline
-lexString : Origin -> Lexer e a -> String -> LexRes e a
+lexString : Origin -> Lexer e c a -> String -> LexRes e a
 lexString o l s = lex o l (fromString s)
 
 ||| Like `lex` but processes a `ByteString` instead.
 export
-lexBytes : Origin -> Lexer e a -> ByteString -> LexRes e a
+lexBytes : Origin -> Lexer e c a -> ByteString -> LexRes e a
 lexBytes o l (BS s $ BV buf off lte) =
   lexFrom o l s {x = offsetToIx off} (take (off+s) buf)
 
@@ -81,7 +81,7 @@ PLexRes n e a = Either (StreamError a e) (LexState n, List (StreamBounded a))
 
 plexFrom :
      (o      : Origin)
-  -> (l      : Lexer e a)
+  -> (l      : Lexer e c a)
   -> (st     : LexState l.states)
   -> (pos    : Nat)
   -> {auto x : Ix pos n}
@@ -90,7 +90,7 @@ plexFrom :
 
 export %inline
 plexBytes :
-     (l : Lexer e a)
+     (l : Lexer e c a)
   -> Origin
   -> LexState l.states
   -> ByteString
@@ -102,15 +102,15 @@ plexBytes l o st (BS s $ BV buf off lte) =
 -- Lexer run loop
 --------------------------------------------------------------------------------
 
-parameters {0 e,a    : Type}
+parameters {0 e,c,a  : Type}
            {0 states : Nat}
            {0 n      : Nat}
            (buf      : IBuffer n)
 
   inner :
        (next        : Stepper states)
-    -> (term        : IArray (S states) (Conv e a))
-    -> (last        : Conv e a)             -- last encountered terminal state
+    -> (term        : IArray (S states) (Conv e c a))
+    -> (last        : Conv e c a)             -- last encountered terminal state
     -> (start       : Nat)                  -- start of current token
     -> (lastPos     : Nat)                  -- counter for last byte in `last`
     -> {auto y      : Ix (S lastPos) n}     -- end position in the byte array of `last`
@@ -126,7 +126,7 @@ parameters {0 e,a    : Type}
   -- The largest matched lexeme is consumed and kept.
   loop :
        (next   : Stepper states)
-    -> (term   : IArray (S states) (Conv e a))
+    -> (term   : IArray (S states) (Conv e c a))
     -> (vals   : SnocList $ Bounded a) -- accumulated tokens
     -> (pos    : Nat)                  -- reverse position in the byte array
     -> {auto x : Ix pos n}             -- position in the byte array
@@ -139,9 +139,9 @@ parameters {0 e,a    : Type}
 
   app :
        Stepper states
-    -> IArray (S states) (Conv e a)
+    -> IArray (S states) (Conv e c a)
     -> SnocList (Bounded a)
-    -> Conv e a
+    -> Conv e c a
     -> Lazy (InnerError a e)
     -> (from        : Nat)
     -> (till        : Nat)
@@ -179,7 +179,7 @@ lexFrom o l@(L ss nxt t _) pos buf =
 -- Streaming run loop
 --------------------------------------------------------------------------------
 
-parameters {0 e,a    : Type}
+parameters {0 e,c,a  : Type}
            {0 states : Nat}
            {0 n      : Nat}
            (o        : Origin)
@@ -187,7 +187,7 @@ parameters {0 e,a    : Type}
 
   sinner :
        (next        : Stepper states)
-    -> (term        : IArray (S states) (Conv e a))
+    -> (term        : IArray (S states) (Conv e c a))
     -> (spos        : StreamPos)
     -> (prev        : ByteString)
     -> (line        : Nat)
@@ -202,7 +202,7 @@ parameters {0 e,a    : Type}
 
   sloop :
        (next   : Stepper states)
-    -> (term   : IArray (S states) (Conv e a))
+    -> (term   : IArray (S states) (Conv e c a))
     -> (line   : Nat)
     -> (col    : Nat)
     -> (vals   : SnocList $ StreamBounded a) -- accumulated tokens
@@ -220,14 +220,14 @@ parameters {0 e,a    : Type}
 
   sapp :
        (next        : Stepper states)
-    -> (term        : IArray (S states) (Conv e a))
+    -> (term        : IArray (S states) (Conv e c a))
     -> (spos        : StreamPos)
     -> (prev        : ByteString)
     -> (line        : Nat)
     -> (col         : Nat)
     -> (byte        : Bits8)
     -> SnocList (StreamBounded a)
-    -> Conv e a
+    -> Conv e c a
     -> (from        : Nat)
     -> (till        : Nat)
     -> {auto ix     : Ix (S till) n}

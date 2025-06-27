@@ -23,7 +23,7 @@ spaces : RExp True
 spaces = plus (oneof [' ', '\n', '\r', '\t'])
 
 export
-aOrB : Lexer Void AorB
+aOrB : Lexer Void () AorB
 aOrB =
   setEOI E $ lexer
     [ ('A' >> plus 'a', Const MA)
@@ -60,7 +60,7 @@ genB = [| combine (string (linear 1 10) (element ['b', 'B'])) genSpace |]
 aOrBs : Gen (AorB, String)
 aOrBs = choice [genA, genMA, genB]
 
-lexNoBounds : Lexer e a -> String -> Either (ParseError a e) (List a)
+lexNoBounds : Lexer e c a -> String -> Either (ParseError a e) (List a)
 lexNoBounds lex = map (map val) . lexString Virtual lex
 
 prop_lexAorB : Property

@@ -13,7 +13,7 @@ import Derive.Prelude
 export
 streamLex :
      {auto has : Has (StreamError a e) es}
-  -> Lexer e a
+  -> Lexer e c a
   -> Pull f (Origin,ByteString) es r
   -> Pull f (List $ StreamBounded a) es r
 streamLex l = go (init Virtual)

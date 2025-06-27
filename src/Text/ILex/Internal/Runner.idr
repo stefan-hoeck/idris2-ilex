@@ -57,7 +57,7 @@ seByte o l c b = let p := sp o l c in SE (SB p p) (Byte b)
 ||| Appends the "end of input" token of a lexer (if any)
 export
 appEOI :
-     Lexer e a
+     Lexer e c a
   -> Origin
   -> Lazy ByteString
   -> Nat
@@ -70,7 +70,7 @@ appEOI l o bs n sb =
     Just (Left v)  => Left (PE o (atPos n) bs v)
 
 
-parameters (l         : Lexer e a)
+parameters (l         : Lexer e c a)
            (start,end : StreamPos)
            (state     : Fin (S l.states))
 

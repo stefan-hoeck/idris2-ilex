@@ -26,7 +26,7 @@ Stepper states = IArray (S states) (IArray 256 (Fin (S states)))
 ||| an array of state transitions plus an array
 ||| describing the terminal states.
 public export
-record Lexer e a where
+record Lexer e c a where
   constructor L
   ||| Number of non-zero states in the automaton.
   states : Nat
@@ -39,17 +39,17 @@ record Lexer e a where
   next   : Stepper states
 
   ||| Terminal states and the corresponding conversions.
-  term   : IArray (S states) (Conv e a)
+  term   : IArray (S states) (Conv e c a)
 
   ||| End of input token (if any)
   eoi    : Maybe (Either (InnerError a e) a)
 
 export %inline
-setEOI : a -> Lexer e a -> Lexer e a
+setEOI : a -> Lexer e c a -> Lexer e c a
 setEOI v = {eoi := Just (Right v)}
 
 export %inline
-errEOI : InnerError a e -> Lexer e a -> Lexer e a
+errEOI : InnerError a e -> Lexer e c a -> Lexer e c a
 errEOI x = {eoi := Just (Left x)}
 
 --------------------------------------------------------------------------------
@@ -59,7 +59,7 @@ errEOI x = {eoi := Just (Left x)}
 emptyRow : IArray 256 (Fin (S n))
 emptyRow = fill _ 0
 
-emptyLexer : Lexer e a
+emptyLexer : Lexer e c a
 emptyLexer = L 0 (fill _ emptyRow) (fill _ Bottom) Nothing
 
 term : SortedMap Nat a -> Node -> Maybe (Nat, a)
@@ -74,7 +74,7 @@ node (N k _ out) = (k, fromPairs _ 0 $ mapMaybe pair (out >>= transitions))
 
 ||| A lexer operating on raw bytes.
 export
-byteLexer : (m : TokenMap8 (Conv e a)) -> (0 p : NonEmpty m) => Lexer e a
+byteLexer : (m : TokenMap8 (Conv e c a)) -> (0 p : NonEmpty m) => Lexer e c a
 byteLexer m =
   let M tms graph := assert_total $ machine (toDFA m)
       nodes       := values graph
@@ -85,5 +85,5 @@ byteLexer m =
 
 ||| A utf-8 aware lexer operating on text.
 export
-lexer : (m : TokenMap (Conv e a)) -> (0 p : NonEmpty m) => Lexer e a
+lexer : (m : TokenMap (Conv e c a)) -> (0 p : NonEmpty m) => Lexer e c a
 lexer (p::ps) = byteLexer (toUTF8 p :: map toUTF8 ps)

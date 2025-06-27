@@ -11,7 +11,7 @@ spaces : RExp True
 spaces = plus (oneof [' ', '\n', '\r', '\t'])
 
 export
-aOrB : Lexer Void AorB
+aOrB : Lexer Void () AorB
 aOrB =
   setEOI E $ lexer
     [ (plus ('A' <|> 'a'), Const A)
@@ -20,7 +20,7 @@ aOrB =
     ]
 
 export
-expr : TokenMap (Conv Void Expr)
+expr : TokenMap (Conv Void () Expr)
 expr =
   [ (natural, txt toNat)
   , ('+', Const Plus)
@@ -34,7 +34,7 @@ identifier : RExp True
 identifier = plus $ alphaNum <|> '_'
 
 export
-ident : Lexer Void Ident
+ident : Lexer Void () Ident
 ident =
   setEOI IE $ lexer
     [ ("else", Const Else)
@@ -61,7 +61,7 @@ double =
    in opt '-' >> decimal >> opt frac >> opt exp
 
 export
-json : Lexer Void JSON
+json : Lexer Void () JSON
 json =
   setEOI JEOI $ lexer
     [ ("null",  Const Null)
