@@ -104,8 +104,7 @@ parameters {0 e,c,a  : Type}
            (buf      : IBuffer n)
 
   inner :
-       (next        : Stepper s)
-    -> (term        : IArray (S s) (Conv e c a))
+       (dfa         : DFA e c a)
     -> (last        : Conv e c a)             -- last encountered terminal state
     -> (start       : Nat)                  -- start of current token
     -> (lastPos     : Nat)                  -- counter for last byte in `last`
@@ -115,7 +114,7 @@ parameters {0 e,c,a  : Type}
     -> {auto x      : Ix pos n}             -- position in the byte array
     -> {auto 0 lte1 : LTE start (ixToNat y)}
     -> {auto 0 lte2 : LTE start (ixToNat x)}
-    -> (cur         : Fin (S s))       -- current automaton state
+    -> (cur         : Fin (S dfa.states))   -- current automaton state
     -> Either (Bounded $ InnerError a e) (DFA e c a, SnocList (Bounded a))
 
   -- Accumulates lexemes by applying the maximum munch strategy:
@@ -126,11 +125,11 @@ parameters {0 e,c,a  : Type}
     -> (pos    : Nat)                  -- reverse position in the byte array
     -> {auto x : Ix pos n}             -- position in the byte array
     -> Either (Bounded $ InnerError a e) (DFA e c a, SnocList (Bounded a))
-  loop dfa               vals 0     = Right (dfa, vals)
-  loop (D _ next term _) vals (S k) =
-    case (next `at` 0) `atByte` (buf `ix` k) of
+  loop dfa vals 0     = Right (dfa, vals)
+  loop dfa vals (S k) =
+    case (dfa.next `at` 0) `atByte` (buf `ix` k) of
       0 => Left $ B (Byte $ buf `ix` k) (atPos $ ixToNat x)
-      s => inner next term (term `at` s) (ixToNat x) k vals k s
+      s => inner dfa (dfa.term `at` s) (ixToNat x) k vals k s
 
   app :
        SnocList (Bounded a)
@@ -152,16 +151,16 @@ parameters {0 e,c,a  : Type}
             Left  x => Left $ B (Custom x) bs
             Right (cd,v) => loop (todfa cd) (sx :< B v bs) till
 
-  inner next term last start lastPos vals 0     cur =
+  inner dfa last start lastPos vals 0     cur =
     app vals last EOI start lastPos
-  inner next term last start lastPos vals (S k) cur =
-    let arr  := next `at` cur
+  inner dfa last start lastPos vals (S k) cur =
+    let arr  := dfa.next `at` cur
         byte := buf `ix` k
      in case arr `atByte` byte of
           FZ => app vals last (Byte byte) start lastPos
-          x  => case term `at` x of
-            Bottom => inner next term last start lastPos vals k x
-            i      => inner next term i    start k       vals k x
+          x  => case dfa.term `at` x of
+            Bottom => inner dfa last start lastPos vals k x
+            i      => inner dfa i    start k       vals k x
 
 lexFrom o (L ini todfa) pos buf =
   case loop todfa buf (todfa ini) [<] pos of
