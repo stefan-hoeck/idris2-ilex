@@ -171,84 +171,82 @@ lexFrom o (L ini todfa) pos buf =
 --------------------------------------------------------------------------------
 -- Streaming run loop
 --------------------------------------------------------------------------------
---
--- parameters {0 e,c,a  : Type}
---            {0 n      : Nat}
---            (o        : Origin)
---            (buf      : IBuffer n)
---
---   sinner :
---        (next        : Stepper states)
---     -> (term        : IArray (S states) (Conv e c a))
---     -> (spos        : StreamPos)
---     -> (prev        : ByteString)
---     -> (line        : Nat)
---     -> (col         : Nat)
---     -> (start       : Nat)                  -- start of current token
---     -> (vals        : SnocList $ StreamBounded a) -- accumulated tokens
---     -> (pos         : Nat)                  -- reverse position in the byte array
---     -> {auto x      : Ix pos n}             -- position in the byte array
---     -> {auto 0 lte2 : LTE start (ixToNat x)}
---     -> (cur         : Fin (S states))       -- current automaton state
---     -> PLexRes states e a
---
---   sloop :
---        (next   : Stepper states)
---     -> (term   : IArray (S states) (Conv e c a))
---     -> (line   : Nat)
---     -> (col    : Nat)
---     -> (vals   : SnocList $ StreamBounded a) -- accumulated tokens
---     -> (pos    : Nat)                  -- reverse position in the byte array
---     -> {auto x : Ix (S pos) n}             -- position in the byte array
---     -> PLexRes states e a
---   sloop next term l c vals k =
---     case buf `ix` k of
---       10 => case (next `at` 0) `atByte` 10 of
---         0 => Left (seByte o l c 10)
---         s => sinner next term (sp o l c) empty (S l) 0 (ixToNat x) vals k s
---       b  => case (next `at` 0) `atByte` b  of
---         0 => Left (seByte o l c b)
---         s => sinner next term (sp o l c) empty l (S c) (ixToNat x) vals k s
---
---   sapp :
---        (next        : Stepper states)
---     -> (term        : IArray (S states) (Conv e c a))
---     -> (spos        : StreamPos)
---     -> (prev        : ByteString)
---     -> (line        : Nat)
---     -> (col         : Nat)
---     -> (byte        : Bits8)
---     -> SnocList (StreamBounded a)
---     -> Conv e c a
---     -> (from        : Nat)
---     -> (till        : Nat)
---     -> {auto ix     : Ix (S till) n}
---     -> {auto 0  lte : LTE from (ixToNat ix)}
---     -> PLexRes states e a
---   sapp next term spos prev l c byte sx conv from till =
---    let np := sp o l c
---        bs := SB spos np
---     in case conv of
---          Bottom  => Left (seByte o l c byte)
---          Const v => sloop next term l c (sx :< B v bs) till
---          Ignore  => sloop next term l c sx             till
---          Err   x => Left $ SE bs (Custom x)
---          Txt   f => case f (prev <+> toByteString buf from till) of
---            Left  x => Left $ SE bs (Custom x)
---            Right v => sloop next term l c (sx :< B v bs) till
---
---   sinner next term spos prev l c start vals 0       cur =
---     Right (LST spos cur (prev <+> toBytes buf start 0) $ sp o l c, vals <>> [])
---   sinner next term spos prev l c start vals (S k) cur =
---     case ix buf k of
---       10 => case (next `at` cur) `atByte` 10 of
---         FZ => sapp next term spos prev l c 10 vals (term `at` cur) start k
---         st => sinner next term spos prev (S l) 0 start vals k st
---       b  => case (next `at` cur) `atByte` b of
---         FZ => sapp next term spos prev l c b  vals (term `at` cur) start k
---         st => sinner next term spos prev l (S c) start vals k st
---
--- plexFrom o (L ss nxt t _) (LST spos cur prev (SP oe $ P l c)) pos buf =
---   case o == oe of
---     True  => sinner o buf nxt t spos prev l c 0 [<] pos cur
---     False => sinner o buf nxt t spos prev 0 0 0 [<] pos cur
+
+parameters {0 e,c,a  : Type}
+           {0 n      : Nat}
+           (o        : Origin)
+           (lx       : Lexer e c a)
+           (buf      : IBuffer n)
+
+  sinner :
+       (dfa         : DFA e c a)
+    -> (spos        : StreamPos)
+    -> (prev        : ByteString)
+    -> (line        : Nat)
+    -> (col         : Nat)
+    -> (start       : Nat)                  -- start of current token
+    -> (vals        : SnocList $ StreamBounded a) -- accumulated tokens
+    -> (pos         : Nat)                  -- reverse position in the byte array
+    -> {auto x      : Ix pos n}             -- position in the byte array
+    -> {auto 0 lte2 : LTE start (ixToNat x)}
+    -> (cur         : Fin (S dfa.states))       -- current automaton state
+    -> PLexRes e c a
+
+  sloop :
+       (dfa    : DFA e c a)
+    -> (line   : Nat)
+    -> (col    : Nat)
+    -> (vals   : SnocList $ StreamBounded a) -- accumulated tokens
+    -> (pos    : Nat)                  -- reverse position in the byte array
+    -> {auto x : Ix (S pos) n}             -- position in the byte array
+    -> PLexRes e c a
+  sloop dfa l c vals k =
+    case buf `ix` k of
+      10 => case (dfa.next `at` 0) `atByte` 10 of
+        0 => Left (seByte o l c 10)
+        s => sinner dfa (sp o l c) empty (S l) 0 (ixToNat x) vals k s
+      b  => case (dfa.next `at` 0) `atByte` b  of
+        0 => Left (seByte o l c b)
+        s => sinner dfa (sp o l c) empty l (S c) (ixToNat x) vals k s
+
+  sapp :
+       (dfa         : DFA e c a)
+    -> (spos        : StreamPos)
+    -> (prev        : ByteString)
+    -> (line        : Nat)
+    -> (col         : Nat)
+    -> (byte        : Bits8)
+    -> SnocList (StreamBounded a)
+    -> Conv e c a
+    -> (from        : Nat)
+    -> (till        : Nat)
+    -> {auto ix     : Ix (S till) n}
+    -> {auto 0  lte : LTE from (ixToNat ix)}
+    -> PLexRes e c a
+  sapp (D _ next term _) spos prev l c byte sx conv from till =
+   let np := sp o l c
+       bs := SB spos np
+    in case conv of
+         Bottom  => Left (seByte o l c byte)
+         Const cd v => sloop (lx.dfa cd) l c (sx :< B v bs) till
+         Ignore cd  => sloop (lx.dfa cd) l c sx             till
+         Err   x => Left $ SE bs (Custom x)
+         Txt   f => case f (prev <+> toByteString buf from till) of
+           Left  x => Left $ SE bs (Custom x)
+           Right (cd,v) => sloop (lx.dfa cd) l c (sx :< B v bs) till
+
+  sinner dfa spos prev l c start vals 0       cur =
+    Right (LST dfa spos cur (prev <+> toBytes buf start 0) $ sp o l c, vals <>> [])
+  sinner dfa spos prev l c start vals (S k) cur =
+    case ix buf k of
+      10 => case (dfa.next `at` cur) `atByte` 10 of
+        FZ => sapp dfa spos prev l c 10 vals (dfa.term `at` cur) start k
+        st => sinner dfa spos prev (S l) 0 start vals k st
+      b  => case (dfa.next `at` cur) `atByte` b of
+        FZ => sapp dfa spos prev l c b  vals (dfa.term `at` cur) start k
+        st => sinner dfa spos prev l (S c) start vals k st
+
+plexFrom o lx (LST dfa spos cur prev (SP oe $ P l c)) pos buf =
+  case o == oe of
+    True  => sinner o lx buf dfa spos prev l c 0 [<] pos cur
+    False => sinner o lx buf dfa spos prev 0 0 0 [<] pos cur
