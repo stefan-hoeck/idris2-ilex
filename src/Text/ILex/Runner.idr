@@ -106,11 +106,11 @@ parameters {0 e,a    : Type}
            {0 states : Nat}
            {0 n      : Nat}
            (next     : Stepper states)
-           (term     : IArray (S states) (Maybe $ Conv e a))
+           (term     : IArray (S states) (Conv e a))
            (buf      : IBuffer n)
 
   inner :
-       (last        : Maybe $ Conv e a)     -- last encountered terminal state
+       (last        : Conv e a)             -- last encountered terminal state
     -> (start       : Nat)                  -- start of current token
     -> (lastPos     : Nat)                  -- counter for last byte in `last`
     -> {auto y      : Ix (S lastPos) n}     -- end position in the byte array of `last`
@@ -138,14 +138,16 @@ parameters {0 e,a    : Type}
   app :
        SnocList (Bounded a)
     -> Conv e a
+    -> Lazy (InnerError a e)
     -> (from        : Nat)
     -> (till        : Nat)
     -> {auto ix     : Ix (S till) n}
     -> {auto 0  lte : LTE from (ixToNat ix)}
     -> Either (Bounded $ InnerError a e) (SnocList (Bounded a))
-  app sx c from till =
+  app sx c err from till =
     let bs := BS from (ixToNat ix)
      in case c of
+          Bottom  => Left $ B err (atPos $ ixToNat ix)
           Const v => loop (sx :< B v bs) till
           Ignore  => loop sx till
           Err   x => Left $ B (Custom x) bs
@@ -153,20 +155,15 @@ parameters {0 e,a    : Type}
             Left  x => Left $ B (Custom x) bs
             Right v => loop (sx :< B v bs) till
 
-  inner last start lastPos vals 0     cur =
-    case last of
-      Nothing => Left $ B EOI (atPos $ ixToNat x)
-      Just i  => app vals i start lastPos
+  inner last start lastPos vals 0     cur = app vals last EOI start lastPos
   inner last start lastPos vals (S k) cur =
     let arr  := next `at` cur
-        byte := ix buf k
+        byte := buf `ix` k
      in case arr `atByte` byte of
-          FZ => case last of
-            Nothing => Left $ B (Byte $ buf `ix` k) (atPos $ ixToNat x)
-            Just i  => app vals i start lastPos
+          FZ => app vals last (Byte byte) start lastPos
           x  => case term `at` x of
-            Nothing => inner last     start lastPos vals k x
-            Just i  => inner (Just i) start k       vals k x
+            Bottom => inner last start lastPos vals k x
+            i      => inner i    start k       vals k x
 
 lexFrom o l@(L ss nxt t _) pos buf =
   case loop nxt t buf [<] pos of
@@ -182,7 +179,7 @@ parameters {0 e,a    : Type}
            {0 n      : Nat}
            (o        : Origin)
            (next     : Stepper states)
-           (term     : IArray (S states) (Maybe $ Conv e a))
+           (term     : IArray (S states) (Conv e a))
            (buf      : IBuffer n)
 
   sinner :
@@ -219,6 +216,7 @@ parameters {0 e,a    : Type}
     -> (prev        : ByteString)
     -> (line        : Nat)
     -> (col         : Nat)
+    -> (byte        : Bits8)
     -> SnocList (StreamBounded a)
     -> Conv e a
     -> (from        : Nat)
@@ -226,10 +224,11 @@ parameters {0 e,a    : Type}
     -> {auto ix     : Ix (S till) n}
     -> {auto 0  lte : LTE from (ixToNat ix)}
     -> PLexRes states e a
-  sapp spos prev l c sx conv from till =
+  sapp spos prev l c byte sx conv from till =
    let np := sp o l c
        bs := SB spos np
     in case conv of
+         Bottom  => Left (seByte o l c byte)
          Const v => sloop l c (sx :< B v bs) till
          Ignore  => sloop l c sx             till
          Err   x => Left $ SE bs (Custom x)
@@ -242,14 +241,10 @@ parameters {0 e,a    : Type}
   sinner spos prev l c start vals (S k) cur =
     case ix buf k of
       10 => case (next `at` cur) `atByte` 10 of
-        FZ => case term `at` cur of
-          Nothing   => Left (seByte o l c 10)
-          Just conv => sapp spos prev l c vals conv start k
+        FZ => sapp spos prev l c 10 vals (term `at` cur) start k
         st => sinner spos prev (S l) 0 start vals k st
       b  => case (next `at` cur) `atByte` b of
-        FZ => case term `at` cur of
-          Nothing   => Left (seByte o l c b)
-          Just conv => sapp spos prev l c vals conv start k
+        FZ => sapp spos prev l c b  vals (term `at` cur) start k
         st => sinner spos prev l (S c) start vals k st
 
 plexFrom o (L ss nxt t _) (LST spos cur prev (SP oe $ P l c)) pos buf =

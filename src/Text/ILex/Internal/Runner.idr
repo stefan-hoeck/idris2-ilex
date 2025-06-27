@@ -91,11 +91,10 @@ parameters (l         : Lexer e a)
   appLast (BS 0 _) = sappEOI
   appLast bs       =
     case l.term `at` state of
-      Nothing => Left (SE (SB end end) EOI)
-      Just y  => case y of
-        Ignore  => sappEOI
-        Const z => (B z bounds ::) <$> sappEOI
-        Err x   => Left (SE bounds (Custom x))
-        Txt f   => case f bs of
-          Left x  => Left (SE bounds (Custom x))
-          Right x => (B x bounds ::) <$> sappEOI
+      Bottom  => Left (SE (SB end end) EOI)
+      Ignore  => sappEOI
+      Const z => (B z bounds ::) <$> sappEOI
+      Err x   => Left (SE bounds (Custom x))
+      Txt f   => case f bs of
+        Left x  => Left (SE bounds (Custom x))
+        Right x => (B x bounds ::) <$> sappEOI

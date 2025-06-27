@@ -52,6 +52,7 @@ adjRanges f (Star x)  = Star (adjRanges f x)
 
 public export
 data Conv : Type -> Type -> Type where
+  Bottom : Conv e a
   Ignore : Conv e a
   Const  : a -> Conv e a
   Txt    : (ByteString -> Either e a) -> Conv e a

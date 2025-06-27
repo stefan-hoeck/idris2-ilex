@@ -39,7 +39,7 @@ record Lexer e a where
   next   : Stepper states
 
   ||| Terminal states and the corresponding conversions.
-  term   : IArray (S states) (Maybe $ Conv e a)
+  term   : IArray (S states) (Conv e a)
 
   ||| End of input token (if any)
   eoi    : Maybe (Either (InnerError a e) a)
@@ -60,11 +60,11 @@ emptyRow : IArray 256 (Fin (S n))
 emptyRow = fill _ 0
 
 emptyLexer : Lexer e a
-emptyLexer = L 0 (fill _ emptyRow) (fill _ Nothing) Nothing
+emptyLexer = L 0 (fill _ emptyRow) (fill _ Bottom) Nothing
 
-term : SortedMap Nat a -> Node -> Maybe (Nat, Maybe a)
+term : SortedMap Nat a -> Node -> Maybe (Nat, a)
 term m (N _ []     _) = Nothing
-term m (N n (t::_) _) = ((n,) . Just) <$> lookup t m
+term m (N n (t::_) _) = (n,) <$> lookup t m
 
 node : {n : _} -> Node -> (Nat, IArray 256 (Fin (S n)))
 node (N k _ out) = (k, fromPairs _ 0 $ mapMaybe pair (out >>= transitions))
@@ -79,7 +79,7 @@ byteLexer m =
   let M tms graph := assert_total $ machine (toDFA m)
       nodes       := values graph
       S len       := length nodes | 0 => emptyLexer
-      terms       := fromPairs (S len) Nothing (mapMaybe (term tms) nodes)
+      terms       := fromPairs (S len) Bottom (mapMaybe (term tms) nodes)
       trans       := fromPairs (S len) emptyRow (map node nodes)
    in L len trans terms Nothing
 
