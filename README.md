@@ -60,10 +60,10 @@ Without further ado, here is our first `.csv` lexer:
 ```idris
 csv0 : Lexer Void () CSV0
 csv0 =
-  lexer
-    [ (','                  , Const Comma0)
-    , ('\n'                 , Const NL0)
-    , (plus (dot && not ','), txt (Cell0 . toString))
+  lexer $ dfa
+    [ (','                  , const' Comma0)
+    , ('\n'                 , const' NL0)
+    , (plus (dot && not ','), txt' (Cell0 . toString))
     ]
 ```
 
@@ -88,7 +88,7 @@ value. The same goes for the line break character.
 
 Cell tokens are a bit more involved: We expect one or more (`plus`)
 printable characters (`dot`) that are also not commas (`&& not ','`)
-and convert them to a `Cell0` token. Please note that `txt` converts
+and convert them to a `Cell0` token. Please note that `txt'` converts
 a `ByteString`, so we use `toString` to convert it correctly.
 
 ### Additional Cell Types
@@ -126,14 +126,14 @@ linebreak = '\n' <|> "\n\r" <|> "\r\n" <|> '\r' <|> '\RS'
 
 csv1 : Lexer Void () CSV1
 csv1 =
-  setEOI EOI $ lexer
-    [ (','                  , Const Comma1)
-    , (linebreak            , Const NL1)
-    , ("true"               , Const (Bool1 True))
-    , ("false"              , Const (Bool1 False))
-    , (decimal              , txt (Int1 . decimal))
-    , ('-' >> decimal       , txt (Int1 . negate . decimal . drop 1))
-    , (plus (dot && not ','), txt (Txt1 . toString))
+  lexer $ setEOI EOI $ dfa
+    [ (','                  , const' Comma1)
+    , (linebreak            , const' NL1)
+    , ("true"               , const' (Bool1 True))
+    , ("false"              , const' (Bool1 False))
+    , (decimal              , txt' (Int1 . decimal))
+    , ('-' >> decimal       , txt' (Int1 . negate . decimal . drop 1))
+    , (plus (dot && not ','), txt' (Txt1 . toString))
     ]
 ```
 
@@ -217,15 +217,15 @@ spaces = plus $ oneof [' ', '\t']
 
 csv1_2 : Lexer Void () CSV1
 csv1_2 =
-  setEOI EOI $ lexer
-    [ (','           , Const Comma1)
-    , (linebreak     , Const NL1)
-    , ("true"        , Const (Bool1 True))
-    , ("false"       , Const (Bool1 False))
-    , (decimal       , txt (Int1 . decimal))
-    , ('-' >> decimal, txt (Int1 . negate . decimal . drop 1))
-    , (text          , txt (Txt1 . toString))
-    , (spaces        , Ignore)
+  lexer $ setEOI EOI $ dfa
+    [ (','           , const' Comma1)
+    , (linebreak     , const' NL1)
+    , ("true"        , const' (Bool1 True))
+    , ("false"       , const' (Bool1 False))
+    , (decimal       , txt' (Int1 . decimal))
+    , ('-' >> decimal, txt' (Int1 . negate . decimal . drop 1))
+    , (text          , txt' (Txt1 . toString))
+    , (spaces        , ignore')
     ]
 ```
 
@@ -268,16 +268,16 @@ unquote : ByteString -> String
 
 csv1_3 : Lexer Void () CSV1
 csv1_3 =
-  setEOI EOI $ lexer
-    [ (','           , Const Comma1)
-    , (linebreak     , Const NL1)
-    , ("true"        , Const (Bool1 True))
-    , ("false"       , Const (Bool1 False))
-    , (decimal       , txt (Int1 . decimal))
-    , ('-' >> decimal, txt (Int1 . negate . decimal . drop 1))
-    , (text          , txt (Txt1 . toString))
-    , (quoted        , txt (Txt1 . unquote))
-    , (spaces        , Ignore)
+  lexer $ setEOI EOI $ dfa
+    [ (','           , const' Comma1)
+    , (linebreak     , const' NL1)
+    , ("true"        , const' (Bool1 True))
+    , ("false"       , const' (Bool1 False))
+    , (decimal       , txt' (Int1 . decimal))
+    , ('-' >> decimal, txt' (Int1 . negate . decimal . drop 1))
+    , (text          , txt' (Txt1 . toString))
+    , (quoted        , txt' (Txt1 . unquote))
+    , (spaces        , ignore')
     ]
 ```
 
@@ -313,14 +313,14 @@ is used in performance critical code.
 ```idris
 lexUQ : Lexer Void () String
 lexUQ =
-  lexer
-    [ (#"\""#, Const "\"")
-    , (#"\\"#, Const "\\")
-    , (#"\n"#, Const "\n")
-    , (#"\r"#, Const "\r")
-    , (#"\t"#, Const "\t")
-    , (#"""# , Ignore)
-    , (plus (dot && not '"' && not '\\'), txt toString)
+  lexer $ dfa
+    [ (#"\""#, const' "\"")
+    , (#"\\"#, const' "\\")
+    , (#"\n"#, const' "\n")
+    , (#"\r"#, const' "\r")
+    , (#"\t"#, const' "\t")
+    , (#"""# , ignore')
+    , (plus (dot && not '"' && not '\\'), txt' toString)
     ]
 
 fastUnquote : ByteString -> String

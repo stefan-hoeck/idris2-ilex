@@ -25,11 +25,11 @@ spaces = plus (oneof [' ', '\n', '\r', '\t'])
 export
 aOrB : Lexer Void () AorB
 aOrB =
-  setEOI E $ lexer
-    [ ('A' >> plus 'a', Const MA)
-    , ('A', Const A)
-    , (plus ('B' <|> 'b'), Const B)
-    , (spaces, Ignore)
+  lexer $ setEOI E $ dfa
+    [ ('A' >> plus 'a', const' MA)
+    , ('A', Const () A)
+    , (plus ('B' <|> 'b'), const' B)
+    , (spaces, ignore')
     ]
 
 space : Nat -> Gen String
