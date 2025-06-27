@@ -105,12 +105,12 @@ plexBytes l o st (BS s $ BV buf off lte) =
 parameters {0 e,a    : Type}
            {0 states : Nat}
            {0 n      : Nat}
-           (next     : Stepper states)
-           (term     : IArray (S states) (Conv e a))
            (buf      : IBuffer n)
 
   inner :
-       (last        : Conv e a)             -- last encountered terminal state
+       (next        : Stepper states)
+    -> (term        : IArray (S states) (Conv e a))
+    -> (last        : Conv e a)             -- last encountered terminal state
     -> (start       : Nat)                  -- start of current token
     -> (lastPos     : Nat)                  -- counter for last byte in `last`
     -> {auto y      : Ix (S lastPos) n}     -- end position in the byte array of `last`
@@ -125,18 +125,22 @@ parameters {0 e,a    : Type}
   -- Accumulates lexemes by applying the maximum munch strategy:
   -- The largest matched lexeme is consumed and kept.
   loop :
-       (vals   : SnocList $ Bounded a) -- accumulated tokens
+       (next   : Stepper states)
+    -> (term   : IArray (S states) (Conv e a))
+    -> (vals   : SnocList $ Bounded a) -- accumulated tokens
     -> (pos    : Nat)                  -- reverse position in the byte array
     -> {auto x : Ix pos n}             -- position in the byte array
     -> Either (Bounded $ InnerError a e) (SnocList (Bounded a))
-  loop vals 0     = Right vals
-  loop vals (S k) =
+  loop next term vals 0     = Right vals
+  loop next term vals (S k) =
     case (next `at` 0) `atByte` (buf `ix` k) of
       0 => Left $ B (Byte $ buf `ix` k) (atPos $ ixToNat x)
-      s => inner (term `at` s) (ixToNat x) k vals k s
+      s => inner next term (term `at` s) (ixToNat x) k vals k s
 
   app :
-       SnocList (Bounded a)
+       Stepper states
+    -> IArray (S states) (Conv e a)
+    -> SnocList (Bounded a)
     -> Conv e a
     -> Lazy (InnerError a e)
     -> (from        : Nat)
@@ -144,29 +148,30 @@ parameters {0 e,a    : Type}
     -> {auto ix     : Ix (S till) n}
     -> {auto 0  lte : LTE from (ixToNat ix)}
     -> Either (Bounded $ InnerError a e) (SnocList (Bounded a))
-  app sx c err from till =
+  app next term sx c err from till =
     let bs := BS from (ixToNat ix)
      in case c of
           Bottom  => Left $ B err (atPos $ ixToNat ix)
-          Const v => loop (sx :< B v bs) till
-          Ignore  => loop sx till
+          Const v => loop next term (sx :< B v bs) till
+          Ignore  => loop next term sx till
           Err   x => Left $ B (Custom x) bs
           Txt   f => case f (toByteString buf from till) of
             Left  x => Left $ B (Custom x) bs
-            Right v => loop (sx :< B v bs) till
+            Right v => loop next term (sx :< B v bs) till
 
-  inner last start lastPos vals 0     cur = app vals last EOI start lastPos
-  inner last start lastPos vals (S k) cur =
+  inner next term last start lastPos vals 0     cur =
+    app next term vals last EOI start lastPos
+  inner next term last start lastPos vals (S k) cur =
     let arr  := next `at` cur
         byte := buf `ix` k
      in case arr `atByte` byte of
-          FZ => app vals last (Byte byte) start lastPos
+          FZ => app next term vals last (Byte byte) start lastPos
           x  => case term `at` x of
-            Bottom => inner last start lastPos vals k x
-            i      => inner i    start k       vals k x
+            Bottom => inner next term last start lastPos vals k x
+            i      => inner next term i    start k       vals k x
 
 lexFrom o l@(L ss nxt t _) pos buf =
-  case loop nxt t buf [<] pos of
+  case loop buf nxt t [<] pos of
     Left (B x bs) => Left $ PE o bs (fromIBuffer buf) x
     Right vs      => appEOI l o (fromIBuffer buf) pos vs
 
@@ -178,12 +183,12 @@ parameters {0 e,a    : Type}
            {0 states : Nat}
            {0 n      : Nat}
            (o        : Origin)
-           (next     : Stepper states)
-           (term     : IArray (S states) (Conv e a))
            (buf      : IBuffer n)
 
   sinner :
-       (spos        : StreamPos)
+       (next        : Stepper states)
+    -> (term        : IArray (S states) (Conv e a))
+    -> (spos        : StreamPos)
     -> (prev        : ByteString)
     -> (line        : Nat)
     -> (col         : Nat)
@@ -196,23 +201,27 @@ parameters {0 e,a    : Type}
     -> PLexRes states e a
 
   sloop :
-       (line   : Nat)
+       (next   : Stepper states)
+    -> (term   : IArray (S states) (Conv e a))
+    -> (line   : Nat)
     -> (col    : Nat)
     -> (vals   : SnocList $ StreamBounded a) -- accumulated tokens
     -> (pos    : Nat)                  -- reverse position in the byte array
     -> {auto x : Ix (S pos) n}             -- position in the byte array
     -> PLexRes states e a
-  sloop l c vals k =
+  sloop next term l c vals k =
     case buf `ix` k of
       10 => case (next `at` 0) `atByte` 10 of
         0 => Left (seByte o l c 10)
-        s => sinner (sp o l c) empty (S l) 0 (ixToNat x) vals k s
+        s => sinner next term (sp o l c) empty (S l) 0 (ixToNat x) vals k s
       b  => case (next `at` 0) `atByte` b  of
         0 => Left (seByte o l c b)
-        s => sinner (sp o l c) empty l (S c) (ixToNat x) vals k s
+        s => sinner next term (sp o l c) empty l (S c) (ixToNat x) vals k s
 
   sapp :
-       (spos        : StreamPos)
+       (next        : Stepper states)
+    -> (term        : IArray (S states) (Conv e a))
+    -> (spos        : StreamPos)
     -> (prev        : ByteString)
     -> (line        : Nat)
     -> (col         : Nat)
@@ -224,30 +233,30 @@ parameters {0 e,a    : Type}
     -> {auto ix     : Ix (S till) n}
     -> {auto 0  lte : LTE from (ixToNat ix)}
     -> PLexRes states e a
-  sapp spos prev l c byte sx conv from till =
+  sapp next term spos prev l c byte sx conv from till =
    let np := sp o l c
        bs := SB spos np
     in case conv of
          Bottom  => Left (seByte o l c byte)
-         Const v => sloop l c (sx :< B v bs) till
-         Ignore  => sloop l c sx             till
+         Const v => sloop next term l c (sx :< B v bs) till
+         Ignore  => sloop next term l c sx             till
          Err   x => Left $ SE bs (Custom x)
          Txt   f => case f (prev <+> toByteString buf from till) of
            Left  x => Left $ SE bs (Custom x)
-           Right v => sloop l c (sx :< B v bs) till
+           Right v => sloop next term l c (sx :< B v bs) till
 
-  sinner spos prev l c start vals 0       cur =
+  sinner next term spos prev l c start vals 0       cur =
     Right (LST spos cur (prev <+> toBytes buf start 0) $ sp o l c, vals <>> [])
-  sinner spos prev l c start vals (S k) cur =
+  sinner next term spos prev l c start vals (S k) cur =
     case ix buf k of
       10 => case (next `at` cur) `atByte` 10 of
-        FZ => sapp spos prev l c 10 vals (term `at` cur) start k
-        st => sinner spos prev (S l) 0 start vals k st
+        FZ => sapp next term spos prev l c 10 vals (term `at` cur) start k
+        st => sinner next term spos prev (S l) 0 start vals k st
       b  => case (next `at` cur) `atByte` b of
-        FZ => sapp spos prev l c b  vals (term `at` cur) start k
-        st => sinner spos prev l (S c) start vals k st
+        FZ => sapp next term spos prev l c b  vals (term `at` cur) start k
+        st => sinner next term spos prev l (S c) start vals k st
 
 plexFrom o (L ss nxt t _) (LST spos cur prev (SP oe $ P l c)) pos buf =
   case o == oe of
-    True  => sinner o nxt t buf spos prev l c 0 [<] pos cur
-    False => sinner o nxt t buf spos prev 0 0 0 [<] pos cur
+    True  => sinner o buf nxt t spos prev l c 0 [<] pos cur
+    False => sinner o buf nxt t spos prev 0 0 0 [<] pos cur
