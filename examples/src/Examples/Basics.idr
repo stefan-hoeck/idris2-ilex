@@ -14,20 +14,20 @@ export
 aOrB : Lexer Void () AorB
 aOrB =
   lexer $ setEOI E $ dfa
-    [ (plus ('A' <|> 'a'), const' A)
-    , (plus ('B' <|> 'b'), const' B)
-    , (spaces, ignore')
+    [ (plus ('A' <|> 'a'), const A)
+    , (plus ('B' <|> 'b'), const B)
+    , (spaces, ignore)
     ]
 
 export
 expr : TokenMap (Conv Void () Expr)
 expr =
-  [ (natural, txt' toNat)
-  , ('+', const' Plus)
-  , ('*', const' Mult)
-  , ('(', const' PO)
-  , (')', const' PC)
-  , (spaces, ignore')
+  [ (natural, txt toNat)
+  , ('+', const Plus)
+  , ('*', const Mult)
+  , ('(', const PO)
+  , (')', const PC)
+  , (spaces, ignore)
   ]
 
 identifier : RExp True
@@ -37,9 +37,9 @@ export
 ident : Lexer Void () Ident
 ident =
   lexer $ setEOI IE $ dfa
-    [ ("else", const' Else)
-    , (identifier, txt' (Id . toString))
-    , (spaces, ignore')
+    [ ("else", const Else)
+    , (identifier, txt (Id . toString))
+    , (spaces, ignore)
     ]
 
 jstr : RExp True
@@ -64,18 +64,18 @@ export
 json : Lexer Void () JSON
 json =
   lexer $ setEOI JEOI $ dfa
-    [ ("null",  const' Null)
-    , ("true",  const' (JBool True))
-    , ("false", const' (JBool False))
-    , ('{',     const' JPO)
-    , ('}',     const' JPC)
-    , ('[',     const' JBO)
-    , (']',     const' JBC)
-    , (',',     const' JComma)
-    , (':',     const' JColon)
-    , (jstr,    txt' (JStr . toString))
-    , (decimal, txt' (JInt . decNat))
-    , ('-' >> decimal, txt' (JInt . negate . decNat))
-    , (double,  txt' (JNum . cast . toString))
-    , (spaces,  ignore')
+    [ ("null",  const Null)
+    , ("true",  const (JBool True))
+    , ("false", const (JBool False))
+    , ('{',     const JPO)
+    , ('}',     const JPC)
+    , ('[',     const JBO)
+    , (']',     const JBC)
+    , (',',     const JComma)
+    , (':',     const JColon)
+    , (jstr,    txt (JStr . toString))
+    , (decimal, txt (JInt . decNat))
+    , ('-' >> decimal, txt (JInt . negate . decNat))
+    , (double,  txt (JNum . cast . toString))
+    , (spaces,  ignore)
     ]

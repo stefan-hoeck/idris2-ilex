@@ -88,20 +88,20 @@ data Conv : (e,c,a : Type) -> Type where
   Err    : e -> Conv e c a
 
 export %inline
-txt : c -> (ByteString -> a) -> Conv e c a
-txt v f = Txt (Right . (v,) . f)
+txt' : c -> (ByteString -> a) -> Conv e c a
+txt' v f = Txt (Right . (v,) . f)
 
 export %inline
-txt' : (ByteString -> a) -> Conv e () a
-txt' = txt ()
+txt : (ByteString -> a) -> Conv e () a
+txt = txt' ()
 
 export %inline
-const' : a -> Conv e () a
-const' = Const ()
+const : a -> Conv e () a
+const = Const ()
 
 export %inline
-ignore' : Conv e () a
-ignore' = Ignore ()
+ignore : Conv e () a
+ignore = Ignore ()
 
 public export
 0 TokenMap : Type -> Type

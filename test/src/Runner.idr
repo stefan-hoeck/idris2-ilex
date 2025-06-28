@@ -26,10 +26,10 @@ export
 aOrB : Lexer Void () AorB
 aOrB =
   lexer $ setEOI E $ dfa
-    [ ('A' >> plus 'a', const' MA)
-    , ('A', Const () A)
-    , (plus ('B' <|> 'b'), const' B)
-    , (spaces, ignore')
+    [ ('A' >> plus 'a', const MA)
+    , ('A', const A)
+    , (plus ('B' <|> 'b'), const B)
+    , (spaces, ignore)
     ]
 
 space : Nat -> Gen String
