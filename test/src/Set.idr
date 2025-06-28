@@ -72,7 +72,7 @@ prop_intersectionFull =
 export
 props : Group
 props =
-  MkGroup "Text.ILex.Char.Range"
+  MkGroup "Text.ILex.Char.Set"
     [ ("prop_unionAssociative", prop_unionAssociative)
     , ("prop_unionCommutative", prop_unionCommutative)
     , ("prop_unionEmpty", prop_unionEmpty)
