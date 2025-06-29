@@ -137,13 +137,14 @@ parameters {0 e,c,a  : Type}
     -> Lazy (InnerError a e)
     -> (from        : Nat)
     -> (till        : Nat)
+    -> (now         : Nat)
     -> {auto ix     : Ix (S till) n}
     -> {auto 0  lte : LTE from (ixToNat ix)}
     -> Either (Bounded $ InnerError a e) (DFA e c a, SnocList (Bounded a))
-  app sx c err from till =
+  app sx c err from till now =
     let bs := BS from (ixToNat ix)
      in case c of
-          Bottom     => Left $ B err (atPos $ ixToNat ix)
+          Bottom     => Left $ B err (atPos now)
           Const cd v => loop (todfa cd) (sx :< B v bs) till
           Ignore cd  => loop (todfa cd) sx till
           Err   x => Left $ B (Custom x) bs
@@ -152,12 +153,12 @@ parameters {0 e,c,a  : Type}
             Right (cd,v) => loop (todfa cd) (sx :< B v bs) till
 
   inner dfa last start lastPos vals 0     cur =
-    app vals last EOI start lastPos
+    app vals last EOI start lastPos (ixToNat x)
   inner dfa last start lastPos vals (S k) cur =
     let arr  := dfa.next `at` cur
         byte := buf `ix` k
      in case arr `atByte` byte of
-          FZ => app vals last (Byte byte) start lastPos
+          FZ => app vals last (Byte byte) start lastPos (ixToNat x)
           x  => case dfa.term `at` x of
             Bottom => inner dfa last start lastPos vals k x
             i      => inner dfa i    start k       vals k x
