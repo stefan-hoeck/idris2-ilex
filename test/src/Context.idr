@@ -142,7 +142,6 @@ prop_boundsEsc =
           ]
     === lexString Virtual lit #""\\""#
 
-
 prop_boundsEscErr : Property
 prop_boundsEscErr =
   property1 $
