@@ -66,6 +66,7 @@ genC = pure (C, "Ccc")
 aOrBs : Gen (AorB, String)
 aOrBs = choice [genA, genMA, genB, genC]
 
+export
 lexNoBounds : Lexer e c a -> String -> Either (ParseError a e) (List a)
 lexNoBounds lex = map (map val) . lexString Virtual lex
 
