@@ -103,24 +103,31 @@ parameters {0 e,c,a  : Type}
            (todfa    : c -> DFA e c a)
            (buf      : IBuffer n)
 
+  -- Reads next byte and determines the next automaton state
+  -- If this is the zero state, we backtrack to the latest
+  -- terminal state (in `last`), create a token from that
+  -- (in `app`) and start with a new token (in `loop`).
   inner :
-       (dfa         : DFA e c a)
-    -> (last        : Conv e c a)             -- last encountered terminal state
-    -> (start       : Nat)                  -- start of current token
-    -> (lastPos     : Nat)                  -- counter for last byte in `last`
-    -> {auto y      : Ix (S lastPos) n}     -- end position in the byte array of `last`
-    -> (vals        : SnocList $ Bounded a) -- accumulated tokens
-    -> (pos         : Nat)                  -- reverse position in the byte array
-    -> {auto x      : Ix pos n}             -- position in the byte array
+       (dfa         : DFA e c a)             -- current finite automaton
+    -> (last        : Conv e c a)            -- last encountered terminal state
+    -> (start       : Nat)                   -- start of current token
+    -> (lastPos     : Nat)                   -- counter for last byte in `last`
+    -> {auto y      : Ix (S lastPos) n}      -- end position of `last` in the byte array
+    -> (vals        : SnocList $ Bounded a)  -- accumulated tokens
+    -> (pos         : Nat)                   -- reverse position in the byte array
+    -> {auto x      : Ix pos n}              -- position in the byte array
     -> {auto 0 lte1 : LTE start (ixToNat y)}
     -> {auto 0 lte2 : LTE start (ixToNat x)}
-    -> (cur         : Fin (S dfa.states))   -- current automaton state
+    -> (cur         : Fin (S dfa.states))    -- current automaton state
     -> Either (Bounded $ InnerError a e) (DFA e c a, SnocList (Bounded a))
 
   -- Accumulates lexemes by applying the maximum munch strategy:
   -- The largest matched lexeme is consumed and kept.
+  -- This consumes at least one byte for the next token and
+  -- immediately aborts with an error in case the current
+  -- byte leads to the zero state.
   loop :
-       (dfa    : DFA e c a)
+       (dfa    : DFA e c a)            -- current finite automaton
     -> (vals   : SnocList $ Bounded a) -- accumulated tokens
     -> (pos    : Nat)                  -- reverse position in the byte array
     -> {auto x : Ix pos n}             -- position in the byte array
@@ -131,15 +138,22 @@ parameters {0 e,c,a  : Type}
       0 => Left $ B (Byte $ buf `ix` k) (atPos $ ixToNat x)
       s => inner dfa (dfa.term `at` s) (ixToNat x) k vals k s
 
+  -- Tries to create a new token from the current
+  -- state and append it to the list of tokens.
+  -- We need several pointers into the byte array:
+  --   `from` is the start index of the token
+  --   `ix`   is the end index of the token (`till` the corresponding reverse index)
+  --   `now` is the current position needed in case of
+  --   the encountered state being non-terminal
   app :
-       SnocList (Bounded a)
-    -> Conv e c a
-    -> Lazy (InnerError a e)
-    -> (from        : Nat)
-    -> (till        : Nat)
-    -> (now         : Nat)
-    -> {auto ix     : Ix (S till) n}
-    -> {auto 0  lte : LTE from (ixToNat ix)}
+       SnocList (Bounded a)                  -- accumulated tokens
+    -> Conv e c a                            -- terminal state to use
+    -> Lazy (InnerError a e)                 -- error to use in case this is the `Bottom` state
+    -> (from        : Nat)                   -- start position of token
+    -> (till        : Nat)                   -- reverse end position + 1
+    -> (now         : Nat)                   -- current position
+    -> {auto ix     : Ix (S till) n}         -- end position
+    -> {auto 0  lte : LTE from (ixToNat ix)} -- current position
     -> Either (Bounded $ InnerError a e) (DFA e c a, SnocList (Bounded a))
   app sx c err from till now =
     let bs := BS from (ixToNat ix)
