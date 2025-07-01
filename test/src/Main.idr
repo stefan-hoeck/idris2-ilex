@@ -1,7 +1,8 @@
 module Main
 
-import Hedgehog
+import Context
 import FC
+import Hedgehog
 import Range
 import Runner
 import Set
@@ -15,4 +16,5 @@ main =
     , Set.props
     , FC.props
     , Runner.props
+    , Context.props
     ]

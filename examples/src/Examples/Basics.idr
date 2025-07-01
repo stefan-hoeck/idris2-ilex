@@ -11,35 +11,35 @@ spaces : RExp True
 spaces = plus (oneof [' ', '\n', '\r', '\t'])
 
 export
-aOrB : Lexer Void AorB
+aOrB : Lexer Void () AorB
 aOrB =
-  setEOI E $ lexer
-    [ (plus ('A' <|> 'a'), Const A)
-    , (plus ('B' <|> 'b'), Const B)
-    , (spaces, Ignore)
+  lexer $ setEOI E $ dfa
+    [ (plus ('A' <|> 'a'), const A)
+    , (plus ('B' <|> 'b'), const B)
+    , (spaces, ignore)
     ]
 
 export
-expr : TokenMap (Conv Void Expr)
+expr : TokenMap (Conv Void () Expr)
 expr =
   [ (natural, txt toNat)
-  , ('+', Const Plus)
-  , ('*', Const Mult)
-  , ('(', Const PO)
-  , (')', Const PC)
-  , (spaces, Ignore)
+  , ('+', const Plus)
+  , ('*', const Mult)
+  , ('(', const PO)
+  , (')', const PC)
+  , (spaces, ignore)
   ]
 
 identifier : RExp True
 identifier = plus $ alphaNum <|> '_'
 
 export
-ident : Lexer Void Ident
+ident : Lexer Void () Ident
 ident =
-  setEOI IE $ lexer
-    [ ("else", Const Else)
+  lexer $ setEOI IE $ dfa
+    [ ("else", const Else)
     , (identifier, txt (Id . toString))
-    , (spaces, Ignore)
+    , (spaces, ignore)
     ]
 
 jstr : RExp True
@@ -61,21 +61,21 @@ double =
    in opt '-' >> decimal >> opt frac >> opt exp
 
 export
-json : Lexer Void JSON
+json : Lexer Void () JSON
 json =
-  setEOI JEOI $ lexer
-    [ ("null",  Const Null)
-    , ("true",  Const (JBool True))
-    , ("false", Const (JBool False))
-    , ('{',     Const JPO)
-    , ('}',     Const JPC)
-    , ('[',     Const JBO)
-    , (']',     Const JBC)
-    , (',',     Const JComma)
-    , (':',     Const JColon)
+  lexer $ setEOI JEOI $ dfa
+    [ ("null",  const Null)
+    , ("true",  const (JBool True))
+    , ("false", const (JBool False))
+    , ('{',     const JPO)
+    , ('}',     const JPC)
+    , ('[',     const JBO)
+    , (']',     const JBC)
+    , (',',     const JComma)
+    , (':',     const JColon)
     , (jstr,    txt (JStr . toString))
     , (decimal, txt (JInt . decNat))
     , ('-' >> decimal, txt (JInt . negate . decNat))
     , (double,  txt (JNum . cast . toString))
-    , (spaces,  Ignore)
+    , (spaces,  ignore)
     ]
