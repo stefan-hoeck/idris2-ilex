@@ -14,7 +14,6 @@ data AorB : Type where
   A  : AorB
   B  : AorB
   C  : AorB
-  E  : AorB -- end of input
 
 %runElab derive "AorB" [Show,Eq]
 
@@ -24,15 +23,14 @@ Interpolation AorB where interpolate = show
 spaces : RExp True
 spaces = plus (oneof [' ', '\n', '\r', '\t'])
 
-export
-aOrB : Lexer Void () AorB
+aOrB : Lexer Void AorB
 aOrB =
-  lexer $ setEOI E $ dfa
+  lexer $ dfa
     [ ('A' >> plus 'a', const MA)
     , ('A', const A)
     , (plus ('B' <|> 'b'), const B)
     , ("Ccc", const C)
-    , (spaces, ignore)
+    , (spaces, Ignore)
     ]
 
 space : Nat -> Gen String
@@ -67,33 +65,35 @@ aOrBs : Gen (AorB, String)
 aOrBs = choice [genA, genMA, genB, genC]
 
 export
-lexNoBounds : Lexer e c a -> String -> Either (ParseError a e) (List a)
-lexNoBounds lex = map (map val) . lexString Virtual lex
+lexNoBounds : Lexer e a -> String -> Either (ParseError a e) (List a)
+lexNoBounds lex = map (map val) . parseString Virtual lex
+
+export
+lexBounds : Lexer e a -> String -> Either (ParseError a e) (List $ Bounded a)
+lexBounds lex = parseString Virtual lex
 
 prop_lexAorB : Property
 prop_lexAorB =
   property $ do
     abs <- forAll $ list (linear 0 10) aOrBs
     let s := fastConcat $ map snd abs
-    Right (map fst abs ++ [E]) === lexNoBounds aOrB s
+    Right (map fst abs) === lexNoBounds aOrB s
 
 prop_boundsAOnly : Property
 prop_boundsAOnly =
   property1 $
         Right
           [ B A $ BS 0 0
-          , B E $ BS 1 1
           ]
-    === lexString Virtual aOrB "A"
+    === lexBounds aOrB "A"
 
 prop_boundsAsOnly : Property
 prop_boundsAsOnly =
   property1 $
         Right
           [ B MA $ BS 1 4
-          , B E $ BS 5 5
           ]
-    === lexString Virtual aOrB " Aaaa"
+    === lexBounds aOrB " Aaaa"
 
 prop_boundsMany : Property
 prop_boundsMany =
@@ -108,27 +108,26 @@ prop_boundsMany =
           , B B  $ BS 23 23
           , B C  $ BS 24 26
           , B MA $ BS 29 30
-          , B E  $ BS 31 31
           ]
-    === lexString Virtual aOrB " Aaaa   Bb Bbbb A  AaaABCcc  Aa"
+    === lexBounds aOrB " Aaaa   Bb Bbbb A  AaaABCcc  Aa"
 
 prop_boundsByteErr : Property
 prop_boundsByteErr =
   property1 $
         Left (PE Virtual (BS 4 4) " AaaD" (Byte 68))
-    === lexString Virtual aOrB " AaaD"
+    === lexBounds aOrB " AaaD"
 
 prop_boundsByteErr2 : Property
 prop_boundsByteErr2 =
   property1 $
         Left (PE Virtual (BS 2 2) "CcD" (Byte 68))
-    === lexString Virtual aOrB "CcD"
+    === lexBounds aOrB "CcD"
 
 prop_boundsEoiErr : Property
 prop_boundsEoiErr =
   property1 $
         Left (PE Virtual (BS 6 6) " AaaCc" EOI)
-    === lexString Virtual aOrB " AaaCc"
+    === lexBounds aOrB " AaaCc"
 
 export
 props : Group

@@ -58,7 +58,7 @@ data CSV0 : Type where
 Without further ado, here is our first `.csv` lexer:
 
 ```idris
-csv0 : Lexer Void () CSV0
+csv0 : Lexer Void CSV0
 csv0 =
   lexer $ dfa
     [ (','                  , const Comma0)
@@ -124,9 +124,9 @@ And here's the corresponding lexer:
 linebreak : RExp True
 linebreak = '\n' <|> "\n\r" <|> "\r\n" <|> '\r' <|> '\RS'
 
-csv1 : Lexer Void () CSV1
+csv1 : Lexer Void CSV1
 csv1 =
-  lexer $ setEOI EOI $ dfa
+  lexer $ dfa
     [ (','                  , const Comma1)
     , (linebreak            , const NL1)
     , ("true"               , const (Bool1 True))
@@ -215,9 +215,9 @@ drop during lexing:
 spaces : RExp True
 spaces = plus $ oneof [' ', '\t']
 
-csv1_2 : Lexer Void () CSV1
+csv1_2 : Lexer Void CSV1
 csv1_2 =
-  lexer $ setEOI EOI $ dfa
+  lexer $ dfa
     [ (','           , const Comma1)
     , (linebreak     , const NL1)
     , ("true"        , const (Bool1 True))
@@ -225,7 +225,7 @@ csv1_2 =
     , (decimal       , txt (Int1 . decimal))
     , ('-' >> decimal, txt (Int1 . negate . decimal . drop 1))
     , (text          , txt (Txt1 . toString))
-    , (spaces        , ignore)
+    , (spaces        , Ignore)
     ]
 ```
 
@@ -266,9 +266,9 @@ With this, we can enhance our lexer:
 ```idris
 unquote : ByteString -> String
 
-csv1_3 : Lexer Void () CSV1
+csv1_3 : Lexer Void CSV1
 csv1_3 =
-  lexer $ setEOI EOI $ dfa
+  lexer $ dfa
     [ (','           , const Comma1)
     , (linebreak     , const NL1)
     , ("true"        , const (Bool1 True))
@@ -277,7 +277,7 @@ csv1_3 =
     , ('-' >> decimal, txt (Int1 . negate . decimal . drop 1))
     , (text          , txt (Txt1 . toString))
     , (quoted        , txt (Txt1 . unquote))
-    , (spaces        , ignore)
+    , (spaces        , Ignore)
     ]
 ```
 
@@ -311,7 +311,7 @@ faster than the above, but I suggest to profile this properly if it
 is used in performance critical code.
 
 ```idris
-lexUQ : Lexer Void () String
+lexUQ : Lexer Void String
 lexUQ =
   lexer $ dfa
     [ (#"\""#, const "\"")
@@ -319,7 +319,7 @@ lexUQ =
     , (#"\n"#, const "\n")
     , (#"\r"#, const "\r")
     , (#"\t"#, const "\t")
-    , (#"""# , ignore)
+    , (#"""# , Ignore)
     , (plus (dot && not '"' && not '\\'), txt toString)
     ]
 
@@ -366,12 +366,12 @@ And here's an example how to stream a single, possibly huge, JSON file
 
 ```idris
 streamJSON : String -> Prog Void ()
-streamJSON pth =
-     readBytes pth
-  |> P.mapOutput (FileSrc pth,)
-  |> streamLex json
-  |> P.mapOutput length
-  |> printLnTo Stdout
+-- streamJSON pth =
+--      readBytes pth
+--   |> P.mapOutput (FileSrc pth,)
+--   |> streamLex json
+--   |> P.mapOutput length
+--   |> printLnTo Stdout
 ```
 
 Functions `readBytes`, `mapOutput`, and `printLnTo` are just standard
@@ -392,11 +392,11 @@ strings of data:
 
 ```idris
 streamJSONFiles : Prog String () -> Prog Void ()
-streamJSONFiles pths =
-     flatMap pths (\p => readBytes p |> P.mapOutput (FileSrc p,))
-  |> streamLex json
-  |> P.mapOutput length
-  |> printLnTo Stdout
+-- streamJSONFiles pths =
+--      flatMap pths (\p => readBytes p |> P.mapOutput (FileSrc p,))
+--   |> streamLex json
+--   |> P.mapOutput length
+--   |> printLnTo Stdout
 ```
 
 ```idris

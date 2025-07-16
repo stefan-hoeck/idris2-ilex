@@ -10,7 +10,6 @@ public export
 data AorB : Type where
   A : AorB
   B : AorB
-  E : AorB -- end of input
 
 %runElab derive "AorB" [Show,Eq]
 
@@ -24,7 +23,6 @@ data Expr : Type where
   Mult : Expr
   PO   : Expr
   PC   : Expr
-  EE   : Expr -- end of input
 
 %runElab derive "Expr" [Show,Eq]
 
@@ -38,7 +36,6 @@ public export
 data Ident : Type where
   Id   : String -> Ident
   Else : Ident
-  IE   : Ident -- end of input
 
 %runElab derive "Ident" [Show,Eq]
 
@@ -66,7 +63,6 @@ data JSON : Type where
   JBC    : JSON
   JComma : JSON
   JColon : JSON
-  JEOI   : JSON
 
 %runElab derive "JSON" [Show,Eq]
 

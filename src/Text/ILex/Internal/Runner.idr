@@ -54,50 +54,34 @@ export
 seByte : Origin -> (l,c : Nat) -> Bits8 -> StreamError t e
 seByte o l c b = let p := sp o l c in SE (SB p p) (Byte b)
 
-||| Appends the "end of input" token of a lexer (if any)
-export
-appEOI :
-     DFA e c a
-  -> Origin
-  -> Lazy ByteString
-  -> Nat
-  -> SnocList (Bounded a)
-  -> Either (ParseError a e) (List (Bounded a))
-appEOI l o bs n sb =
-  case l.eoi of
-    Nothing        => Right $ sb <>> []
-    Just (Right v) => Right $ sb <>> [B v $ atPos n]
-    Just (Left v)  => Left (PE o (atPos n) bs v)
-
-
-parameters (l         : Lexer e c a)
-           (start,end : StreamPos)
-
-  sappEOI : DFA e c a -> Either (StreamError a e) (List (StreamBounded a))
-  sappEOI dfa =
-    case dfa.eoi of
-      Nothing        => Right []
-      Just (Right v) => Right [B v $ SB end end]
-      Just (Left v)  => Left (SE (SB end end) v)
-
-  bounds : StreamBounds
-  bounds = SB start end
-
-  ||| Tries to read the last token of an input stream and
-  ||| append it to the already accumulated list of tokens.
-  export
-  appLast :
-       (dfa   : DFA e c a)
-    -> (state : Fin (S dfa.states))
-    -> ByteString
-    -> Either (StreamError a e) (List (StreamBounded a))
-  appLast dfa state (BS 0 _) = sappEOI dfa
-  appLast dfa state bs       =
-    case dfa.term `at` state of
-      Bottom    => Left (SE (SB end end) EOI)
-      Ignore v  => sappEOI (l.dfa v)
-      Const v z => (B z bounds ::) <$> sappEOI (l.dfa v)
-      Err x   => Left (SE bounds (Custom x))
-      Txt f   => case f bs of
-        Left x  => Left (SE bounds (Custom x))
-        Right (v,x) => (B x bounds ::) <$> sappEOI (l.dfa v)
+-- parameters (l         : Lexer e c a)
+--            (start,end : StreamPos)
+--
+--   sappEOI : DFA e c a -> Either (StreamError a e) (List (StreamBounded a))
+--   sappEOI dfa =
+--     case dfa.eoi of
+--       Nothing        => Right []
+--       Just (Right v) => Right [B v $ SB end end]
+--       Just (Left v)  => Left (SE (SB end end) v)
+--
+--   bounds : StreamBounds
+--   bounds = SB start end
+--
+--   ||| Tries to read the last token of an input stream and
+--   ||| append it to the already accumulated list of tokens.
+--   export
+--   appLast :
+--        (dfa   : DFA e c a)
+--     -> (state : Fin (S dfa.states))
+--     -> ByteString
+--     -> Either (StreamError a e) (List (StreamBounded a))
+--   appLast dfa state (BS 0 _) = sappEOI dfa
+--   appLast dfa state bs       =
+--     case dfa.term `at` state of
+--       Bottom    => Left (SE (SB end end) EOI)
+--       Ignore v  => sappEOI (l.dfa v)
+--       Const v z => (B z bounds ::) <$> sappEOI (l.dfa v)
+--       Err x   => Left (SE bounds (Custom x))
+--       Txt f   => case f bs of
+--         Left x  => Left (SE bounds (Custom x))
+--         Right (v,x) => (B x bounds ::) <$> sappEOI (l.dfa v)

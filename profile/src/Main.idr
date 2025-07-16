@@ -42,8 +42,8 @@ maxiBS = (_ ** fromString maxi)
 ultraBS : (n ** IBuffer n)
 ultraBS = (_ ** fromString ultra)
 
-lexBS : (n ** IBuffer n) -> LexRes Void Examples.Types.JSON
-lexBS (n ** buf) = lex Virtual json buf
+lexBS : (n ** IBuffer n) -> ParseRes Void Examples.Types.JSON (List $ Text.ILex.Bounds.Bounded Examples.Types.JSON)
+lexBS (n ** buf) = parse Virtual json buf
 
 -- This profiles our JSON lexer against the one from parser-json
 -- to know what we are up against.
