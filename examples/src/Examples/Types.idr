@@ -21,6 +21,12 @@ data Op = P | M | X
 
 %runElab derive "Op" [Show,Eq,Ord]
 
+export
+Interpolation Op where
+  interpolate P = "+"
+  interpolate M = "*"
+  interpolate X = "^"
+
 public export
 data Expr : Type where
   Lit  : Nat -> Expr
@@ -47,7 +53,11 @@ data TExpr : Type where
 %runElab derive "TExpr" [Show,Eq]
 
 export
-Interpolation TExpr where interpolate = show
+Interpolation TExpr where
+  interpolate (TLit k) = show k
+  interpolate (TOp x)  = interpolate x
+  interpolate PO       = "("
+  interpolate PC       = ")"
 
 export
 toNat : ByteString -> TExpr

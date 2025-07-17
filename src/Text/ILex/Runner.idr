@@ -23,7 +23,7 @@ ParseRes e t a = Either (ParseError t e) a
 parseFrom :
      {n      : Nat}
   -> (o      : Origin)
-  -> (l      : Parser Bounds e s t a)
+  -> (l      : Parser Bounds e t a)
   -> (pos    : Nat)
   -> {auto x : Ix pos n}
   -> IBuffer n
@@ -32,17 +32,17 @@ parseFrom :
 ||| Tries to lex a whole byte vector into a list of bounded
 ||| tokens.
 export %inline
-parse : {n : _} -> Origin -> Parser Bounds e s t a -> IBuffer n -> ParseRes e t a
+parse : {n : _} -> Origin -> Parser Bounds e t a -> IBuffer n -> ParseRes e t a
 parse o l buf = parseFrom o l n buf
 
 ||| Like `lex` but processes a UTF-8 string instead.
 export %inline
-parseString : Origin -> Parser Bounds e s t a -> String -> ParseRes e t a
+parseString : Origin -> Parser Bounds e t a -> String -> ParseRes e t a
 parseString o l s = parse o l (fromString s)
 
 ||| Like `lex` but processes a `ByteString` instead.
 export
-lexBytes : Origin -> Parser Bounds e s t a -> ByteString -> ParseRes e t a
+lexBytes : Origin -> Parser Bounds e t a -> ByteString -> ParseRes e t a
 lexBytes o l (BS s $ BV buf off lte) =
   parseFrom o l s {x = offsetToIx off} (take (off+s) buf)
 
@@ -98,10 +98,10 @@ lexBytes o l (BS s $ BV buf off lte) =
 -- Lexer run loop
 --------------------------------------------------------------------------------
 
-parameters {0 e,s,t,a : Type}
-           {0 n       : Nat}
-           (parser    : Parser Bounds e s t a)
-           (buf       : IBuffer n)
+parameters {0 e,t,a : Type}
+           {0 n     : Nat}
+           (parser  : Parser Bounds e t a)
+           (buf     : IBuffer n)
 
   -- Reads next byte and determines the next automaton state
   -- If this is the zero state, we backtrack to the latest
@@ -113,13 +113,13 @@ parameters {0 e,s,t,a : Type}
     -> (start       : Nat)                   -- start of current token
     -> (lastPos     : Nat)                   -- counter for last byte in `last`
     -> {auto y      : Ix (S lastPos) n}      -- end position of `last` in the byte array
-    -> (state       : s)                     -- accumulated state
+    -> (state       : parser.state)          -- accumulated state
     -> (pos         : Nat)                   -- reverse position in the byte array
     -> {auto x      : Ix pos n}              -- position in the byte array
     -> {auto 0 lte1 : LTE start (ixToNat y)}
     -> {auto 0 lte2 : LTE start (ixToNat x)}
     -> (cur         : Fin (S dfa.states))    -- current automaton state
-    -> Either (Bounded $ InnerError t e) s
+    -> Either (Bounded $ InnerError t e) a
 
 --   -- Accumulates lexemes by applying the maximum munch strategy:
 --   -- The largest matched lexeme is consumed and kept.
@@ -128,11 +128,11 @@ parameters {0 e,s,t,a : Type}
 --   -- byte leads to the zero state.
   loop :
        (dfa    : DFA e t)              -- current finite automaton
-    -> (state  : s)                    -- accumulated tokens
+    -> (state  : parser.state)         -- accumulated tokens
     -> (pos    : Nat)                  -- reverse position in the byte array
     -> {auto x : Ix pos n}             -- position in the byte array
-    -> Either (Bounded $ InnerError t e) s
-  loop dfa state 0     = Right state
+    -> Either (Bounded $ InnerError t e) a
+  loop dfa state 0     = parser.eoi (atPos $ ixToNat x) state
   loop dfa state (S k) =
     case (dfa.next `at` 0) `atByte` (buf `ix` k) of
       0 => Left $ B (Byte $ buf `ix` k) (atPos $ ixToNat x)
@@ -147,7 +147,7 @@ parameters {0 e,s,t,a : Type}
   --   the encountered state being non-terminal
   app :
        (dfa         : DFA e t)
-    -> (state       : s)                     -- state
+    -> (state       : parser.state)          -- state
     -> Tok e t                               -- terminal state to use
     -> Lazy (InnerError t e)                 -- error to use in case this is the `Bottom` state
     -> (from        : Nat)                   -- start position of token
@@ -155,7 +155,7 @@ parameters {0 e,s,t,a : Type}
     -> (now         : Nat)                   -- current position
     -> {auto ix     : Ix (S till) n}         -- end position
     -> {auto 0  lte : LTE from (ixToNat ix)} -- current position
-    -> Either (Bounded $ InnerError t e) s
+    -> Either (Bounded $ InnerError t e) a
   app dfa state c err from till now =
     let bs := BS from (ixToNat ix)
      in case c of
@@ -164,8 +164,8 @@ parameters {0 e,s,t,a : Type}
           Parse f => case f (toByteString buf from till) of
             Left  x => Left $ B (Custom x) bs
             Right v => case parser.step (I v state bs) of
-              Step s2     => loop (parser.lex s2) s2 till
-              Err bs2 err => Left $ B err bs2
+              Right s2 => loop (parser.lex s2) s2 till
+              Left err => Left err
 
   inner dfa last start lastPos state 0     cur =
     app dfa state last EOI start lastPos (ixToNat x)
@@ -181,7 +181,7 @@ parameters {0 e,s,t,a : Type}
 parseFrom o p pos buf =
   case loop p buf (p.lex p.init) p.init pos of
     Left (B x bs) => Left $ PE o bs (fromIBuffer buf) x
-    Right s       => mapFst (PE o (atPos n) (fromIBuffer buf)) (p.eoi s)
+    Right v       => Right v
 
 -- --------------------------------------------------------------------------------
 -- -- Streaming run loop

@@ -44,9 +44,8 @@ record DFA e t where
   term   : IArray (S states) (Tok e t)
 
 public export
-data ParseRes : (b,e,s,t : Type) -> Type where
-  Err  : b -> InnerError t e -> ParseRes b e s t
-  Step : (state : s) -> ParseRes b e s t
+0 ParseRes : (b,e,s,t : Type) -> Type
+ParseRes b e s t = Either (GenBounded b $ InnerError t e) s
 
 public export
 record Input b s t where
@@ -59,20 +58,24 @@ record Input b s t where
 ||| lexicographic token determines the next automaton
 ||| state plus lexer to use.
 public export
-record Parser b e s t a where
+record Parser b e t a where
   constructor P
-  init : s
-  lex  : s -> DFA e t
-  step : Input b s t -> ParseRes b e s t
-  eoi  : s -> Either (InnerError t e) a
+  {0 state : Type}
+  init     : state
+  lex      : state -> DFA e t
+  step     : Input b state t -> ParseRes b e state t
+  eoi      : b -> state -> ParseRes b e a t
 
 public export
 0 Lexer : (e,t : Type) -> Type
-Lexer e t = Parser Bounds e (SnocList $ Bounded t) t (List $ Bounded t)
+Lexer e t = Parser Bounds e t (List $ Bounded t)
 
 export
 lexer : DFA e t -> Lexer e t
-lexer dfa = P [<] (const dfa) (\(I v st bs) => Step (st:<B v bs)) (Right . (<>> []))
+lexer dfa =
+  P [<] (const dfa)
+    (\(I v st bs) => Right (st:<B v bs))
+    (\_ => Right . (<>> []))
 
 --------------------------------------------------------------------------------
 -- Lexer Generator

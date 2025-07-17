@@ -86,35 +86,35 @@ fromVoid (Byte x)    = Byte x
 --------------------------------------------------------------------------------
 
 public export
-interface FailParse (0 m : Type -> Type) (0 t,e : Type) | m where
-  parseFail : Bounds -> InnerError t e -> m a
+interface FailParse (0 m : Type -> Type) (0 b,t,e : Type) | m where
+  parseFail : b -> InnerError t e -> m a
 
 public export %inline
-FailParse (Either $ Bounded $ InnerError t e) t e where
+FailParse (Either $ GenBounded b $ InnerError t e) b t e where
   parseFail b err = Left (B err b)
 
 public export %inline
-custom : FailParse m t e => Bounds -> e -> m a
+custom : FailParse m b t e => b -> e -> m a
 custom b = parseFail b . Custom
 
 public export %inline
-expected : FailParse m t e => Bounds -> t -> m a
+expected : FailParse m b t e => b -> t -> m a
 expected b = parseFail b . Expected
 
 public export %inline
-unclosed : FailParse m t e => Bounds -> t -> m a
+unclosed : FailParse m b t e => b -> t -> m a
 unclosed b = parseFail b . Unclosed
 
 public export %inline
-unexpected : FailParse m t e => Bounded t -> m a
-unexpected v = parseFail v.bounds (Unexpected $ v.val)
+unexpected : FailParse m b t e => b -> t -> m a
+unexpected b = parseFail b . Unexpected
 
 public export %inline
-eoi : FailParse m t e => m a
-eoi = parseFail Empty EOI
+eoi : FailParse m b t e => b -> m a
+eoi b = parseFail b EOI
 
 public export %inline
-expectedEOI : FailParse m t e => Bounds -> m a
+expectedEOI : FailParse m b t e => b -> m a
 expectedEOI b = parseFail b ExpectedEOI
 
 --------------------------------------------------------------------------------

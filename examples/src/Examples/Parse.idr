@@ -6,23 +6,19 @@ import Text.ILex.Runner
 
 %default total
 
-export
 data PExpr : Type where
   PO : Bounds -> SnocList (Expr,Op) -> PExpr
   PE : Bounds -> SnocList (Expr,Op) -> Expr -> PExpr
-
-0 SnocParser : (e,s,t,a : Type) -> Type
-SnocParser e s t a = Parser Bounds e (SnocList s) t a
 
 0 SnocStep : (e,s,t : Type) -> Type
 SnocStep e s t = Input Bounds (SnocList s) t -> ParseRes Bounds e (SnocList s) t
 
 0 SnocEOI : (e,s,t,a : Type) -> Type
-SnocEOI e s t a = SnocList s -> Either (InnerError t e) a
+SnocEOI e s t a = Bounds -> SnocList s -> ParseRes Bounds e a t
 
 %inline
 append : SnocList s -> s -> ParseRes b e (SnocList s) t
-append sv v = Step $ sv:<v
+append sv v = Right $ sv:<v
 
 mergeL : Ord o => (o -> e -> e -> e) -> SnocList (e,o) -> e -> e
 mergeL merge sp y =
@@ -56,33 +52,34 @@ merge P = Plus
 merge M = Mult
 merge X = Exp
 
-step : SnocStep Void PExpr TExpr
-step (I x sp bs2) =
+exprStep : SnocStep Void PExpr TExpr
+exprStep (I x sp bs2) =
   case x of
     TLit v => case sp of
       i:<PO bs sx => append i $ PE bs sx (Lit v)
-      _           => Err bs2 (Unexpected x)
+      _           => unexpected bs2 x
 
     TOp o => case sp of
       i:<PE bs sx x   => append i $ PO bs (sx :< (x,o))
-      _               => Err bs2 (Unexpected x)
+      _               => unexpected bs2 x
 
     PO     => case sp of
       _:<PO {}        => append sp $ PO bs2 [<]
-      _               => Err bs2 (Unexpected x)
+      _               => unexpected bs2 x
 
     PC     => case sp of
       i:<PO bs sx:<PE _ sy y => append i $ PE bs sx (mergeL merge sy y)
-      [<PE (BS {}) sy y]     => Step [<PE Empty [<] (mergeL merge sy y)]
-      _                      => Err bs2 (Unexpected x)
+      [<PE (BS {}) sy y]     => Right [<PE Empty [<] (mergeL merge sy y)]
+      _                      => unexpected bs2 x
 
-eoi : SnocEOI Void PExpr TExpr Expr
-eoi [<PE Empty sx x] = Right (mergeL merge sx x)
-eoi _                = Left EOI
+exprEoi : SnocEOI Void PExpr TExpr Expr
+exprEoi _  [<PE Empty sx x] = Right (mergeL merge sx x)
+exprEoi _  (_:<PE bs _ _)   = unclosed bs PO
+exprEoi bs _                = Error.eoi bs
 
 export
-expr : SnocParser Void PExpr TExpr Expr
-expr = P [<PO Empty [<]] (const exprDFA) step Parse.eoi
+expr : Parser Bounds Void TExpr Expr
+expr = P [<PO Empty [<]] (const exprDFA) exprStep exprEoi
 
 covering
 main : IO ()

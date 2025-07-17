@@ -63,14 +63,14 @@ step :
   -> SnocList (Bounded Lit)
   -> Bounds
   -> ParseRes Bounds Void (SnocList $ Bounded Lit) Lit
-step QQ       (ss:< B (SP sv) bs1) bs = Step (ss:< concatString sv bs1 bs)
-step (SL s)   (ss:< B (SP sv) bs1) bs = Step (ss:< B (SP $ sv:<s) bs1)
-step x@(SP _) ss                   bs = Step (ss:<B x bs)
-step x        ss                   bs = Step (ss:<B x bs)
+step QQ       (ss:< B (SP sv) bs1) bs = Right (ss:< concatString sv bs1 bs)
+step (SL s)   (ss:< B (SP sv) bs1) bs = Right (ss:< B (SP $ sv:<s) bs1)
+step x@(SP _) ss                   bs = Right (ss:<B x bs)
+step x        ss                   bs = Right (ss:<B x bs)
 
-eoi : SnocList (Bounded Lit) -> Either (InnerError Lit Void) (List $ Bounded Lit)
-eoi (sx:<B (SP _) _) = Left EOI
-eoi sx               = Right (sx<>>[])
+eoi : Bounds -> SnocList (Bounded Lit) -> Either (Bounded $ InnerError Lit Void) (List $ Bounded Lit)
+eoi bs (sx:<B (SP _) _) = Left (B EOI bs)
+eoi bs sx               = Right (sx<>>[])
 
 export
 lit : Lexer Void Lit
