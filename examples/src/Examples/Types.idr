@@ -40,20 +40,14 @@ Interpolation Op where
 public export
 data Expr : Type where
   Lit   : Nat -> Expr
-  Plus  : Expr -> Expr -> Expr
-  Minus : Expr -> Expr -> Expr
-  Mult  : Expr -> Expr -> Expr
-  Exp   : Expr -> Expr -> Expr
+  Bin   : Op -> Expr -> Expr -> Expr
 
 %runElab derive "Expr" [Show,Eq]
 
 export
 Interpolation Expr where
-  interpolate (Lit n) = show n
-  interpolate (Plus x y)  = "(\{x} + \{y})"
-  interpolate (Minus x y) = "(\{x} - \{y})"
-  interpolate (Mult x y)  = "(\{x} * \{y})"
-  interpolate (Exp  x y)  = "(\{x} ^ \{y})"
+  interpolate (Lit n)     = show n
+  interpolate (Bin o x y) = "(\{x} \{o} \{y})"
 
 public export
 data TExpr : Type where

@@ -13,24 +13,18 @@ data PExpr : (tpe : Tpe) -> Type where
   PO  : PExpr O -> Bounds -> SnocList (Expr,Op) -> PExpr O
   PE  : PExpr O -> Bounds -> SnocList (Expr,Op) -> Expr -> PExpr E
 
-merge : Op -> Expr -> Expr -> Expr
-merge P = Plus
-merge S = Minus
-merge M = Mult
-merge X = Exp
-
 exprStep : EStep Void PExpr TExpr
 exprStep (TLit x) (PO p bs sy)   _   = right $ PE p bs sy (Lit x)
 exprStep (TOp o)  (PE p bs sy x) _   = right $ PO p bs $ sy :< (x,o)
 exprStep PO       p@(PO {})      bs2 = right $ PO p bs2 [<]
 exprStep PC       (PE p _ sy x)  bs2 =
   case p of
-    PO p bs sx => right $ PE p bs sx (mergeL merge sy x)
+    PO p bs sx => right $ PE p bs sx (mergeL Bin sy x)
     Ini        => unexpected bs2 PC
 exprStep x        _              bs2 = unexpected bs2 x
 
 exprEOI : EEOI Void PExpr TExpr Expr
-exprEOI _  (PE Ini _  sx x) = Right (mergeL merge sx x)
+exprEOI _  (PE Ini _  sx x) = Right (mergeL Bin sx x)
 exprEOI _  (PE _   bs _  _) = unclosed bs PO
 exprEOI bs _                = Error.eoi bs
 

@@ -6,6 +6,7 @@ import Text.ILex.Runner
 import Text.ILex.Debug
 
 %default total
+%hide Data.Linear.(.)
 
 spaces : RExp True
 spaces = plus (oneof [' ', '\n', '\r', '\t'])
@@ -78,7 +79,7 @@ json =
     , (':',     const JColon)
     , (jstr,    txt (JStr . toString))
     , (decimal, txt (JInt . decNat))
-    , ('-' >> decimal, txt (JInt . negate . decNat))
+    , ('-' >> decimal, txt (JInt . negate . decNat . drop 1))
     , (double,  txt (JNum . cast . toString))
     , (spaces,  Ignore)
     ]
