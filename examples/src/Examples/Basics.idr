@@ -20,15 +20,17 @@ aOrB =
     ]
 
 export
-expr : TokenMap (Tok Void Expr)
-expr =
-  [ (natural, txt toNat)
-  , ('+', const Plus)
-  , ('*', const Mult)
-  , ('(', const PO)
-  , (')', const PC)
-  , (spaces, Ignore)
-  ]
+exprDFA : DFA Void TExpr
+exprDFA =
+  dfa
+    [ (natural, txt toNat)
+    , ('+', const $ TOp P)
+    , ('*', const $ TOp M)
+    , ('^', const $ TOp X)
+    , ('(', const PO)
+    , (')', const PC)
+    , (spaces, Ignore)
+    ]
 
 identifier : RExp True
 identifier = plus $ alphaNum <|> '_'

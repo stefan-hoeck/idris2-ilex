@@ -17,20 +17,41 @@ export
 Interpolation AorB where interpolate = show
 
 public export
+data Op = P | M | X
+
+%runElab derive "Op" [Show,Eq,Ord]
+
+public export
 data Expr : Type where
   Lit  : Nat -> Expr
-  Plus : Expr
-  Mult : Expr
-  PO   : Expr
-  PC   : Expr
+  Plus : Expr -> Expr -> Expr
+  Mult : Expr -> Expr -> Expr
+  Exp  : Expr -> Expr -> Expr
 
 %runElab derive "Expr" [Show,Eq]
 
 export
-Interpolation Expr where interpolate = show
+Interpolation Expr where
+  interpolate (Lit n) = show n
+  interpolate (Plus x y) = "(\{x} + \{y})"
+  interpolate (Mult x y) = "(\{x} * \{y})"
+  interpolate (Exp  x y) = "(\{x} ^ \{y})"
+
+public export
+data TExpr : Type where
+  TLit : Nat -> TExpr
+  TOp  : Op -> TExpr
+  PO   : TExpr
+  PC   : TExpr
+
+%runElab derive "TExpr" [Show,Eq]
 
 export
-toNat : ByteString -> Expr
+Interpolation TExpr where interpolate = show
+
+export
+toNat : ByteString -> TExpr
+toNat = TLit . cast . toString
 
 public export
 data Ident : Type where
