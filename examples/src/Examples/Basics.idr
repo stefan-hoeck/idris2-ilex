@@ -25,6 +25,7 @@ exprDFA =
   dfa
     [ (natural, txt toNat)
     , ('+', const $ TOp P)
+    , ('-', const $ TOp S)
     , ('*', const $ TOp M)
     , ('^', const $ TOp X)
     , ('(', const PO)

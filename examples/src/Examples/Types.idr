@@ -17,31 +17,43 @@ export
 Interpolation AorB where interpolate = show
 
 public export
-data Op = P | M | X
+data Op = P | S | M | X
 
-%runElab derive "Op" [Show,Eq,Ord]
+%runElab derive "Op" [Show,Eq]
+
+prio : Op -> Nat
+prio P = 0
+prio S = 0
+prio M = 1
+prio X = 2
+
+export %inline
+Ord Op where compare = compare `on` prio
 
 export
 Interpolation Op where
   interpolate P = "+"
+  interpolate S = "-"
   interpolate M = "*"
   interpolate X = "^"
 
 public export
 data Expr : Type where
-  Lit  : Nat -> Expr
-  Plus : Expr -> Expr -> Expr
-  Mult : Expr -> Expr -> Expr
-  Exp  : Expr -> Expr -> Expr
+  Lit   : Nat -> Expr
+  Plus  : Expr -> Expr -> Expr
+  Minus : Expr -> Expr -> Expr
+  Mult  : Expr -> Expr -> Expr
+  Exp   : Expr -> Expr -> Expr
 
 %runElab derive "Expr" [Show,Eq]
 
 export
 Interpolation Expr where
   interpolate (Lit n) = show n
-  interpolate (Plus x y) = "(\{x} + \{y})"
-  interpolate (Mult x y) = "(\{x} * \{y})"
-  interpolate (Exp  x y) = "(\{x} ^ \{y})"
+  interpolate (Plus x y)  = "(\{x} + \{y})"
+  interpolate (Minus x y) = "(\{x} - \{y})"
+  interpolate (Mult x y)  = "(\{x} * \{y})"
+  interpolate (Exp  x y)  = "(\{x} ^ \{y})"
 
 public export
 data TExpr : Type where
