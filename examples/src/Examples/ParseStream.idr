@@ -59,6 +59,8 @@ streamExprs pths =
   |> streamLex sexpr
   |> C.mapOutput interpolate
   |> foreach (writeLines Stdout)
+  -- |> C.count
+  -- |> foreach (\x => stdoutLn "\{show x} expressions streamed.")
 
 covering
 main : IO ()
