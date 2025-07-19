@@ -60,10 +60,20 @@ hexadecimal (BS n bv) = go 0 n
 -- Tagged Parsers
 --------------------------------------------------------------------------------
 
+||| A parsing step over a plain state.
+public export
+0 Step : Type -> Type -> Type -> Type -> Type
+Step b e s t = t -> s -> b -> ParseRes b e s t
+
+||| A parsing end-of-input computation over a plain state.
+public export
+0 EOI : Type -> Type -> Type -> Type -> Type -> Type
+EOI b e s t a = b -> s -> ParseRes b e a t
+
 ||| A parsing step over a tagged state.
 public export
-0 EStep : Type -> (k -> Type) -> Type -> Type
-EStep e s t = {0 v : k} -> t -> s v -> Bounds -> ParseRes Bounds e (Exists s) t
+0 EStep : Type -> Type -> (k -> Type) -> Type -> Type
+EStep b e s t = {0 v : k} -> t -> s v -> b -> ParseRes b e (Exists s) t
 
 public export
 right : {0 s : k -> Type} -> s v -> Either e (Exists s)
@@ -71,8 +81,8 @@ right v = Right (Evidence _ v)
 
 ||| A parsing end-of-input computation over a tagged state.
 public export
-0 EEOI : Type -> (k -> Type) -> Type -> Type -> Type
-EEOI e s t a = {0 v : k} -> Bounds -> s v -> ParseRes Bounds e a t
+0 EEOI : Type -> Type -> (k -> Type) -> Type -> Type -> Type
+EEOI b e s t a = {0 v : k} -> b -> s v -> ParseRes b e a t
 
 ||| Utility for generating parsers over a tagged state.
 export %inline
@@ -80,11 +90,16 @@ eparser :
      {0 s : k -> Type}
   -> (init : s v)
   -> (lex  : Exists s -> DFA e t)
-  -> EStep e s t
-  -> EEOI e s t a
-  -> Parser Bounds e t a
+  -> EStep b e s t
+  -> EEOI b e s t a
+  -> Parser b e t a
 eparser init lex step eoi =
-  P (Evidence _ init) lex (\(I tok ev bs) => step tok ev.snd bs) (\bs,ev => eoi bs ev.snd)
+  P
+    (Evidence _ init)
+    lex
+    (\(I tok ev bs) => step tok ev.snd bs)
+    (\st => (st,Nothing))
+    (\bs,ev => eoi bs ev.snd)
 
 ||| Utility for combining a snoc-list of expressions combined
 ||| via left-binding operators of different fixity into a single

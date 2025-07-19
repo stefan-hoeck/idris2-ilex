@@ -66,13 +66,15 @@ data Tok : (e, a : Type) -> Type where
   ||| ignored.
   Ignore : Tok e a
 
-  ||| A token that needs to be parsed from its corresponding
-  ||| bytestring.
+  ||| A constant token that allows us to emit a value directly.
+  Const  : a -> Tok e a
+
+  ||| A token that needs to be parsed from its corresponding bytestring.
   Parse  : (ByteString -> Either e a) -> Tok e a
 
 export %inline
 const : a -> Tok e a
-const v = Parse (const $ Right v)
+const = Const
 
 export %inline
 txt : (ByteString -> a) -> Tok e a

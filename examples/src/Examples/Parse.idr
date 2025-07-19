@@ -6,14 +6,38 @@ import Text.ILex
 
 %default total
 
+public export
 data Tpe = E | O
 
-data PExpr : (tpe : Tpe) -> Type where
-  Ini : PExpr O
-  PO  : PExpr O -> Bounds -> SnocList (Expr,Op) -> PExpr O
-  PE  : PExpr O -> Bounds -> SnocList (Expr,Op) -> Expr -> PExpr E
+-- OP    := + | - | * | ^ (in order of binding priority)
+-- NUM   := 0 | [1-9][0-9]*
+-- EXPR  := NUM | (EXPR) | EXPR OP EXPRS
+-- EXPRS := EXPR | EXPR OP EXPRS
+--
+-- OP and NUM, being only based on regexes, come from the lexer
 
-exprStep : EStep Void PExpr TExpr
+-- EXPRS can be modeled as a `SnocList` of `(Expr,Op)` pairs followed
+--       by one final expression.
+
+-- Nesting of parenthesis can be modeled by giving the expresion
+-- currently being formed a (partially complete) parent expression
+-- If a paren is opened, the current partial expression becomes
+-- the new expression's parent. If a parent is closed, the current
+-- sequence of expression-operator pairs is merged into a single
+-- expression (see the `Text.ILex.Util.mergeL` utility) and
+-- appended to its parent expression.
+public export
+data PExpr : (b : Type) -> (tpe : Tpe) -> Type where
+  Ini : PExpr b O
+  PO  : PExpr b O -> b -> SnocList (Expr,Op) -> PExpr b O
+  PE  : PExpr b O -> b -> SnocList (Expr,Op) -> Expr -> PExpr b E
+
+export %inline
+init : b -> PExpr b O
+init bs = PO Ini bs [<]
+
+export
+exprStep : EStep b Void (PExpr b) TExpr
 exprStep (TLit x) (PO p bs sy)   _   = right $ PE p bs sy (Lit x)
 exprStep (TOp o)  (PE p bs sy x) _   = right $ PO p bs $ sy :< (x,o)
 exprStep PO       p@(PO {})      bs2 = right $ PO p bs2 [<]
@@ -23,14 +47,15 @@ exprStep PC       (PE p _ sy x)  bs2 =
     Ini        => unexpected bs2 PC
 exprStep x        _              bs2 = unexpected bs2 x
 
-exprEOI : EEOI Void PExpr TExpr Expr
+export
+exprEOI : EEOI b Void (PExpr b) TExpr Expr
 exprEOI _  (PE Ini _  sx x) = Right (mergeL Bin sx x)
 exprEOI _  (PE _   bs _  _) = unclosed bs PO
 exprEOI bs _                = Error.eoi bs
 
 export
 expr : Parser Bounds Void TExpr Expr
-expr = eparser (PO Ini Empty [<]) (const exprDFA) exprStep exprEOI
+expr = eparser (init Empty) (const exprDFA) exprStep exprEOI
 
 covering
 main : IO ()

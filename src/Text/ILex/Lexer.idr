@@ -64,17 +64,19 @@ record Parser b e t a where
   init     : state
   lex      : state -> DFA e t
   step     : Input b state t -> ParseRes b e state t
+  chunk    : state -> (state, Maybe a)
   eoi      : b -> state -> ParseRes b e a t
 
 public export
-0 Lexer : (e,t : Type) -> Type
-Lexer e t = Parser Bounds e t (List $ Bounded t)
+0 Lexer : (b,e,t : Type) -> Type
+Lexer b e t = Parser b e t (List $ GenBounded b t)
 
 export
-lexer : DFA e t -> Lexer e t
+lexer : DFA e t -> Lexer b e t
 lexer dfa =
   P [<] (const dfa)
     (\(I v st bs) => Right (st:<B v bs))
+    (\st => ([<], Just $ st <>> []))
     (\_ => Right . (<>> []))
 
 --------------------------------------------------------------------------------

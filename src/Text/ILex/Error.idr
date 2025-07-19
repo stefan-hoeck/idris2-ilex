@@ -145,16 +145,12 @@ Interpolation t => Interpolation e => Interpolation (ParseError t e) where
 --------------------------------------------------------------------------------
 
 public export
-record StreamError t e where
-  constructor SE
-  bounds : StreamBounds
-  error  : InnerError t e
-
-%runElab derive "StreamError" [Show,Eq]
+0 StreamError : (t,e : Type) -> Type
+StreamError t e = GenBounded StreamBounds (InnerError t e)
 
 export
 Interpolation t => Interpolation e => Interpolation (StreamError t e) where
-  interpolate (SE bs err) =
+  interpolate (B err bs) =
     """
     Error: \{err}
     \{bs}

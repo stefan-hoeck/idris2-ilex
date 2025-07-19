@@ -12,7 +12,7 @@ spaces : RExp True
 spaces = plus (oneof [' ', '\n', '\r', '\t'])
 
 export
-aOrB : Lexer Void AorB
+aOrB : Lexer b Void AorB
 aOrB =
   lexer $ dfa
     [ (plus ('A' <|> 'a'), const A)
@@ -38,7 +38,7 @@ identifier : RExp True
 identifier = plus $ alphaNum <|> '_'
 
 export
-ident : Lexer Void Ident
+ident : Lexer b Void Ident
 ident =
   lexer $ dfa
     [ ("else", const Else)
@@ -65,7 +65,7 @@ double =
    in opt '-' >> decimal >> opt frac >> opt exp
 
 export
-json : Lexer Void JSON
+json : Lexer b Void JSON
 json =
   lexer $ dfa
     [ ("null",  const Null)

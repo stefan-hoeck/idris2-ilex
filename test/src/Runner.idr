@@ -23,7 +23,7 @@ Interpolation AorB where interpolate = show
 spaces : RExp True
 spaces = plus (oneof [' ', '\n', '\r', '\t'])
 
-aOrB : Lexer Void AorB
+aOrB : Lexer b Void AorB
 aOrB =
   lexer $ dfa
     [ ('A' >> plus 'a', const MA)
@@ -65,11 +65,11 @@ aOrBs : Gen (AorB, String)
 aOrBs = choice [genA, genMA, genB, genC]
 
 export
-lexNoBounds : Lexer e a -> String -> Either (ParseError a e) (List a)
+lexNoBounds : Lexer Bounds e a -> String -> Either (ParseError a e) (List a)
 lexNoBounds lex = map (map val) . parseString Virtual lex
 
 export
-lexBounds : Lexer e a -> String -> Either (ParseError a e) (List $ Bounded a)
+lexBounds : Lexer Bounds e a -> String -> Either (ParseError a e) (List $ Bounded a)
 lexBounds lex = parseString Virtual lex
 
 prop_lexAorB : Property

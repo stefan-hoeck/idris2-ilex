@@ -73,8 +73,8 @@ eoi bs (sx:<B (SP _) _) = Left (B EOI bs)
 eoi bs sx               = Right (sx<>>[])
 
 export
-lit : Lexer Void Lit
-lit = P [<] lex (\(I v s b) => step v s b) Context.eoi
+lit : Lexer Bounds Void Lit
+lit = P [<] lex (\(I v s b) => step v s b) (\s => (s,Nothing)) Context.eoi
 
 space : Nat -> Gen String
 space n =  string (linear 0 5) (element [' ', '\t', '\r', '\t'])
