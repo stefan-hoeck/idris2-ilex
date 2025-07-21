@@ -85,7 +85,7 @@ public export
 EEOI b e s t a = {0 v : k} -> b -> s v -> ParseRes b e a t
 
 ||| Utility for generating parsers over a tagged state.
-export %inline
+public export %inline
 eparser :
      {0 s : k -> Type}
   -> (init : s v)

@@ -53,9 +53,9 @@ exprEOI _  (PE Ini _  sx x) = Right (mergeL Bin sx x)
 exprEOI _  (PE _   bs _  _) = unclosed bs PO
 exprEOI bs _                = Error.eoi bs
 
-export
-expr : Parser Bounds Void TExpr Expr
-expr = eparser (init Empty) (const exprDFA) exprStep exprEOI
+public export
+expr : b -> Parser b Void TExpr Expr
+expr bs = eparser (init bs) (const exprDFA) exprStep exprEOI
 
 covering
 main : IO ()
@@ -65,6 +65,6 @@ main = do
   case s of
     ""  => putStrLn "Goodbye!"
     "q" => putStrLn "Goodbye!"
-    _   => case parseString Virtual expr s of
+    _   => case parseString Virtual (expr Empty) s of
       Left x  => putStrLn (interpolate x) >> main
       Right x => putStrLn (interpolate x) >> main

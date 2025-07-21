@@ -14,36 +14,12 @@ import Text.ILex.FS
 
 %default total
 
-record State where
-  constructor S
-  exprs : SnocList Expr
-  stack : PExpr StreamBounds tpe
-
-stStep : Step StreamBounds Void State TExpr
-stStep t (S se st) bs =
-  case exprStep t st bs of
-    Left x   => case exprEOI bs st of
-      Right x => (\ev => S (se:<x) ev.snd) <$> exprStep t (init zero) bs
-      _       => Left x
-    Right ev => Right (S se ev.snd)
-
-stChunk : State -> (State, Maybe $ List Expr)
-stChunk st@(S [<] _) = (st, Nothing)
-stChunk (S sx stack) = (S [<] stack, Just $ sx <>> [])
-
-stEOI : EOI StreamBounds Void State TExpr (List Expr)
-stEOI sb (S sx $ PO Ini _ [<]) = Right $ sx <>> []
-stEOI sb (S sx stck) = (\x => sx <>> [x]) <$> exprEOI sb stck
-
 export
 sexpr : Parser StreamBounds Void TExpr (List Expr)
 sexpr =
-  P
-    (S [<] $ init zero)
-    (const exprDFA)
-    (\(I x y z) => stStep x y z)
-    stChunk
-    stEOI
+  streamParser (expr zero) $ \case
+    Evidence _ (PO Ini _ [<]) => True
+    _                         => False
 
 0 Prog : Type -> Type -> Type
 Prog o r = AsyncPull Poll o [StreamError TExpr Void, Errno] r
