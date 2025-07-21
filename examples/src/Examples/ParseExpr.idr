@@ -1,4 +1,4 @@
-module Examples.Parse
+module Examples.ParseExpr
 
 import Examples.Types
 import Examples.Basics

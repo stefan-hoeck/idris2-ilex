@@ -1,8 +1,8 @@
-module Examples.ParseStream
+module Examples.StreamExpr
 
 import Examples.Types
 import Examples.Basics
-import Examples.Parse
+import Examples.ParseExpr
 import Text.ILex
 
 import FS.Posix
@@ -32,6 +32,7 @@ stChunk st@(S [<] _) = (st, Nothing)
 stChunk (S sx stack) = (S [<] stack, Just $ sx <>> [])
 
 stEOI : EOI StreamBounds Void State TExpr (List Expr)
+stEOI sb (S sx $ PO Ini _ [<]) = Right $ sx <>> []
 stEOI sb (S sx stck) = (\x => sx <>> [x]) <$> exprEOI sb stck
 
 export
