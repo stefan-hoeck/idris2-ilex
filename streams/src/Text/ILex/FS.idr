@@ -42,12 +42,12 @@ streamParser p isInit =
         False => (\x => sx <>> [x]) <$> p.eoi sb stack
 
 export
-streamLex :
+streamParse :
      {auto has : Has (StreamError t e) es}
   -> Parser StreamBounds e t a
   -> Pull f (Origin,ByteString) es r
   -> Pull f a es r
-streamLex prs = go (init Virtual prs)
+streamParse prs = go (init Virtual prs)
   where
     go :
          LexState e prs.state t
@@ -59,7 +59,6 @@ streamLex prs = go (init Virtual prs)
           case appLast prs st.pos st.end st.dfa st.cur st.state st.prev of
             Left err => throw err
             Right v  => emit v $> res
-        Right ((o,bs),p2) => case plexBytes prs o st bs of
+        Right ((o,bs),p2) => case pparseBytes prs o st bs of
           Left err      => throw err
           Right (st2,m) => consMaybe m (go st2 p2)
-

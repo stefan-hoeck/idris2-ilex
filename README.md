@@ -386,7 +386,7 @@ lexUQ =
 
 fastUnquote : ByteString -> String
 fastUnquote bs =
-  case lexBytes Virtual lexUQ bs of
+  case parseBytes Virtual lexUQ bs of
     Left  _  => ""
     Right xs => fastConcat (map val xs)
 ```
@@ -537,8 +537,8 @@ quote to describe where in the input string the error happened.
 
 The rest is plain pattern matches on the lexicographic token:
 
-* After a comma, we change to state's tag. In case the last token
-  was already a comma, we append an empty cell (`Null`).
+* After a comma, we change the state's tag. In case the last token
+  was not a value, we append an empty cell (`Null`).
 * After a line break, we start a new line and append the current
   line to the list of lines. Like with a comma, we might append
   an empty cell. Note, that we do not generate completely empty
@@ -551,10 +551,10 @@ The rest is plain pattern matches on the lexicographic token:
 * After a quote, we start a partial string or fail with an error
   (in case the last token was a value).
 
-Hard part's over. To complete our parser, we need to additional
+Hard part's over. To complete our parser, we need two additional
 functions. The first is related to streaming large chunks of
-data. We will come back to this in a later suction. For now,
-suffice to say that in a data stream, we'd like to occasionaly
+data. We will come back to this in a later section. For now,
+suffice to say that in a data stream, we'd like to occasionally
 emit all the lines we have encountered so far. Here's the
 utility to do this:
 
@@ -564,7 +564,7 @@ chunkCSV (CL k sx sy x)      = (CL k [<] sy x, maybeList sx)
 chunkCSV (CS k sx sy x sstr) = (CS k [<] sy x sstr, maybeList sx)
 ```
 
-Finally, we need to finish things ones we reach the end of
+Finally, we need to finish things once we reach the end of
 input. Again, we might fail with an exception in case
 we are in the middle of something unfinished. To keep
 things simple, we just invoke `step2` with a line break
@@ -590,11 +590,13 @@ csv2 : Parser b Void CSV (List Line)
 csv2 = P init (const csvDFA) step2 chunkCSV eoiCSV
 ```
 
+As you can see, the parser consists of the initial state,
+one or several DFAs and three state conversion functions.
 
 You might wonder about the `const csvDFA` part: As we will see
 in the next section, the automaton we use for creating the next
 token can change depending on the current parser state. This allows
-us to make our tokenizer context sensitive. In this basic parser,
+us to make our tokenizer context sensitive. In this more basic parser,
 we use only one automaton.
 
 ### Quoted Strings and Escape Sequences
@@ -602,11 +604,11 @@ we use only one automaton.
 We are now going to look at how to handle quoted string
 literals with escape sequences. First, we note that an
 escape sequence is always started with a backquote (`\`),
-so the occurrence of these breaks the whole string token
-into smaller parts. That's why we use a snoclist in our
+so the occurrences of these break the whole string token
+into smaller parts. That's why we use a `SnocList` in our
 parser state for representing a partially parsed string
 literal. Since the tokens we expect within a quoted string
-literal are completely different to the once encountered outside
+literal are completely different to the ones encountered outside
 of quoted strings, it makes sense to handle these in a
 separate automaton:
 
@@ -623,7 +625,20 @@ strDFA =
     , (linebreak, const NL)
     , (plus (dot && not '"' && not '\\'), txt (Str . toString))
     ]
+```
 
+You might wonder, why we include the line break token in
+this DFA. As you will see in a moment, this will allow us to
+generate more precise error messages in case of string
+literal without closing quote.
+
+We can make use of the more basic parser from the last section
+to implement the state transition function. The only new thing
+is that we can now append parts of a string literal to
+the corresponding token state as well as close that state
+once we arrive at the closing quote:
+
+```idris
 stepCSV : Input b (CState b) CSV -> ParseRes b e (CState b) CSV
 stepCSV i@(I t (CS n sl sc bs ss) b) =
   case t of
@@ -631,39 +646,111 @@ stepCSV i@(I t (CS n sl sc bs ss) b) =
     Str x => Right $ CS n sl sc bs (ss :< x)
     _     => step2 i
 stepCSV i = step2 i
+```
 
+The functions for processing chunks and end of input need not
+be adjusted. However, we now want to use a proper context
+sensitive lexer. The DFA to use will therefore depend on the
+current parser state. While we are in the middle of a quoted
+string literal, we want to use `strDFA`, otherwise we'll use
+the default (`csvDFA`):
+
+```idris
 lexCSV : CState b -> DFA e CSV
 lexCSV (CL {}) = csvDFA
 lexCSV (CS {}) = strDFA
 
 csv : Parser b Void CSV (List Line)
 csv = P (CL 1 [<] [<] New) lexCSV stepCSV chunkCSV eoiCSV
+```
 
+With all things properly tied up, we can now test our
+full-fledged `.csv` parser, for instance, with the following
+example input:
+
+```idris
 csvStr3 : String
 csvStr3 =
   #"""
-   entry 1, "this is a \"test\""        , true ,  12
-   entry 2, "below is an empty line"    , false,   0
+   entry 1, "this is a \"test\""         , true  ,  12
+   entry 2, "below is an empty line"     , false ,   0
 
-   entry 3, "this one has an empty cell",      , -20
-   entry 4, "finally, a backslash: \\"  ,true  ,   4
+   entry 3, "this one has an empty cell" ,       , -20
+   entry 4, "finally, a backslash: \\"   ,true   ,   4
   """#
+```
+
+### Error Handling
+
+From a user's point of view, one of the most important aspects
+when writing a parser is to come up with helpful error messages.
+I strongly advise you to have a closer look at the data
+types and their constructors in `Text.ILex.Error`. In general,
+an `InnerError` is paired with a file context (file name plus exact
+position or range where the error occurred) and then pretty printed
+whenever something goes wrong.
+
+`InnerError` is parameterized over the token type as well as a
+custom error type for those situations, where the existing
+error constructors are not descriptive enough.
+In our examples, this is set to the uninhabited
+type `Void`, meaning that in our case, there will be no
+custom errors.
+
+Below are a couple of erroneous `.csv` strings. Feel free to
+run our parser against those and check out the error messages
+we get:
+
+```idris
+twoValues : String
+twoValues = "this is wrong, \"foo\" false"
+
+invalidTab : String
+invalidTab = "this is wrong, foo, false, \"Ups: \t\", bar"
+
+unclosedQuote : String
+unclosedQuote = "this is wrong, foo, false, \"Ups , bar"
+```
+
+The error message from the last example is important: Instead
+of complaining about having reached the end of input (which, in
+my opinion, would be rather unspecific), we mark the opening
+quote that has not properly been closed.
+
+We'd like to do the same in case we arrive at a line break
+in the middle of a quoted string. Again, the resulting error
+message will be more specific. This is only possible by
+including the line break token `NL` as one of the tokens
+emitted by the string DFA. Here's an example where this is
+relevant. Fill free to remove the `linebreak` line from
+the definition of `strDFA` and re-check the parser's behavior
+at the REPL.
+
+```idris
+unclosedMultiline : String
+unclosedMultiline =
+  """
+    foo, "this is a, 12
+    bar, test, 13
+  """
 ```
 
 ## Streaming Files
 
-Functions such as `lex` and `lexBytes` are supposed to tokenize a
+Functions such as `parse` and `parseString` are supposed to process a
 (byte)string as a whole, so the whole data needs to fit into memory.
 Sometimes, however, we would like to process huge amounts of data.
 Package *ilex-streams*, which is also part of this project, provides
-utilities for this occasion.
+utilities for this occasion. Fortunately, data type `Parser` already
+holds all the ingredients to process large data sets in chunks and
+emit the values accumulated so far once after each chunk of data.
 
 We are going to demonstrate how this is done when reading a large
-file containing JSON-encoded data. First, we define a type alias
+file containing `.csv`-encoded data. First, we define a type alias
 and runner for the data stream
 (see the [idris2-streams library](https://github.com/stefan-hoeck/idris2-streams)
 for proper documentation about `Pull` and `Stream`). Since
-we want to read stuff from file descriptors, so we use
+we want to read stuff from file descriptors we use
 the `Async` monad (from [idris2-async](https://github.com/stefan-hoeck/idris2-async))
 with polling capabilities. We also want to deal with possible errors -
 parsing errors as well as errors from the operating system. This
@@ -681,23 +768,26 @@ runProg prog =
   in epollApp $ mpull handled
 ```
 
-And here's an example how to stream a single, possibly huge, JSON file
-(this will print the number of tokens found in each chunk of data read):
+If the above is foreign to you, please work through the tutorials
+provided with the *async* and *streams* libraries.
+
+And here's an example how to stream a single, possibly huge, `.csv` file
+(this will print the total number of non-empty CSV-lines encountered):
 
 ```idris
 streamCSV : String -> Prog Void ()
 streamCSV pth =
      readBytes pth
   |> P.mapOutput (FileSrc pth,)
-  |> streamLex csv
+  |> streamParse csv
   |> C.count
   |> printLnTo Stdout
 ```
 
 Functions `readBytes`, `mapOutput`, and `printLnTo` are just standard
-streaming utilities, while function `streamLex` is provided by
+streaming utilities, while function `streamParse` is provided by
 the *ilex-streams* library. With the above, you can stream arbitrarily
-large JSON files in constant memory.
+large CSV files in constant memory.
 
 However, there are some minor differences compared to tokenizing whole
 strings of data:
@@ -714,15 +804,35 @@ strings of data:
 streamCSVFiles : Prog String () -> Prog Void ()
 streamCSVFiles pths =
      flatMap pths (\p => readBytes p |> P.mapOutput (FileSrc p,))
-  |> streamLex csv
+  |> streamParse csv
   |> C.count
   |> printLnTo Stdout
 ```
+
+Below is a `main` function so you can test our CSV parser against
+your own CSV files (or some files downloaded from the web). I strongly
+suggest you experiment some more with this.
+For instance, you might add support
+for single-line comments: Everything after a specific character
+(for instance `'#'`) until the end of line is to be considered
+a comment and should be dropped.
+
+You could also add support for floating-point literals,
+single characters (in single quotes like in Idris), date and time
+values and so on.
 
 ```idris
 covering
 main : IO ()
 main = runProg $ streamCSVFiles (P.tail args)
+```
+
+In order to compile this and check it against your own
+CSV files:
+
+```sh
+pack -o csv exec examples/src/README.md
+examples/build/exec/csv ~/downloads/*.csv
 ```
 
 <!-- vi: filetype=idris2:syntax=markdown

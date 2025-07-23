@@ -42,8 +42,8 @@ parseString o l s = parse o l (fromString s)
 
 ||| Like `lex` but processes a `ByteString` instead.
 export
-lexBytes : Origin -> Parser Bounds e t a -> ByteString -> ParseRes e t a
-lexBytes o l (BS s $ BV buf off lte) =
+parseBytes : Origin -> Parser Bounds e t a -> ByteString -> ParseRes e t a
+parseBytes o l (BS s $ BV buf off lte) =
   parseFrom o l s {x = offsetToIx off} (take (off+s) buf)
 
 --------------------------------------------------------------------------------
@@ -86,13 +86,13 @@ plexFrom :
   -> PLexRes e p.state t a
 
 export %inline
-plexBytes :
+pparseBytes :
      (p : Parser StreamBounds e t a)
   -> Origin
   -> LexState e p.state t
   -> ByteString
   -> PLexRes e p.state t a
-plexBytes l o st (BS s $ BV buf off lte) =
+pparseBytes l o st (BS s $ BV buf off lte) =
   plexFrom o l st s {x = offsetToIx off} (take (off+s) buf)
 
 --------------------------------------------------------------------------------
