@@ -6,40 +6,44 @@ import Text.ILex.Runner
 import Text.ILex.Debug
 
 %default total
+%hide Data.Linear.(.)
 
 spaces : RExp True
 spaces = plus (oneof [' ', '\n', '\r', '\t'])
 
 export
-aOrB : Lexer Void () AorB
+aOrB : Lexer b Void AorB
 aOrB =
-  lexer $ setEOI E $ dfa
+  lexer $ dfa
     [ (plus ('A' <|> 'a'), const A)
     , (plus ('B' <|> 'b'), const B)
-    , (spaces, ignore)
+    , (spaces, Ignore)
     ]
 
 export
-expr : TokenMap (Conv Void () Expr)
-expr =
-  [ (natural, txt toNat)
-  , ('+', const Plus)
-  , ('*', const Mult)
-  , ('(', const PO)
-  , (')', const PC)
-  , (spaces, ignore)
-  ]
+exprDFA : DFA Void TExpr
+exprDFA =
+  dfa
+    [ (natural, txt toNat)
+    , ('+', const $ TOp P)
+    , ('-', const $ TOp S)
+    , ('*', const $ TOp M)
+    , ('^', const $ TOp X)
+    , ('(', const PO)
+    , (')', const PC)
+    , (spaces, Ignore)
+    ]
 
 identifier : RExp True
 identifier = plus $ alphaNum <|> '_'
 
 export
-ident : Lexer Void () Ident
+ident : Lexer b Void Ident
 ident =
-  lexer $ setEOI IE $ dfa
+  lexer $ dfa
     [ ("else", const Else)
     , (identifier, txt (Id . toString))
-    , (spaces, ignore)
+    , (spaces, Ignore)
     ]
 
 jstr : RExp True
@@ -61,9 +65,9 @@ double =
    in opt '-' >> decimal >> opt frac >> opt exp
 
 export
-json : Lexer Void () JSON
+json : Lexer b Void JSON
 json =
-  lexer $ setEOI JEOI $ dfa
+  lexer $ dfa
     [ ("null",  const Null)
     , ("true",  const (JBool True))
     , ("false", const (JBool False))
@@ -75,7 +79,7 @@ json =
     , (':',     const JColon)
     , (jstr,    txt (JStr . toString))
     , (decimal, txt (JInt . decNat))
-    , ('-' >> decimal, txt (JInt . negate . decNat))
+    , ('-' >> decimal, txt (JInt . negate . decNat . drop 1))
     , (double,  txt (JNum . cast . toString))
-    , (spaces,  ignore)
+    , (spaces,  Ignore)
     ]

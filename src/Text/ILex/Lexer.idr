@@ -1,12 +1,14 @@
 module Text.ILex.Lexer
 
 import public Data.Array
+import public Text.ILex.Bounds
 import public Text.ILex.Error
 import public Text.ILex.RExp
 import public Data.List
 
 import Control.Monad.State
 
+import Data.ByteString
 import Data.SortedMap
 import Derive.Prelude
 
@@ -24,10 +26,10 @@ Stepper states = IArray (S states) (IArray 256 (Fin (S states)))
 
 ||| A discrete finite automaton (DFA) encoded as
 ||| an array of state transitions plus an array
-||| describing the terminal states.
+||| describing the terminal token states.
 public export
-record DFA e c a where
-  constructor D
+record DFA e t where
+  constructor L
   ||| Number of non-zero states in the automaton.
   states : Nat
 
@@ -39,31 +41,43 @@ record DFA e c a where
   next   : Stepper states
 
   ||| Terminal states and the corresponding conversions.
-  term   : IArray (S states) (Conv e c a)
+  term   : IArray (S states) (Tok e t)
 
-  ||| End of input token (if any)
-  eoi    : Maybe (Either (InnerError a e) a)
-
-export %inline
-setEOI : a -> DFA e c a -> DFA e c a
-setEOI v = {eoi := Just (Right v)}
-
-export %inline
-errEOI : InnerError a e -> DFA e c a -> DFA e c a
-errEOI x = {eoi := Just (Left x)}
-
-||| A lexer is a system of automata, where each
-||| lexicographic token determines the next automaton
-||| to use.
 public export
-record Lexer e c a where
-  constructor L
-  init : c
-  dfa  : c -> DFA e c a
+0 ParseRes : (b,e,s,t : Type) -> Type
+ParseRes b e s t = Either (GenBounded b $ InnerError t e) s
+
+public export
+record Input b s t where
+  constructor I
+  token  : t
+  state  : s
+  bounds : b
+
+||| A parser is a system of automata, where each
+||| lexicographic token determines the next automaton
+||| state plus lexer to use.
+public export
+record Parser b e t a where
+  constructor P
+  {0 state : Type}
+  init     : state
+  lex      : state -> DFA e t
+  step     : Input b state t -> ParseRes b e state t
+  chunk    : state -> (state, Maybe a)
+  eoi      : b -> state -> ParseRes b e a t
+
+public export
+0 Lexer : (b,e,t : Type) -> Type
+Lexer b e t = Parser b e t (List $ GenBounded b t)
 
 export
-lexer : DFA e () a -> Lexer e () a
-lexer dfa = L () (const dfa)
+lexer : DFA e t -> Lexer b e t
+lexer dfa =
+  P [<] (const dfa)
+    (\(I v st bs) => Right (st:<B v bs))
+    (\st => ([<], Just $ st <>> []))
+    (\_ => Right . (<>> []))
 
 --------------------------------------------------------------------------------
 -- Lexer Generator
@@ -72,8 +86,8 @@ lexer dfa = L () (const dfa)
 emptyRow : IArray 256 (Fin (S n))
 emptyRow = fill _ 0
 
-emptyDFA : DFA e c a
-emptyDFA = D 0 (fill _ emptyRow) (fill _ Bottom) Nothing
+emptyDFA : DFA e a
+emptyDFA = L 0 (fill _ emptyRow) (fill _ Bottom)
 
 term : SortedMap Nat a -> Node -> Maybe (Nat, a)
 term m (N _ []     _) = Nothing
@@ -87,16 +101,16 @@ node (N k _ out) = (k, fromPairs _ 0 $ mapMaybe pair (out >>= transitions))
 
 ||| A DFA operating on raw bytes.
 export
-byteDFA : (m : TokenMap8 (Conv e c a)) -> (0 p : NonEmpty m) => DFA e c a
+byteDFA : (m : TokenMap8 (Tok e a)) -> (0 p : NonEmpty m) => DFA e a
 byteDFA m =
   let M tms graph := assert_total $ machine (toDFA m)
       nodes       := values graph
       S len       := length nodes | 0 => emptyDFA
       terms       := fromPairs (S len) Bottom (mapMaybe (term tms) nodes)
       trans       := fromPairs (S len) emptyRow (map node nodes)
-   in D len trans terms Nothing
+   in L len trans terms
 
 ||| A utf-8 aware DFA operating on text.
 export
-dfa : (m : TokenMap (Conv e c a)) -> (0 p : NonEmpty m) => DFA e c a
+dfa : (m : TokenMap (Tok e a)) -> (0 p : NonEmpty m) => DFA e a
 dfa (p::ps) = byteDFA (toUTF8 p :: map toUTF8 ps)

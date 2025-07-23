@@ -95,10 +95,7 @@ printFC fc@(FC o (P sr sc) (P er ec)) ls =
      False =>
        lineNumbers [<"",head] nsize sr (range sr (min er $ sr+5) ls) <>> []
      True  =>
-       let -- In case of end-of-input errors, we sometimes get `ec == sc`.
-           -- We want to make sure we still print at least one emphasis character
-           -- in those cases.
-           cemph := max 1 (ec `minus` sc)
+       let cemph := S $ ec `minus` sc
            emph  := indent (nsize + sc + 4) (replicate cemph '^')
            fr    := er `minus` 4 -- first row
         in lineNumbers [<"",head] nsize fr (range fr er ls) <>> [emph]
@@ -113,6 +110,9 @@ record StreamPos where
   origin   : Origin
   position : Position
 
+zeroPos : StreamPos
+zeroPos = SP Virtual (P 0 0)
+
 %runElab derive "StreamPos" [Show,Eq]
 
 public export
@@ -120,6 +120,10 @@ record StreamBounds where
   constructor SB
   start : StreamPos
   end   : StreamPos
+
+export
+zero : StreamBounds
+zero = SB zeroPos zeroPos
 
 %runElab derive "StreamBounds" [Show,Eq]
 

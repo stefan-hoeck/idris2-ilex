@@ -19,10 +19,9 @@ data Status = Dflt | Str
 public export
 data Lit : Type where
   Num : Nat -> Lit
-  QO  : Lit -- opening quote
   QQ  : Lit -- closing quote
   SL  : String -> Lit
-  E   : Lit
+  SP  : SnocList String -> Lit
 
 %runElab derive "Lit" [Show,Eq]
 
@@ -32,32 +31,50 @@ Interpolation Lit where interpolate = show
 spaces : RExp True
 spaces = plus (oneof [' ', '\n', '\r', '\t'])
 
-strLit : DFA Void Status Lit
+strLit : DFA Void Lit
 strLit =
-  errEOI EOI $ dfa
-    [ (chr,    txt' Str (SL . toString))
-    , ("\\\\", Const Str  $ SL "\\")
-    , ("\\\"", Const Str  $ SL "\"")
-    , ('"',    Const Dflt QQ)
+  dfa
+    [ (chr,    txt (SL . toString))
+    , ("\\\\", const $ SL "\\")
+    , ("\\\"", const $ SL "\"")
+    , ('"',    const QQ)
     ]
   where
     chr : RExp True
     chr = plus $ dot && not '"' && not '\\'
 
-dfltLit : DFA Void Status Lit
+dfltLit : DFA Void Lit
 dfltLit =
-  setEOI E $ dfa
-    [ (decimal, txt' Dflt (Num . cast . toString))
-    , ('"', Const Str QO)
-    , (spaces, Ignore Dflt)
+  dfa
+    [ (decimal, txt (Num . cast . toString))
+    , ('"', const $ SP [<])
+    , (spaces, Ignore)
     ]
 
+concatString : SnocList String -> Bounds -> Bounds -> Bounded Lit
+concatString ss x y = B (SL $ fastConcat $ ss <>> []) (x<+>y)
+
+lex : SnocList (Bounded Lit) -> DFA Void Lit
+lex (ss:< B (SP _) _) = strLit
+lex _                 = dfltLit
+
+step :
+     Lit
+  -> SnocList (Bounded Lit)
+  -> Bounds
+  -> ParseRes Bounds Void (SnocList $ Bounded Lit) Lit
+step QQ       (ss:< B (SP sv) bs1) bs = Right (ss:< concatString sv bs1 bs)
+step (SL s)   (ss:< B (SP sv) bs1) bs = Right (ss:< B (SP $ sv:<s) bs1)
+step x@(SP _) ss                   bs = Right (ss:<B x bs)
+step x        ss                   bs = Right (ss:<B x bs)
+
+eoi : Bounds -> SnocList (Bounded Lit) -> Either (Bounded $ InnerError Lit Void) (List $ Bounded Lit)
+eoi bs (sx:<B (SP _) _) = Left (B EOI bs)
+eoi bs sx               = Right (sx<>>[])
+
 export
-lit : Lexer Void Status Lit
-lit =
-  L Dflt $ \case
-    Dflt => dfltLit
-    Str  => strLit
+lit : Lexer Bounds Void Lit
+lit = P [<] lex (\(I v s b) => step v s b) (\s => (s,Nothing)) Context.eoi
 
 space : Nat -> Gen String
 space n =  string (linear 0 5) (element [' ', '\t', '\r', '\t'])
@@ -79,7 +96,7 @@ genStr = choice [quote, esc, regular]
     dropEsc c    = c
 
     regstr : Gen String
-    regstr = string (linear 1 30) (map dropEsc printableAscii)
+    regstr = string (linear 0 30) (map dropEsc printableAscii)
 
     regular = map (\s => (SL s, "\"\{s}\"")) regstr
 
@@ -87,72 +104,53 @@ prop_lexNum : Property
 prop_lexNum =
   property $ do
     (l,s) <- forAll genNum
-    Right [l,E] === lexNoBounds lit s
+    Right [l] === lexNoBounds lit s
 
 prop_lexStr : Property
 prop_lexStr =
   property $ do
     (l,s) <- forAll genStr
-    Right [QO,l,QQ,E] === lexNoBounds lit s
+    Right [l] === lexNoBounds lit s
 
 prop_lexEmptyStr : Property
 prop_lexEmptyStr =
   property1 $
-    Right [QO,QQ,E] === lexNoBounds lit #""""#
+    Right [SL ""] === lexNoBounds lit #""""#
 
 prop_boundsNum : Property
 prop_boundsNum =
   property1 $
-        Right
-          [ B (Num 1234) $ BS 0 3
-          , B E $ BS 4 4
-          ]
-    === lexString Virtual lit "1234"
+        Right [B (Num 1234) $ BS 0 3]
+    === parseString Virtual lit "1234"
 
 prop_boundsStr : Property
 prop_boundsStr =
   property1 $
-        Right
-          [ B QO         $ BS 0 0
-          , B (SL "foo") $ BS 1 3
-          , B QQ         $ BS 4 4
-          , B E          $ BS 5 5
-          ]
-    === lexString Virtual lit #""foo""#
+        Right [B (SL "foo") $ BS 0 4]
+    === parseString Virtual lit #""foo""#
 
 prop_boundsQuote : Property
 prop_boundsQuote =
   property1 $
-        Right
-          [ B QO         $ BS 0 0
-          , B (SL #"""#) $ BS 1 2
-          , B QQ         $ BS 3 3
-          , B E          $ BS 4 4
-          ]
-    === lexString Virtual lit #""\"""#
+        Right [B (SL #"""#) $ BS 0 3]
+    === parseString Virtual lit #""\"""#
 
 prop_boundsEsc : Property
 prop_boundsEsc =
-  property1 $
-        Right
-          [ B QO         $ BS 0 0
-          , B (SL #"\"#) $ BS 1 2
-          , B QQ         $ BS 3 3
-          , B E          $ BS 4 4
-          ]
-    === lexString Virtual lit #""\\""#
+  property1 $ Right [B (SL #"\"#) $ BS 0 3]
+    === parseString Virtual lit #""\\""#
 
 prop_boundsEscErr : Property
 prop_boundsEscErr =
   property1 $
         Left (PE Virtual (BS 4 4) #""ab\D""# (Byte 68))
-    === lexString Virtual lit #""ab\D""#
+    === parseString Virtual lit #""ab\D""#
 
 prop_unclosedErr : Property
 prop_unclosedErr =
   property1 $
         Left (PE Virtual (BS 6 6) #""abc d"# EOI)
-    === lexString Virtual lit #""abc d"#
+    === parseString Virtual lit #""abc d"#
 
 export
 props : Group
