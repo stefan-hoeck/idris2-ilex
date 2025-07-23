@@ -1,9 +1,43 @@
 # ilex: Generating fast Lexers from an Idris2 DSL
 
 This is a library for generating performant lexers that can
-be derived from a simple regular expression DSL.
+be derived from a simple regular expression DSL (domain specific language).
+However, this library also offers a way to enhance the lexers to become proper
+parsers. The following list describes the main characteristics
+of this library:
 
-This is a literate Idris file, so we start with some imports.
+* Performance: Lexers are compiled at runtime to discrete, array-backed
+  state machines that operate directly on raw byte arrays and therefore
+  perform exceedingly well in comparison with common combinator-based
+  solutions that operate on lists of characters.
+* Stack safety: The drivers running the lexers over byte arrays are
+  tail recursive and therefore safe to use on backends with limited
+  stack size such as the JavaScript backends.
+* Convenience: A high-level DSL for describing the regular expressions
+  used in the lexers is provided together with a few basic conversion
+  functions to extract lexicographic tokens from the matched byte
+  arrays.
+* Streaming: It is straight forward to use the state machines in
+  a setting where large amounts of data have to be streamed chunk-wise
+  without loading them all at once into memory.
+* Context Awareness: It is possible to combine several lexers into
+  a single context-aware tokenizer. Common use cases for this are,
+  for instance, the lexing of string literals with support for
+  character escape sequences, string interpolation where
+  string literals can contain regular code snippets,
+  or nested multi-line comments.
+* Parsing: As an experimental feature, we explore the possibilities
+  this library offers for writing proper LR-parsers by keeping
+  track of the parsing state in a (possibly indexed) stack-like
+  data type. While this approach gives us all of the benefits
+  listed above, it remains yet to be seen if writing parsers
+  in such a way is convenient enough to compete with the well
+  established approaches offered by parser generators, parser combinators,
+  or hand-written recursive descent parsers.
+
+This is a literate Idris file, so we start with some imports and
+a utility function used to run and print the lexers described
+in this section.
 
 ```idris
 module README
@@ -20,6 +54,10 @@ import Text.ILex.FS
 %default total
 %language ElabReflection
 %hide Data.Linear.(.)
+
+pretty : Interpolation e => Show a => Either e (List a) -> IO ()
+pretty (Left x)   = putStrLn $ interpolate x
+pretty (Right vs) = traverse_ printLn vs
 ```
 
 ## A basic CSV Lexer
@@ -53,9 +91,13 @@ data CSV0 : Type where
   Cell0  : String -> CSV0
 
 %runElab derive "CSV0" [Show,Eq]
+
+Interpolation CSV0 where interpolate = show
 ```
 
-Without further ado, here is our first `.csv` lexer:
+The data constructors of `CSV0` describe the different
+tokens that we can recognize in a (very basic) `.csv`
+file. Without further ado, here is our first `.csv` lexer:
 
 ```idris
 csv0 : Lexer b Void CSV0
@@ -71,14 +113,23 @@ Before we describe the definition above in some detail, let's quickly
 test it at the REPL:
 
 ```repl
-README> :exec printLn (lexString Virtual csv0 csvStr1)
-Right [ ... ]
+README> :exec pretty (parseString Virtual csv0 csvStr1)
+B {val = Cell0 "foo", bounds = BS {x = 0, y = 2}}
+...
 ```
 
-As you can see, the input has been cut into a list of tokens. Please note
+As you can see, the input has been cut into a list of tokens, each
+annotated with the region (its *bounds*) where in the byte array
+it appeared. Please note
 that the functions in this library cannot be evaluated directly at the
 REPL, so we have to actually compile a small program and run it using
 `:exec`.
+
+Feel free to experiment with this a bit. For instance, you might want to
+force an error by passing it a string that contains a tab character (`"\t"`),
+something our lexer cannot yet handle. You will note that you'll get a
+detailed error message highlighting the exact position of the error
+in the input string.
 
 Now, let us have a closer look at the definition of `csv0`: We use
 a `TokenMap` to describe a lexer: a list of regular expressions each paired
@@ -90,6 +141,15 @@ Cell tokens are a bit more involved: We expect one or more (`plus`)
 printable characters (`dot`) that are also not commas (`&& not ','`)
 and convert them to a `Cell0` token. Please note that `txt` converts
 a `ByteString`, so we use `toString` to convert it correctly.
+
+A quick note about the types: `Lexer b Void CSV0` describes a
+lexer that uses `b` for its token bounds (there are different
+types of bounds we support; in many cases, we want to keep this
+abstract), `Void` is the type of custom errors our lexer throws
+(no custom errors in this case, because `Void` is uninhabited),
+and `CSV0` is the token type the lexer generates. We will later
+see that this is actually a utility alias for something more
+versatile.
 
 ### Additional Cell Types
 
@@ -113,9 +173,10 @@ data CSV1 : Type where
   Txt1   : String -> CSV1
   Bool1  : Bool -> CSV1
   Int1   : Integer -> CSV1
-  EOI    : CSV1
 
 %runElab derive "CSV1" [Show,Eq]
+
+Interpolation CSV1 where interpolate = show
 ```
 
 And here's the corresponding lexer:
@@ -150,7 +211,7 @@ you will note that there is some overlap between certain token types.
 For instance, `"true"` could be interpreted both as a boolean
 and as a text token. In addition `"\r\n"` could be read as
 one or two line breaks. Go ahead and check at the REPL
-how `lexString` deals with these cases.
+how `parseString` deals with these cases.
 
 As you can easily verify, `"foo"` is interpreted as a single text token
 instead of three tokens (one for each character), even though an interpretation
@@ -328,6 +389,120 @@ fastUnquote bs =
   case lexBytes Virtual lexUQ bs of
     Left  _  => ""
     Right xs => fastConcat (map val xs)
+```
+
+## Parsing CSV Files
+
+We are now going to learn how to properly parse
+comma separated values. Instead of just listing the
+lexicographic tokens, we are going to actually accumulate
+these tokens into a larger data structure. We therefore
+start with a definition of said data structure:
+
+```idris
+data Cell : Type where
+  Null  : Cell
+  CStr  : String -> Cell
+  CBool : Bool -> Cell
+  CInt  : Integer -> Cell
+
+%runElab derive "Cell" [Show,Eq]
+
+record Line where
+  constructor L
+  nr    : Nat
+  cells : List Cell
+
+%runElab derive "Line" [Show,Eq]
+```
+
+We go back to using a more basic lexer for the time being
+(no quoted strings with escape sequences; we'll look at
+those further below):
+
+```idris
+data CSV : Type where
+  Comma : CSV
+  NL    : CSV
+  Quote : CSV
+  Str   : String -> CSV
+  Cll   : Cell -> CSV
+
+%runElab derive "CSV" [Show,Eq]
+
+Interpolation CSV where interpolate = show
+```
+
+The new thing is, that instead of a `Lexer`, we just
+define a discrete finite automaton (DFA) for dealing
+with the tokenization part. We'll see why in a moment:
+
+```idris
+dfaCSV2 : DFA e CSV
+dfaCSV2 =
+  dfa
+    [ (','           , const Comma)
+    , (linebreak     , const NL)
+    , ("true"        , const (Cll $ CBool True))
+    , ("false"       , const (Cll $ CBool False))
+    , (decimal       , txt (Cll . CInt . decimal))
+    , ('-' >> decimal, txt (Cll . CInt . negate . decimal . drop 1))
+    , (text          , txt (Cll . CStr . toString))
+    , (spaces        , Ignore)
+    ]
+```
+
+### State and Parsing
+
+```idris
+data Tag = New | Val | Com
+
+data CState : Type -> Type where
+  CL : Nat -> SnocList Line -> SnocList Cell -> Tag -> CState b
+  CS : Nat -> SnocList Line -> SnocList Cell -> b -> SnocList String -> CState b
+
+maybeList : SnocList a -> Maybe (List a)
+maybeList [<] = Nothing
+maybeList sx  = Just (sx <>> [])
+
+lines : CState b -> List Line
+lines (CL _ sx _ _)   = sx <>> []
+lines (CS _ sx _ _ _) = sx <>> []
+
+new : Nat -> SnocList Line -> Either e (CState b)
+new n sl = Right $ CL (S n) sl [<] New
+
+cv : Nat -> SnocList Line -> SnocList Cell -> Either e (CState b)
+cv n sl sc = Right $ CL n sl sc Val
+
+cc : Nat -> SnocList Line -> SnocList Cell -> Either e (CState b)
+cc n sl sc = Right $ CL n sl sc Com
+
+step2 : Input b (CState b) CSV -> ParseRes b e (CState b) CSV
+step2 (I t (CS _ _ _ bs _) b) = unclosed bs Quote
+step2 (I t (CL n sl sc tg) b) =
+  case t of
+    Comma => case tg of
+      Val => cc n sl sc
+      _   => cc n sl (sc :< Null)
+    NL    => case tg of
+      New => new n sl
+      Val => new n (sl :< L n (sc <>> []))
+      Com => new n (sl :< L n (sc <>> [Null]))
+    Cll x => case tg of
+      Val => unexpected b t
+      _   => cv n sl (sc :< x)
+    _     => unexpected b t
+
+chunk2 : CState b -> (CState b, Maybe (List Line))
+chunk2 (CL k sx sy x)      = (CL k [<] sy x, maybeList sx)
+chunk2 (CS k sx sy x sstr) = (CS k [<] sy x sstr, maybeList sx)
+
+eoi2 : b -> CState b -> ParseRes b e (List Line) CSV
+eoi2 bs s = lines <$> step2 (I NL s bs)
+
+csv2 : Parser b Void CSV (List Line)
+csv2 = P (CL 1 [<] [<] New) (const dfaCSV2) step2 chunk2 eoi2
 ```
 
 ## Streaming Files
