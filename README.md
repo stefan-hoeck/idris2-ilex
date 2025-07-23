@@ -686,7 +686,7 @@ From a user's point of view, one of the most important aspects
 when writing a parser is to come up with helpful error messages.
 I strongly advise you to have a closer look at the data
 types and their constructors in `Text.ILex.Error`. In general,
-an `InnerError` is paired with a file context (file name plus exact
+an `InnerError` is paired with a file context (filename plus exact
 position or range where the error occurred) and then pretty printed
 whenever something goes wrong.
 
