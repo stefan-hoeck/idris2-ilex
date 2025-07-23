@@ -36,8 +36,8 @@ of this library:
   or hand-written recursive descent parsers.
 
 This is a literate Idris file, so we start with some imports and
-a utility function used to run and print the lexers described
-in this section.
+a utility function used to run the lexers and parsers described
+in this section and print their results.
 
 ```idris
 module README
@@ -78,10 +78,10 @@ csvStr1 =
 
 What kind of token can we recognize here? We certainly have the
 commas separating the fields on every line. We also have line
-breaks separating table rows. In between those, we have arbitrary
+breaks separating table rows. Between those, we have arbitrary
 data. Let us start with these very basic observations and
 define and test a lexer for this structure. Since we are
-going to implement several iterations of a `.csv` lexer,
+going to implement several iterations of a CSV lexer,
 we use an integer suffix in our names:
 
 ```idris
@@ -96,8 +96,8 @@ Interpolation CSV0 where interpolate = show
 ```
 
 The data constructors of `CSV0` describe the different
-tokens that we can recognize in a (very basic) `.csv`
-file. Without further ado, here is our first `.csv` lexer:
+tokens we can recognize in a (very basic) CSV
+file. Without further ado, here is our first CSV lexer:
 
 ```idris
 csv0 : Lexer b Void CSV0
@@ -198,7 +198,7 @@ csv1 =
     ]
 ```
 
-The above is *much* more powerful that our original `csv0` lexer, and
+The above is *much* more powerful than our original `csv0` lexer, and
 trying to implement this manually might be quite a frustrating
 experience. Go ahead and experiment with this a bit at the REPL, and
 see, if it behaves as expected.
@@ -292,7 +292,7 @@ csv1_2 =
 
 ### Quoted Text
 
-Currently, our `.csv` lexer cannot process any text that contains
+Currently, our CSV lexer cannot process any text that contains
 commas. Likewise, it is not possible to include any control
 characters such as tabs or line breaks in our text tokens.
 We'd now like to add support for these.
@@ -466,7 +466,7 @@ this when we talk about string literals.
 ### State and Parsing
 
 With  the DFA defined above we can already define a proper
-`.csv` parser by implementing a bunch of state transitions based
+CSV parser by implementing a bunch of state transitions based
 on the tokens we encounter. We build lines from top to bottom
 keeping track of the current line number. Likewise, we
 build each line from left to right. Finally, we have to
@@ -541,10 +541,10 @@ The rest is plain pattern matches on the lexicographic token:
   was not a value, we append an empty cell (`Null`).
 * After a line break, we start a new line and append the current
   line to the list of lines. Like with a comma, we might append
-  an empty cell. Note, that we do not generate completely empty
+  an empty cell. Note, that we do not generate entries for empty
   lines. This is an opinionated choice. You might decide to do
   otherwise (or let client code decide via a settings parameter)
-  in your own `.csv` parser
+  in your own CSV parser
 * After a value, we append the value to the list of cells unless
   the last token was already a value, in which case we fail with
   an error.
@@ -555,11 +555,12 @@ Hard part's over. To complete our parser, we need two additional
 functions. The first is related to streaming large chunks of
 data. We will come back to this in a later section. For now,
 suffice to say that in a data stream, we'd like to occasionally
-emit all the lines we have encountered so far. Here's the
-utility to do this:
+emit all the lines we have encountered so far and remove them
+from the accumulated state in order not to blow up our application's
+memory consumption. Here's the utility to do this:
 
 ```idris
-chunkCSV : CState b -> (CState b, Maybe (List Line))
+chunkCSV : CState b -> (CState b, Maybe Table)
 chunkCSV (CL k sx sy x)      = (CL k [<] sy x, maybeList sx)
 chunkCSV (CS k sx sy x sstr) = (CS k [<] sy x sstr, maybeList sx)
 ```
@@ -575,7 +576,7 @@ lines : CState b -> List Line
 lines (CL _ sx _ _)   = sx <>> []
 lines (CS _ sx _ _ _) = sx <>> []
 
-eoiCSV : b -> CState b -> ParseRes b e (List Line) CSV
+eoiCSV : b -> CState b -> ParseRes b e Table CSV
 eoiCSV bs s = lines <$> step2 (I NL s bs)
 ```
 
@@ -586,7 +587,7 @@ in a proper parser:
 init : CState b
 init = CL 1 [<] [<] New
 
-csv2 : Parser b Void CSV (List Line)
+csv2 : Parser b Void CSV Table
 csv2 = P init (const csvDFA) step2 chunkCSV eoiCSV
 ```
 
@@ -608,7 +609,7 @@ so the occurrences of these break the whole string token
 into smaller parts. That's why we use a `SnocList` in our
 parser state for representing a partially parsed string
 literal. Since the tokens we expect within a quoted string
-literal are completely different to the ones encountered outside
+literal are completely different from the ones encountered outside
 of quoted strings, it makes sense to handle these in a
 separate automaton:
 
@@ -629,8 +630,8 @@ strDFA =
 
 You might wonder, why we include the line break token in
 this DFA. As you will see in a moment, this will allow us to
-generate more precise error messages in case of string
-literal without closing quote.
+generate more precise error messages in case of quoted string
+literals without a closing quote.
 
 We can make use of the more basic parser from the last section
 to implement the state transition function. The only new thing
@@ -660,12 +661,12 @@ lexCSV : CState b -> DFA e CSV
 lexCSV (CL {}) = csvDFA
 lexCSV (CS {}) = strDFA
 
-csv : Parser b Void CSV (List Line)
+csv : Parser b Void CSV Table
 csv = P (CL 1 [<] [<] New) lexCSV stepCSV chunkCSV eoiCSV
 ```
 
 With all things properly tied up, we can now test our
-full-fledged `.csv` parser, for instance, with the following
+full-fledged CSV parser, for instance, with the following
 example input:
 
 ```idris
@@ -691,13 +692,13 @@ position or range where the error occurred) and then pretty printed
 whenever something goes wrong.
 
 `InnerError` is parameterized over the token type as well as a
-custom error type for those situations, where the existing
+custom error type for those situations where the existing
 error constructors are not descriptive enough.
 In our examples, this is set to the uninhabited
 type `Void`, meaning that in our case, there will be no
 custom errors.
 
-Below are a couple of erroneous `.csv` strings. Feel free to
+Below are a couple of erroneous CSV strings. Feel free to
 run our parser against those and check out the error messages
 we get:
 
@@ -722,7 +723,7 @@ in the middle of a quoted string. Again, the resulting error
 message will be more specific. This is only possible by
 including the line break token `NL` as one of the tokens
 emitted by the string DFA. Here's an example where this is
-relevant. Fill free to remove the `linebreak` line from
+relevant. Feel free to remove the `linebreak` line from
 the definition of `strDFA` and re-check the parser's behavior
 at the REPL.
 
@@ -746,7 +747,7 @@ holds all the ingredients to process large data sets in chunks and
 emit the values accumulated so far once after each chunk of data.
 
 We are going to demonstrate how this is done when reading a large
-file containing `.csv`-encoded data. First, we define a type alias
+file containing CSV-encoded data. First, we define a type alias
 and runner for the data stream
 (see the [idris2-streams library](https://github.com/stefan-hoeck/idris2-streams)
 for proper documentation about `Pull` and `Stream`). Since
@@ -771,7 +772,7 @@ runProg prog =
 If the above is foreign to you, please work through the tutorials
 provided with the *async* and *streams* libraries.
 
-And here's an example how to stream a single, possibly huge, `.csv` file
+And here's an example how to stream a single, possibly huge, CSV file
 (this will print the total number of non-empty CSV-lines encountered):
 
 ```idris
