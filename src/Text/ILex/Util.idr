@@ -131,3 +131,23 @@ mergeL merge sp y =
       case compare ow ox of
         LT => go outer x ox xs z
         _  => app sp (merge ow w x) ox xs z
+
+||| Utility for converting a snoc list into a list.
+|||
+||| This is useful when streaming chunks of data and emitting
+||| all the accumulated values of a single chunk.
+export
+maybeList : SnocList a -> Maybe (List a)
+maybeList [<] = Nothing
+maybeList sx  = Just (sx <>> [])
+
+||| Concatenates the strings accumulated in a snoc list.
+|||
+||| This is a utility often used when lexing or parsing
+||| string literals that support various kinds of escape
+||| sequences.
+export
+snocPack : SnocList String -> String
+snocPack [<]  = ""
+snocPack [<s] = s
+snocPack ss   = fastConcat $ ss <>> []
