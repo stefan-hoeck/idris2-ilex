@@ -192,8 +192,7 @@ csv1 =
     , (linebreak            , const NL1)
     , ("true"               , const (Bool1 True))
     , ("false"              , const (Bool1 False))
-    , (decimal              , txt (Int1 . decimal))
-    , ('-' >> decimal       , txt (Int1 . negate . decimal . drop 1))
+    , (opt '-' >> decimal   , txt (Int1 . integer))
     , (plus (dot && not ','), txt (Txt1 . toString))
     ]
 ```
@@ -279,14 +278,13 @@ spaces = plus $ oneof [' ', '\t']
 csv1_2 : Lexer b Void CSV1
 csv1_2 =
   lexer $ dfa
-    [ (','           , const Comma1)
-    , (linebreak     , const NL1)
-    , ("true"        , const (Bool1 True))
-    , ("false"       , const (Bool1 False))
-    , (decimal       , txt (Int1 . decimal))
-    , ('-' >> decimal, txt (Int1 . negate . decimal . drop 1))
-    , (text          , txt (Txt1 . toString))
-    , (spaces        , Ignore)
+    [ (','               , const Comma1)
+    , (linebreak         , const NL1)
+    , ("true"            , const (Bool1 True))
+    , ("false"           , const (Bool1 False))
+    , (opt '-' >> decimal, txt (Int1 . integer))
+    , (text              , txt (Txt1 . toString))
+    , (spaces            , Ignore)
     ]
 ```
 
@@ -330,15 +328,14 @@ unquote : ByteString -> String
 csv1_3 : Lexer b Void CSV1
 csv1_3 =
   lexer $ dfa
-    [ (','           , const Comma1)
-    , (linebreak     , const NL1)
-    , ("true"        , const (Bool1 True))
-    , ("false"       , const (Bool1 False))
-    , (decimal       , txt (Int1 . decimal))
-    , ('-' >> decimal, txt (Int1 . negate . decimal . drop 1))
-    , (text          , txt (Txt1 . toString))
-    , (quoted        , txt (Txt1 . unquote))
-    , (spaces        , Ignore)
+    [ (','               , const Comma1)
+    , (linebreak         , const NL1)
+    , ("true"            , const (Bool1 True))
+    , ("false"           , const (Bool1 False))
+    , (opt '-' >> decimal, txt (Int1 . integer))
+    , (text              , txt (Txt1 . toString))
+    , (quoted            , txt (Txt1 . unquote))
+    , (spaces            , Ignore)
     ]
 ```
 
@@ -446,15 +443,14 @@ with the tokenization part. We'll see why in a moment:
 csvDFA : DFA e CSV
 csvDFA =
   dfa
-    [ (','           , const Comma)
-    , ('"'           , const Quote)
-    , (linebreak     , const NL)
-    , ("true"        , const (Cll $ CBool True))
-    , ("false"       , const (Cll $ CBool False))
-    , (decimal       , txt (Cll . CInt . decimal))
-    , ('-' >> decimal, txt (Cll . CInt . negate . decimal . drop 1))
-    , (text          , txt (Cll . CStr . toString))
-    , (spaces        , Ignore)
+    [ (','               , const Comma)
+    , ('"'               , const Quote)
+    , (linebreak         , const NL)
+    , ("true"            , const (Cll $ CBool True))
+    , ("false"           , const (Cll $ CBool False))
+    , (opt '-' >> decimal, txt (Cll . CInt . integer))
+    , (text              , txt (Cll . CStr . toString))
+    , (spaces            , Ignore)
     ]
 ```
 

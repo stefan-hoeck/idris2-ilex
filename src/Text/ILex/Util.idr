@@ -6,6 +6,10 @@ import Text.ILex.Lexer
 
 %default total
 
+--------------------------------------------------------------------------------
+-- Reading Numbers
+--------------------------------------------------------------------------------
+
 ||| Converts a string of binary digits to an integer
 export
 binary : ByteString -> Integer
@@ -55,6 +59,17 @@ hexadecimal (BS n bv) = go 0 n
     go : Integer -> (k : Nat) -> (x : Ix k n) => Integer
     go res 0     = res
     go res (S k) = go (res * 16 + hexdigit (ix bv k)) k
+
+||| Converts an integer literal with optional sign prefix
+||| to an integer.
+export
+integer : ByteString -> Integer
+integer bs@(BS (S k) bv) =
+  case bv `at` 0 of
+    45 => negate $ decimal (BS k $ tail bv)
+    43 => decimal (BS k $ tail bv)
+    _  => decimal bs
+integer bs = decimal bs
 
 --------------------------------------------------------------------------------
 -- Tagged Parsers

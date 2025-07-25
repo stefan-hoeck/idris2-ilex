@@ -33,7 +33,7 @@ runProg prog =
 streamExprs : Prog String () -> Prog Void ()
 streamExprs pths =
      flatMap pths (\p => readBytes p |> P.mapOutput (FileSrc p,))
-  |> streamLex sexpr
+  |> streamParse sexpr
   |> C.mapOutput interpolate
   |> foreach (writeLines Stdout)
   -- |> C.count

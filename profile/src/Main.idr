@@ -4,28 +4,30 @@ import JSON.Parser
 import Data.Buffer
 import Data.ByteString
 import Data.List
-import Examples.Basics
-import Examples.Types
+import Examples.JSON
+import Language.JSON
 import Profile
-import Text.ILex.Runner
+import Text.ILex
 
 %default total
 
+arr : List String -> String
+arr ss = "[" ++ fastConcat (intersperse "," ss) ++ "]"
 
 short : String
 short = #"{"Add":{"id":98,"pth":{"PBio":{"path":[1060,186,57]}},"ed":{"name":"Raw Data","path":"Assay_005_MMP-14_SP.xls","comment":"","tags":[],"projects":[7],"created":1528797970229,"modified":{"timestamp":1528797970229,"id":5}}}}"#
 
 long : String
-long = fastConcat $ replicate 10 short
+long = arr $ replicate 10 short
 
 extra : String
-extra = fastConcat $ replicate 10 long
+extra = arr $ replicate 10 long
 
 maxi : String
-maxi = fastConcat $ replicate 10 extra
+maxi = arr $ replicate 10 extra
 
 ultra : String
-ultra = fastConcat $ replicate 10 maxi
+ultra = arr $ replicate 10 maxi
 
 shortBS : (n ** IBuffer n)
 shortBS = (_ ** fromString short)
@@ -42,7 +44,7 @@ maxiBS = (_ ** fromString maxi)
 ultraBS : (n ** IBuffer n)
 ultraBS = (_ ** fromString ultra)
 
-lexBS : (n ** IBuffer n) -> ParseRes Void Examples.Types.JSON (List $ Text.ILex.Bounds.Bounded Examples.Types.JSON)
+lexBS : (n ** IBuffer n) -> ParseRes Void JTok JVal
 lexBS (n ** buf) = parse Virtual json buf
 
 -- This profiles our JSON lexer against the one from parser-json
@@ -60,6 +62,15 @@ bench = Group "JSON" [
   , Single "maxi lex"   (basic lexJSON maxi)
   , Single "ultra lex"  (basic lexJSON ultra)
   , Single "short prs"  (basic (parseJSON Virtual) short)
+  , Single "long prs"   (basic (parseJSON Virtual) long)
+  , Single "extra prs"  (basic (parseJSON Virtual) extra)
+  , Single "maxi prs"   (basic (parseJSON Virtual) maxi)
+  , Single "ultra prs"  (basic (parseJSON Virtual) ultra)
+  , Single "short ctr"  (basic JSON.parse short)
+  , Single "long ctr"   (basic JSON.parse long)
+  , Single "extra ctr"  (basic JSON.parse extra)
+  , Single "maxi ctr"   (basic JSON.parse maxi)
+  , Single "ultra ctr"  (basic JSON.parse ultra)
   ]
 
 main : IO ()

@@ -5,6 +5,7 @@ langversion >= 0.7
 depends = ilex-examples
         , profiler
         , parser-json
+        , contrib
 
 sourcedir = "src"
 

@@ -9,5 +9,6 @@ depends = ilex-streams
 sourcedir = "src"
 
 modules = Examples.Basics
+        , Examples.JSON
         , Examples.Types
         , README
