@@ -78,22 +78,3 @@ data Ident : Type where
 
 export
 Interpolation Ident where interpolate = show
-
-public export
-data JSON : Type where
-  Null   : JSON
-  JBool  : Bool -> JSON
-  JStr   : String -> JSON
-  JNum   : Double -> JSON
-  JInt   : Integer -> JSON
-  JPO    : JSON
-  JPC    : JSON
-  JBO    : JSON
-  JBC    : JSON
-  JComma : JSON
-  JColon : JSON
-
-%runElab derive "JSON" [Show,Eq]
-
-export
-Interpolation JSON where interpolate = show

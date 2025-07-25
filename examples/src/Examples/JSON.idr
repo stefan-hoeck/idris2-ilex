@@ -4,9 +4,26 @@ import Data.SnocList.Quantifiers
 import Text.ILex
 import Derive.Prelude
 
+import FS.Posix
+import FS.Posix.Internal
+import FS.System
+import IO.Async.Loop.Epoll
+import IO.Async.Loop.Posix
+import Text.ILex.FS
+
 %default total
 %language ElabReflection
 %hide Data.Linear.(.)
+
+export
+pretty : Interpolation e => Show a => Either e a -> IO ()
+pretty (Left x)  = putStrLn $ interpolate x
+pretty (Right v) = printLn v
+
+export
+prettyList : Interpolation e => Show a => Either e (List a) -> IO ()
+prettyList (Left x)   = putStrLn $ interpolate x
+prettyList (Right vs) = traverse_ printLn vs
 
 --------------------------------------------------------------------------------
 -- JSON values
@@ -225,6 +242,81 @@ jdfa (Str {}) = strDFA
 jdfa (Lbl {}) = strDFA
 jdfa _        = jsonDFA
 
+||| Parses a single JSON value.
 export
 json : Parser b Void JTok JVal
 json = P SI jdfa (\(I t s b) => step t s b) chunk jeoi
+
+--------------------------------------------------------------------------------
+-- Streaming
+--------------------------------------------------------------------------------
+
+export
+record StreamST b where
+  constructor S
+  vals  : SnocList JVal
+  state : ST b
+
+valsStep : Step b e (StreamST b) JTok
+valsStep tok (S sv (SV v)) bs = S (sv:<v) <$> step tok SI bs
+valsStep tok (S sv st)     bs = S sv      <$> step tok st bs
+
+valsChunk : StreamST b -> (StreamST b, Maybe $ List JVal)
+valsChunk (S vs st) = (S [<] st, maybeList vs)
+
+valsEOI : EOI b e (StreamST b) JTok (List JVal)
+valsEOI _  (S vs SI)     = Right (vs <>> [])
+valsEOI _  (S vs (SV v)) = Right (vs <>> [v])
+valsEOI bs (S _  st)     = jeoi bs st $> []
+
+export
+jsonValues : Parser b Void JTok (List JVal)
+jsonValues = P (S [<] SI) (jdfa . state) (\(I t s b) => valsStep t s b) valsChunk valsEOI
+
+extract : Parts b -> (Parts b, Maybe $ List JVal)
+extract sp =
+  case sp <>> [] of
+    PArr x sx :: xs => ([<PArr x [<]] <>< xs, maybeList sx)
+    ps              => ([<] <>< ps, Nothing)
+
+arrChunk : ST b -> (ST b, Maybe $ List JVal)
+arrChunk (SV (JArray vs))     = (SI, Just vs)
+arrChunk (Arr sx x sy y)      = let (a,b) := extract sx in (Arr a x sy y, b)
+arrChunk (Prs sx x sy y)      = let (a,b) := extract sx in (Prs a x sy y, b)
+arrChunk (Obj sx x sy str y)  = let (a,b) := extract sx in (Obj a x sy str y, b)
+arrChunk (Str sx x sstr)      = let (a,b) := extract sx in (Str a x sstr, b)
+arrChunk (Lbl sx x sy y sstr) = let (a,b) := extract sx in (Lbl a x sy y sstr, b)
+arrChunk st                   = (st, Nothing)
+
+arrEOI : EOI b e (ST b) JTok (List JVal)
+arrEOI bs st =
+  case jeoi bs st of
+    Right (JArray vs) => Right vs
+    Right _           => Error.eoi bs
+    Left x            => Left x
+
+export
+jsonArray : Parser b Void JTok (List JVal)
+jsonArray = P SI jdfa (\(I t s b) => step t s b) arrChunk arrEOI
+
+0 Prog : Type -> Type -> Type
+Prog o r = AsyncPull Poll o [StreamError JTok Void, Errno] r
+
+covering
+runProg : Prog Void () -> IO ()
+runProg prog =
+ let handled := handle [stderrLn . interpolate, stderrLn . interpolate] prog
+  in epollApp $ mpull handled
+
+streamVals : Prog String () -> Prog Void ()
+streamVals pths =
+     flatMap pths (\p => readBytes p |> P.mapOutput (FileSrc p,))
+  |> streamParse jsonValues
+  -- |> C.mapOutput show
+  -- |> foreach (writeLines Stdout)
+  |> C.count
+  |> foreach (\x => stdoutLn "\{show x} values streamed.")
+
+covering
+main : IO ()
+main = runProg $ streamVals (P.tail args)
