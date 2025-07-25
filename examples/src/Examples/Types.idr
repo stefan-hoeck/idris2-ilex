@@ -79,14 +79,6 @@ data Ident : Type where
 export
 Interpolation Ident where interpolate = show
 
-export
-decNat : ByteString -> Integer
-decNat (BS n bv) = go 0 n
-  where
-    go : Integer -> (k : Nat) -> (x : Ix k n) => Integer
-    go res 0     = res
-    go res (S k) = go (res * 10 + cast (ix bv k) - 48) k
-
 public export
 data JSON : Type where
   Null   : JSON

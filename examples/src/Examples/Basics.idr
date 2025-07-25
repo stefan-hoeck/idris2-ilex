@@ -2,8 +2,7 @@ module Examples.Basics
 
 import Examples.Types
 
-import Text.ILex.Runner
-import Text.ILex.Debug
+import Text.ILex
 
 %default total
 %hide Data.Linear.(.)
@@ -78,8 +77,7 @@ json =
     , (',',     const JComma)
     , (':',     const JColon)
     , (jstr,    txt (JStr . toString))
-    , (decimal, txt (JInt . decNat))
-    , ('-' >> decimal, txt (JInt . negate . decNat . drop 1))
+    , (opt '-' >> decimal, txt (JInt . integer))
     , (double,  txt (JNum . cast . toString))
     , (spaces,  Ignore)
     ]
