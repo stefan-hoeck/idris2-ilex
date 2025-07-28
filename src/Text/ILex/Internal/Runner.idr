@@ -77,21 +77,21 @@ parameters (parser    : Parser StreamBounds e t a)
   bounds : StreamBounds
   bounds = SB start end
 
-  ||| Tries to read the last token of an input stream and
-  ||| append it to the already accumulated list of tokens.
-  export
-  appLast :
-       (dfa : DFA e t)
-    -> (cur : Fin (S dfa.states))
-    -> (state : parser.state)
-    -> ByteString
-    -> Either (StreamError t e) a
-  appLast dfa cur state (BS 0 _) = sappEOI state
-  appLast dfa cur state bs       =
-    case dfa.term `at` cur of
-      Bottom    => Left (B EOI (SB end end))
-      Ignore    => sappEOI state
-      Const v   => parser.step (I v state bounds) >>= sappEOI
-      Parse f   => case f bs of
-        Left  x => Left $ B (Custom x) bounds
-        Right v => parser.step (I v state bounds) >>= sappEOI
+--   ||| Tries to read the last token of an input stream and
+--   ||| append it to the already accumulated list of tokens.
+--   export
+--   appLast :
+--        (dfa : DFA e t)
+--     -> (cur : Fin (S dfa.states))
+--     -> (state : parser.state)
+--     -> ByteString
+--     -> Either (StreamError t e) a
+--   appLast dfa cur state (BS 0 _) = sappEOI state
+--   appLast dfa cur state bs       =
+--     case dfa.term `at` cur of
+--       Bottom    => Left (B EOI (SB end end))
+--       Ignore    => sappEOI state
+--       Const v   => parser.step (I v state bounds) >>= sappEOI
+--       Parse f   => case f bs of
+--         Left  x => Left $ B (Custom x) bounds
+--         Right v => parser.step (I v state bounds) >>= sappEOI

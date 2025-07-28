@@ -9,7 +9,8 @@ import public Data.List
 import Control.Monad.State
 
 import Data.ByteString
-import Data.SortedMap
+import Data.Linear.Traverse1
+import Data.SortedMap as SM
 import Derive.Prelude
 
 import Text.ILex.Char.UTF8
@@ -19,10 +20,24 @@ import Text.ILex.Internal.Types
 %default total
 %language ElabReflection
 
+public export
+data Transition : (n : Nat) -> (e,a : Type) -> Type where
+  Bottom : Transition n e a
+  Keep   : Transition n e a
+  KeepT  : Tok e a -> Transition n e a
+  Done   : Tok e a -> Transition n e a
+  Move   : Fin (S n) -> Transition n e a
+  MoveT  : Fin (S n) -> Tok e a -> Transition n e a
+
 ||| An array of arrays describing a lexer's state machine.
 public export
-0 Stepper : Nat -> Type
-Stepper states = IArray (S states) (IArray 256 (Fin (S states)))
+0 ByteStep : Nat -> (e,a : Type) -> Type
+ByteStep n e a = IArray 256 (Transition n e a)
+
+||| An array of arrays describing a lexer's state machine.
+public export
+0 Stepper : Nat -> (e,a : Type) -> Type
+Stepper n e a = IArray (S n) (IArray 256 (Transition n e a))
 
 ||| A discrete finite automaton (DFA) encoded as
 ||| an array of state transitions plus an array
@@ -38,10 +53,7 @@ record DFA e t where
   ||| If `cur` is the current state (encoded as a `Fin (S states)`
   ||| and `b` is the current input byte, the next state is determined
   ||| by `next[cur][b]` (in pseudo C-syntax).
-  next   : Stepper states
-
-  ||| Terminal states and the corresponding conversions.
-  term   : IArray (S states) (Tok e t)
+  next   : Stepper states e t
 
 public export
 0 ParseRes : (b,e,s,t : Type) -> Type
@@ -83,32 +95,61 @@ lexer dfa =
 -- Lexer Generator
 --------------------------------------------------------------------------------
 
-emptyRow : IArray 256 (Fin (S n))
-emptyRow = fill _ 0
+emptyRow : ByteStep n e a
+emptyRow = fill _ Bottom
 
 emptyDFA : DFA e a
-emptyDFA = L 0 (fill _ emptyRow) (fill _ Bottom)
+emptyDFA = L 0 (fill _ emptyRow)
 
-term : SortedMap Nat a -> Node -> Maybe (Nat, a)
-term m (N _ []     _) = Nothing
-term m (N n (t::_) _) = (n,) <$> lookup t m
+-- Extracts the terminal state of a node
+-- `Left` : This is a final node with no more state transitions
+-- `Right`: This node has additional state transitions
+terminals : SortedMap Nat a -> Node -> Maybe (Nat, Either a a)
+terminals m (N n (t::_) []) = ((n,) . Left) <$> lookup t m
+terminals m (N n (t::_) _)  = ((n,) . Right) <$> lookup t m
+terminals _ _               = Nothing
 
-node : {n : _} -> Node -> (Nat, IArray 256 (Fin (S n)))
-node (N k _ out) = (k, fromPairs _ 0 $ mapMaybe pair (out >>= transitions))
+nonFinal : SortedMap Nat (Either a a) -> Node -> Maybe Node
+nonFinal m n =
+  case lookup n.pos m of
+    Just (Left _) => Nothing
+    _             => Just n
+
+index : {n : _} -> List (Nat,Node) -> SortedMap Nat (Fin (S n))
+index ns =
+    SM.fromList
+  $ mapMaybe (\(x,n) => (n.pos,) <$> tryNatToFin x) ns
+
+node :
+     SortedMap Nat (Either (Tok e a) (Tok e a))
+  -> (index : SortedMap Nat (Fin (S n)))
+  -> (node  : (Nat,Node))
+  -> (Nat, ByteStep n e a)
+node terms index (ix, N me _ out) =
+  (ix, fromPairs _ Bottom $ mapMaybe pair (out >>= transitions))
   where
-    pair : (Bits8,Nat) -> Maybe (Nat, Fin (S n))
-    pair (b,t) = (cast b,) <$> tryNatToFin t
+    pair : (Bits8,Nat) -> Maybe (Nat, Transition n e a)
+    pair (b,tgt) =
+      case lookup tgt terms of
+        Nothing        => case tgt == me of
+          True  => Just (cast b, Keep)
+          False => ((cast b,) . Move) <$> lookup tgt index
+        Just (Left x)  => Just (cast b, Done x)
+        Just (Right x) => case tgt == me of
+          True  => Just (cast b, KeepT x)
+          False => ((cast b,) . (`MoveT` x)) <$> lookup tgt index
 
 ||| A DFA operating on raw bytes.
 export
 byteDFA : (m : TokenMap8 (Tok e a)) -> (0 p : NonEmpty m) => DFA e a
 byteDFA m =
   let M tms graph := assert_total $ machine (toDFA m)
-      nodes       := values graph
+      terms       := SM.fromList (mapMaybe (terminals tms) (values graph))
+      nodes       := zipWithIndex $ mapMaybe (nonFinal terms) (values graph)
       S len       := length nodes | 0 => emptyDFA
-      terms       := fromPairs (S len) Bottom (mapMaybe (term tms) nodes)
-      trans       := fromPairs (S len) emptyRow (map node nodes)
-   in L len trans terms
+      ix          := index nodes
+      trans       := fromPairs (S len) emptyRow (map (node terms ix) nodes)
+   in L len trans
 
 ||| A utf-8 aware DFA operating on text.
 export

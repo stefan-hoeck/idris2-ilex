@@ -58,9 +58,6 @@ adjRanges f (Star x)  = Star (adjRanges f x)
 ||| states, so they correspond to `Bottom`.
 public export
 data Tok : (e, a : Type) -> Type where
-  ||| Marks a non-terminal state.
-  Bottom : Tok e a
-
   ||| Marks a terminal state that does not produce a token.
   ||| This can be used for comments or whitespace that should be
   ||| ignored.
