@@ -166,12 +166,12 @@ parameters {0 e,t,a : Type}
   loop dfa state (S k) =
    let cur := dfa.next `at` 0
     in case cur `atByte` (buf `ix` k) of
-         Bottom        => Left $ B (Byte $ buf `ix` k) (atPos $ ixToNat x)
          Done tok      => app dfa state tok (ixToNat x) k
          Move nxt      => inner dfa (ixToNat x) state k (dfa.next `at` nxt)
          MoveT nxt tok => innerT dfa tok (ixToNat x) k state k (dfa.next `at` nxt)
          Keep          => inner dfa (ixToNat x) state k cur
          KeepT tok     => innerT dfa tok (ixToNat x) k state k cur
+         Bottom        => Left $ B (Byte $ buf `ix` k) (atPos $ ixToNat x)
 
   app dfa state c from till =
     case c of
@@ -193,24 +193,24 @@ parameters {0 e,t,a : Type}
   inner dfa start state (S k) cur =
    let byte := buf `ix` k
     in case cur `atByte` byte of
-         Bottom        => Left $ B (Byte $ buf `ix` k) (atPos $ ixToNat x)
+         KeepT tok     => innerT dfa tok start k state k cur
          Done tok      => app dfa state tok start k
+         Keep          => inner dfa start state k cur
          Move nxt      => inner dfa start state k (dfa.next `at` nxt)
          MoveT nxt tok => innerT dfa tok start k state k (dfa.next `at` nxt)
-         Keep          => inner dfa start state k cur
-         KeepT tok     => innerT dfa tok start k state k cur
+         Bottom        => Left $ B (Byte $ buf `ix` k) (atPos $ ixToNat x)
 
   innerT dfa lst start lastPos state 0     cur =
     app dfa state lst start lastPos
   innerT dfa lst start lastPos state (S k) cur =
    let byte := buf `ix` k
     in case cur `atByte` byte of
-         Bottom        => app dfa state lst start lastPos
+         KeepT tok     => innerT dfa tok start k       state k cur
          Done tok      => app dfa state tok start k
+         Keep          => innerT dfa lst start lastPos state k cur
          Move nxt      => innerT dfa lst start lastPos state k (dfa.next `at` nxt)
          MoveT nxt tok => innerT dfa tok start k       state k (dfa.next `at` nxt)
-         Keep          => innerT dfa lst start lastPos state k cur
-         KeepT tok     => innerT dfa tok start k       state k cur
+         Bottom        => app dfa state lst start lastPos
 
 parseFrom o p pos buf =
   case loop p buf (p.lex p.init) p.init pos of

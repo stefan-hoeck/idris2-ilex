@@ -22,12 +22,12 @@ import Text.ILex.Internal.Types
 
 public export
 data Transition : (n : Nat) -> (e,a : Type) -> Type where
-  Bottom : Transition n e a
-  Keep   : Transition n e a
   KeepT  : Tok e a -> Transition n e a
   Done   : Tok e a -> Transition n e a
+  Keep   : Transition n e a
   Move   : Fin (S n) -> Transition n e a
   MoveT  : Fin (S n) -> Tok e a -> Transition n e a
+  Bottom : Transition n e a
 
 ||| An array of arrays describing a lexer's state machine.
 public export
