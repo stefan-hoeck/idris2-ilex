@@ -1,8 +1,10 @@
 module Examples.JSON
 
 import Data.SnocList.Quantifiers
-import Text.ILex
 import Derive.Prelude
+import Text.ILex
+import Text.ILex.Debug
+import Text.PrettyPrint.Bernardy
 
 import FS.Posix
 import FS.Posix.Internal
@@ -16,9 +18,9 @@ import Text.ILex.FS
 %hide Data.Linear.(.)
 
 export
-pretty : Interpolation e => Show a => Either e a -> IO ()
-pretty (Left x)  = putStrLn $ interpolate x
-pretty (Right v) = printLn v
+prettyVal : Interpolation e => Show a => Either e a -> IO ()
+prettyVal (Left x)  = putStrLn $ interpolate x
+prettyVal (Right v) = printLn v
 
 export
 prettyList : Interpolation e => Show a => Either e (List a) -> IO ()
@@ -63,16 +65,19 @@ data JTok : Type where
 
 export
 Interpolation JTok where
-  interpolate Comma      = ","
-  interpolate Colon      = ":"
+  interpolate Comma      = "','"
+  interpolate Colon      = "':'"
   interpolate (JV x)     = show x
-  interpolate (JStr str) = str
-  interpolate Quote      = "\""
-  interpolate PO         = "["
-  interpolate PC         = "]"
-  interpolate BO         = "{"
-  interpolate BC         = "}"
+  interpolate (JStr str) = show str
+  interpolate Quote      = "'\"'"
+  interpolate PO         = "'['"
+  interpolate PC         = "']'"
+  interpolate BO         = "'{'"
+  interpolate BC         = "'}'"
   interpolate NL         = "line break"
+
+export
+Pretty JTok where prettyPrec p = line . interpolate
 
 --------------------------------------------------------------------------------
 -- Regular DFA

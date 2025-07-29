@@ -37,7 +37,7 @@ ByteStep n e a = IArray 256 (Transition n e a)
 ||| An array of arrays describing a lexer's state machine.
 public export
 0 Stepper : Nat -> (e,a : Type) -> Type
-Stepper n e a = IArray (S n) (IArray 256 (Transition n e a))
+Stepper n e a = IArray (S n) (ByteStep n e a)
 
 ||| A discrete finite automaton (DFA) encoded as
 ||| an array of state transitions plus an array
@@ -116,9 +116,7 @@ nonFinal m n =
     _             => Just n
 
 index : {n : _} -> List (Nat,Node) -> SortedMap Nat (Fin (S n))
-index ns =
-    SM.fromList
-  $ mapMaybe (\(x,n) => (n.pos,) <$> tryNatToFin x) ns
+index ns = SM.fromList $ mapMaybe (\(x,n) => (n.pos,) <$> tryNatToFin x) ns
 
 node :
      SortedMap Nat (Either (Tok e a) (Tok e a))

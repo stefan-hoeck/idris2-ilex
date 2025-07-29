@@ -3,6 +3,7 @@ module Examples.Basics
 import Examples.Types
 
 import Text.ILex
+import Text.ILex.Debug
 
 %default total
 %hide Data.Linear.(.)
@@ -23,7 +24,7 @@ export
 exprDFA : DFA Void TExpr
 exprDFA =
   dfa
-    [ (natural, txt toNat)
+    [ (natural, txt (TLit . decimal))
     , ('+', const $ TOp P)
     , ('-', const $ TOp S)
     , ('*', const $ TOp M)

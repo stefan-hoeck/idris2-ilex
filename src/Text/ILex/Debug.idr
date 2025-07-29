@@ -1,18 +1,20 @@
 module Text.ILex.Debug
 
 import Control.Monad.State
-import Data.SortedMap
 import Data.ByteString
+import Data.Linear.Traverse1
+import Data.SortedMap
 import Data.String
 import Derive.Pretty
 import Language.Reflection.Pretty
 
 import Text.ILex.Char.UTF8
-import Text.ILex.RExp
 import Text.ILex.Internal.DFA
 import Text.ILex.Internal.ENFA
 import Text.ILex.Internal.NFA
 import Text.ILex.Internal.Types
+import Text.ILex.Lexer
+import Text.ILex.RExp
 
 %default total
 
@@ -111,3 +113,48 @@ prettyNFA tm = putPretty $ machine $ toNFA tm
 export covering
 prettyDFA : Pretty a => TokenMap8 a -> IO ()
 prettyDFA tm = putPretty $ machine $ toDFA tm
+
+--------------------------------------------------------------------------------
+-- Lexer Pretty Printing
+--------------------------------------------------------------------------------
+
+prettyByte : {d : _} -> Nat -> Doc d
+prettyByte n = line "\{pre} \{toHex $ cast n}"
+  where
+    pre : String
+    pre =
+     case n >= 128 || Prelude.isControl (cast n) of
+       True  => "   "
+       False => "'\{String.singleton $ cast n}'"
+
+prettyTok : Pretty a => {d : _} -> Tok e a -> Doc d
+prettyTok Ignore    = line "<ignore>"
+prettyTok (Const x) = pretty x
+prettyTok (Parse f) = line "<parse>"
+
+prettyByteStep : Pretty a => {d : _} -> (Nat, ByteStep n e a) -> Doc d
+prettyByteStep (x,bs) =
+  vsep
+    [ line (show x)
+    , indent 2 $ vsep (mapMaybe trans $ zipWithIndex $ toList bs)
+    ]
+
+  where
+    trans : (Nat, Transition n e a) -> Maybe (Doc d)
+    trans (byte,t) =
+      case t of
+        KeepT y   => Just (prettyByte byte <+> colon <++> prettyTok y <++> line "(stay)")
+        Done y    => Just (prettyByte byte <+> colon <++> prettyTok y <++> line "(done)")
+        Keep      => Just (prettyByte byte <+> colon <++> line "stay")
+        Move y    => Just (prettyByte byte <+> colon <++> line "-> \{show y}")
+        MoveT y z => Just (prettyByte byte <+> colon <++> prettyTok z <++> line "(-> \{show y})")
+        Bottom    => Nothing
+
+export
+Pretty a => Pretty (DFA e a) where
+  prettyPrec p (L _ next) =
+    vsep $ prettyByteStep <$> zipWithIndex (toList next)
+
+export
+prettyLexer : Pretty a => DFA e a -> IO ()
+prettyLexer dfa = putPretty dfa

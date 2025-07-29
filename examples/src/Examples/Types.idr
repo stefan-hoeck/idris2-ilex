@@ -1,5 +1,6 @@
 module Examples.Types
 
+import Text.PrettyPrint.Bernardy
 import Data.ByteString
 import Derive.Prelude
 
@@ -15,6 +16,9 @@ data AorB : Type where
 
 export
 Interpolation AorB where interpolate = show
+
+export
+Pretty AorB where prettyPrec p = line . interpolate
 
 public export
 data Op = P | S | M | X
@@ -51,7 +55,7 @@ Interpolation Expr where
 
 public export
 data TExpr : Type where
-  TLit : Nat -> TExpr
+  TLit : Integer -> TExpr
   TOp  : Op -> TExpr
   PO   : TExpr
   PC   : TExpr
@@ -62,8 +66,11 @@ export
 Interpolation TExpr where
   interpolate (TLit k) = show k
   interpolate (TOp x)  = interpolate x
-  interpolate PO       = "("
-  interpolate PC       = ")"
+  interpolate PO       = "'('"
+  interpolate PC       = "')'"
+
+export
+Pretty TExpr where prettyPrec p = line . interpolate
 
 export
 toNat : ByteString -> TExpr
@@ -78,3 +85,6 @@ data Ident : Type where
 
 export
 Interpolation Ident where interpolate = show
+
+export
+Pretty Ident where prettyPrec p = line . interpolate
