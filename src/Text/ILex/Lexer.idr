@@ -22,9 +22,8 @@ import Text.ILex.Internal.Types
 
 public export
 data Transition : (n : Nat) -> (e,a : Type) -> Type where
-  KeepT  : Tok e a -> Transition n e a
-  Done   : Tok e a -> Transition n e a
   Keep   : Transition n e a
+  Done   : Tok e a -> Transition n e a
   Move   : Fin (S n) -> Transition n e a
   MoveT  : Fin (S n) -> Tok e a -> Transition n e a
   Bottom : Transition n e a
@@ -134,7 +133,7 @@ node terms index (ix, N me _ out) =
           False => ((cast b,) . Move) <$> lookup tgt index
         Just (Left x)  => Just (cast b, Done x)
         Just (Right x) => case tgt == me of
-          True  => Just (cast b, KeepT x)
+          True  => Just (cast b, Keep)
           False => ((cast b,) . (`MoveT` x)) <$> lookup tgt index
 
 ||| A DFA operating on raw bytes.

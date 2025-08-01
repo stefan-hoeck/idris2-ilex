@@ -170,7 +170,6 @@ parameters {0 e,t,a : Type}
          Move nxt      => inner dfa (ixToNat x) state k (dfa.next `at` nxt)
          MoveT nxt tok => innerT dfa tok (ixToNat x) k state k (dfa.next `at` nxt)
          Keep          => inner dfa (ixToNat x) state k cur
-         KeepT tok     => innerT dfa tok (ixToNat x) k state k cur
          Bottom        => Left $ B (Byte $ buf `ix` k) (atPos $ ixToNat x)
 
   app dfa state c from till =
@@ -193,9 +192,8 @@ parameters {0 e,t,a : Type}
   inner dfa start state (S k) cur =
    let byte := buf `ix` k
     in case cur `atByte` byte of
-         KeepT tok     => innerT dfa tok start k state k cur
-         Done tok      => app dfa state tok start k
          Keep          => inner dfa start state k cur
+         Done tok      => app dfa state tok start k
          Move nxt      => inner dfa start state k (dfa.next `at` nxt)
          MoveT nxt tok => innerT dfa tok start k state k (dfa.next `at` nxt)
          Bottom        => Left $ B (Byte $ buf `ix` k) (atPos $ ixToNat x)
@@ -205,9 +203,8 @@ parameters {0 e,t,a : Type}
   innerT dfa lst start lastPos state (S k) cur =
    let byte := buf `ix` k
     in case cur `atByte` byte of
-         KeepT tok     => innerT dfa tok start k       state k cur
+         Keep          => innerT dfa lst start k       state k cur
          Done tok      => app dfa state tok start k
-         Keep          => innerT dfa lst start lastPos state k cur
          Move nxt      => innerT dfa lst start lastPos state k (dfa.next `at` nxt)
          MoveT nxt tok => innerT dfa tok start k       state k (dfa.next `at` nxt)
          Bottom        => app dfa state lst start lastPos

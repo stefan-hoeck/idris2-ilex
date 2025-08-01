@@ -143,9 +143,8 @@ prettyByteStep (x,bs) =
     trans : (Nat, Transition n e a) -> Maybe (Doc d)
     trans (byte,t) =
       case t of
-        KeepT y   => Just (prettyByte byte <+> colon <++> prettyTok y <++> line "(stay)")
-        Done y    => Just (prettyByte byte <+> colon <++> prettyTok y <++> line "(done)")
         Keep      => Just (prettyByte byte <+> colon <++> line "stay")
+        Done y    => Just (prettyByte byte <+> colon <++> prettyTok y <++> line "(done)")
         Move y    => Just (prettyByte byte <+> colon <++> line "-> \{show y}")
         MoveT y z => Just (prettyByte byte <+> colon <++> prettyTok z <++> line "(-> \{show y})")
         Bottom    => Nothing
