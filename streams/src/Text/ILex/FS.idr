@@ -1,6 +1,8 @@
 module Text.ILex.FS
 
+import Data.Linear.ELift1
 import Text.ILex.Internal.Runner
+import Text.ILex.Runner1
 
 import public FS
 import public Text.ILex
@@ -47,18 +49,42 @@ streamParse :
   -> Parser StreamBounds e t a
   -> Pull f (Origin,ByteString) es r
   -> Pull f a es r
--- streamParse prs = go (init Virtual prs)
---   where
---     go :
---          LexState e prs.state t
---       -> Pull f (Origin,ByteString) es r
---       -> Pull f a es r
---     go st p =
---       assert_total $ P.uncons p >>= \case
---         Left res      =>
---           case appLast prs st.pos st.end st.dfa st.cur st.state st.prev of
---             Left err => throw err
---             Right v  => emit v $> res
---         Right ((o,bs),p2) => case pparseBytes prs o st bs of
---           Left err      => throw err
---           Right (st2,m) => consMaybe m (go st2 p2)
+streamParse prs = go (init Virtual prs)
+  where
+    go :
+         LexState e prs.state t
+      -> Pull f (Origin,ByteString) es r
+      -> Pull f a es r
+    go st p =
+      assert_total $ P.uncons p >>= \case
+        Left res      =>
+          case appLast prs st.pos st.end st.dfa st.tok st.state st.prev of
+            Left err => throw err
+            Right v  => emit v $> res
+        Right ((o,bs),p2) => case pparseBytes prs o st bs of
+          Left err      => throw err
+          Right (st2,m) => consMaybe m (go st2 p2)
+
+export
+streamParse1 :
+     {auto lft : ELift1 q f}
+  -> {auto has : Has (StreamError t e) es}
+  -> Parser StreamBounds e t a
+  -> Pull f (Origin,ByteString) es r
+  -> Pull f a es r
+streamParse1 prs pl = do
+  st <- lift1 (init1 Virtual prs)
+  go st pl
+  where
+    go :
+         LexState1 q e prs.state t
+      -> Pull f (Origin,ByteString) es r
+      -> Pull f a es r
+    go st p =
+      assert_total $ P.uncons p >>= \case
+        Left res      => do
+          v <- widenErrors (elift1 $ appLast1 prs st)
+          emit v $> res
+        Right ((o,bs),p2) => do
+          m <- widenErrors (elift1 $ pparseBytes1 prs o st bs)
+          consMaybe m (go st p2)

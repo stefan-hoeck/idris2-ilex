@@ -63,8 +63,8 @@ sp : Origin -> (l,c : Nat) -> StreamPos
 sp o l c = SP o $ P l c
 
 export
-seByte : Origin -> (l,c : Nat) -> Bits8 -> StreamError t e
-seByte o l c b = let p := sp o l c in B (Byte b) (SB p p)
+seByte : Origin -> Position -> Bits8 -> StreamError t e
+seByte o p b = let sp := SP o p in B (Byte b) (SB sp sp)
 
 parameters (parser    : Parser StreamBounds e t a)
            (start,end : StreamPos)
@@ -77,21 +77,20 @@ parameters (parser    : Parser StreamBounds e t a)
   bounds : StreamBounds
   bounds = SB start end
 
---   ||| Tries to read the last token of an input stream and
---   ||| append it to the already accumulated list of tokens.
---   export
---   appLast :
---        (dfa : DFA e t)
---     -> (cur : Fin (S dfa.states))
---     -> (state : parser.state)
---     -> ByteString
---     -> Either (StreamError t e) a
---   appLast dfa cur state (BS 0 _) = sappEOI state
---   appLast dfa cur state bs       =
---     case dfa.term `at` cur of
---       Bottom    => Left (B EOI (SB end end))
---       Ignore    => sappEOI state
---       Const v   => parser.step (I v state bounds) >>= sappEOI
---       Parse f   => case f bs of
---         Left  x => Left $ B (Custom x) bounds
---         Right v => parser.step (I v state bounds) >>= sappEOI
+  ||| Tries to read the last token of an input stream and
+  ||| append it to the already accumulated list of tokens.
+  export
+  appLast :
+       (dfa   : DFA e t)
+    -> (cur   : Maybe (Tok e t))
+    -> (state : parser.state)
+    -> ByteString
+    -> Either (StreamError t e) a
+  appLast dfa Nothing  state bs = sappEOI state
+  appLast dfa (Just t) state bs =
+    case t of
+      Ignore    => sappEOI state
+      Const v   => parser.step (I v state bounds) >>= sappEOI
+      Parse f   => case f bs of
+        Left  x => Left $ B (Custom x) bounds
+        Right v => parser.step (I v state bounds) >>= sappEOI

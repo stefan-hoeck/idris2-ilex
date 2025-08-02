@@ -294,6 +294,7 @@ arrChunk (Lbl sx x sy y sstr) = let (a,b) := extract sx in (Lbl a x sy y sstr, b
 arrChunk st                   = (st, Nothing)
 
 arrEOI : EOI b e (ST b) JTok (List JVal)
+arrEOI bs SI = Right []
 arrEOI bs st =
   case jeoi bs st of
     Right (JArray vs) => Right vs
@@ -316,7 +317,7 @@ runProg prog =
 streamVals : Prog String () -> Prog Void ()
 streamVals pths =
      flatMap pths (\p => readBytes p |> P.mapOutput (FileSrc p,))
-  |> streamParse jsonValues
+  |> streamParse1 jsonArray
   -- |> C.mapOutput show
   -- |> foreach (writeLines Stdout)
   |> C.count

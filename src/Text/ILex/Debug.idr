@@ -144,6 +144,7 @@ prettyByteStep (x,bs) =
     trans (byte,t) =
       case t of
         Keep      => Just (prettyByte byte <+> colon <++> line "stay")
+        KeepT     => Just (prettyByte byte <+> colon <++> line "stay (terminal)")
         Done y    => Just (prettyByte byte <+> colon <++> prettyTok y <++> line "(done)")
         Move y    => Just (prettyByte byte <+> colon <++> line "-> \{show y}")
         MoveT y z => Just (prettyByte byte <+> colon <++> prettyTok z <++> line "(-> \{show y})")
