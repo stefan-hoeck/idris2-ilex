@@ -100,13 +100,18 @@ plexFrom :
 
 export %inline
 pparseBytes1 :
-     (p : Parser StreamBounds e t a)
+     {auto lft : ELift1 q f}
+  -> {auto has : Has (StreamError t e) es}
+  -> (p : Parser StreamBounds e t a)
   -> Origin
   -> LexState1 q e p.state t
   -> ByteString
-  -> PLexRes1 q e p.state t a
+  -> f es (Maybe a)
 pparseBytes1 l o st (BS s $ BV buf off lte) =
-  plexFrom o l st s {x = offsetToIx off} (take (off+s) buf)
+  elift1 $ \t =>
+    case plexFrom o l st s {x = offsetToIx off} (take (off+s) buf) t of
+      R x t        => R x t
+      E (Here x) t => throw1 x t
 
 parameters {0 q,e,t,a : Type}
            {0 n       : Nat}
@@ -280,16 +285,19 @@ plexFrom o lx lst1 pos buf t =
 
 export
 appLast1 :
-     (parser : Parser StreamBounds e t a)
+     {auto lft : ELift1 q f}
+  -> {auto has : Has (StreamError t e) es}
+  -> (parser : Parser StreamBounds e t a)
   -> (lst1   : LexState1 q e parser.state t)
-  -> E1 q [StreamError t e] a
-appLast1 parser lst1 t =
- let start # t := read1 lst1.start t
-     end   # t := curPos lst1 t
-     cur   # t := read1 lst1.cur t
-     state # t := read1 lst1.state t
-     tok   # t := read1 lst1.tok t
-     prev  # t := read1 lst1.prev t
-  in case appLast parser start end cur.dfa tok state prev of
-       Right v => R v t
-       Left  x => fail1 x t
+  -> f es a
+appLast1 parser lst1 =
+  elift1 $ \t =>
+   let start # t := read1 lst1.start t
+       end   # t := curPos lst1 t
+       cur   # t := read1 lst1.cur t
+       state # t := read1 lst1.state t
+       tok   # t := read1 lst1.tok t
+       prev  # t := read1 lst1.prev t
+    in case appLast parser start end cur.dfa tok state prev of
+         Right v => R v t
+         Left  x => throw1 x t
