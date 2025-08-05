@@ -24,7 +24,7 @@ export
 exprDFA : DFA Void TExpr
 exprDFA =
   dfa
-    [ (natural, txt (TLit . decimal))
+    [ (natural, bytes (TLit . decimal))
     , ('+', const $ TOp P)
     , ('-', const $ TOp S)
     , ('*', const $ TOp M)
@@ -42,6 +42,6 @@ ident : Lexer b Void Ident
 ident =
   lexer $ dfa
     [ ("else", const Else)
-    , (identifier, txt (Id . toString))
+    , (identifier, txt Id)
     , (spaces, Ignore)
     ]

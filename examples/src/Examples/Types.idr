@@ -43,7 +43,7 @@ Interpolation Op where
 
 public export
 data Expr : Type where
-  Lit   : Nat -> Expr
+  Lit   : Integer -> Expr
   Bin   : Op -> Expr -> Expr -> Expr
 
 %runElab derive "Expr" [Show,Eq]

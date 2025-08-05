@@ -105,8 +105,8 @@ jsonDFA =
     , (','               , const Comma)
     , (':'               , const Colon)
     , ('"'               , const Quote)
-    , (opt '-' >> decimal, txt (JV . JInteger . integer))
-    , (double            , txt (JV . JDouble . cast . toString))
+    , (opt '-' >> decimal, bytes (JV . JInteger . integer))
+    , (double            , txt (JV . JDouble . cast))
     , (spaces            , Ignore)
     ]
 
@@ -131,7 +131,7 @@ strDFA =
   dfa
     [ ('"', const Quote)
     , ('\n', const NL)
-    , (plus (dot && not '"' && not '\\'), txt (JStr . toString))
+    , (plus (dot && not '"' && not '\\'), txt JStr)
     , (#"\""#, const $ JStr "\"")
     , (#"\n"#, const $ JStr "\n")
     , (#"\f"#, const $ JStr "\f")
@@ -140,7 +140,7 @@ strDFA =
     , (#"\t"#, const $ JStr "\t")
     , (#"\\"#, const $ JStr "\\")
     , (#"\/"#, const $ JStr "\/")
-    , (codepoint, txt (JStr . decode))
+    , (codepoint, bytes (JStr . decode))
     ]
 
 --------------------------------------------------------------------------------

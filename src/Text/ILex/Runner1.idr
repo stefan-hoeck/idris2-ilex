@@ -145,6 +145,21 @@ toBytes1 buf from to t =
  let ib # t := bufSubstringFromTill buf from (ixToNat ix) {lt2 = ixLTE ix} t
   in BS _ (fromIBuffer ib) # t
 
+export %inline
+toStr1 :
+     MBuffer q n
+  -> (from        : Nat)
+  -> (0    till   : Nat)
+  -> (prev        : ByteString)
+  -> {auto ix     : Ix (S till) n}
+  -> {auto 0  lte : LTE from (ixToNat ix)}
+  -> F1 q String
+toStr1 buf from till prev t =
+ let s2 # t := bufStringFromTo buf from (ixToNat ix) {lt = ixLT ix} t
+  in case prev.size of
+       0 => s2 # t
+       _ => (toString prev ++ s2) # t
+
 parameters {0 q,e,t,a : Type}
            {0 n       : Nat}
            (parser    : Parser StreamBounds e t a)
@@ -210,7 +225,16 @@ parameters {0 q,e,t,a : Type}
                 _ # t := All.setElem lst1 s2 t
              in sloop dfa2 pos cur t
            Left err => fail1 err t
-         Parse f => case f prev of
+         Txt f => case f (toString prev) of
+           Left  x => fail1 (B (Custom x) bs) t
+           Right v => case parser.step (I v state bs) of
+             Right s2 =>
+              let dfa2  := parser.lex s2
+                  cur   := dfa2.next `at` 0
+                  _ # t := All.setElem lst1 s2 t
+               in sloop dfa2 pos cur t
+             Left err => fail1 err t
+         Bytes f => case f prev of
            Left  x => fail1 (B (Custom x) bs) t
            Right v => case parser.step (I v state bs) of
              Right s2 =>
@@ -247,7 +271,18 @@ parameters {0 q,e,t,a : Type}
                 _ # t := All.set lst1 State s2 t
              in sloop dfa2 till cur t
            Left err => fail1 err t
-         Parse f =>
+         Txt f =>
+          let str # t := toStr1 buf from till prev t
+           in case f str of
+                Left  x => fail1 (B (Custom x) bs) t
+                Right v => case parser.step (I v state bs) of
+                  Right s2 =>
+                   let dfa2  := parser.lex s2
+                       cur   := dfa2.next `at` 0
+                       _ # t := All.set lst1 State s2 t
+                    in sloop dfa2 till cur t
+                  Left err => fail1 err t
+         Bytes f =>
           let bytes # t := toBS1 buf from till t
            in case f (prev <+> bytes) of
                 Left  x => fail1 (B (Custom x) bs) t

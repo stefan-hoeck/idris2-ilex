@@ -105,7 +105,7 @@ csv0 =
   lexer $ dfa
     [ (','                  , const Comma0)
     , ('\n'                 , const NL0)
-    , (plus (dot && not ','), txt (Cell0 . toString))
+    , (plus (dot && not ','), txt Cell0)
     ]
 ```
 
@@ -139,8 +139,7 @@ value. The same goes for the line break character.
 
 Cell tokens are a bit more involved: We expect one or more (`plus`)
 printable characters (`dot`) that are also not commas (`&& not ','`)
-and convert them to a `Cell0` token. Please note that `txt` converts
-a `ByteString`, so we use `toString` to convert it correctly.
+and convert them to a `Cell0` token.
 
 A quick note about the types: `Lexer b Void CSV0` describes a
 lexer that uses `b` for its token bounds (there are different
@@ -192,8 +191,8 @@ csv1 =
     , (linebreak            , const NL1)
     , ("true"               , const (Bool1 True))
     , ("false"              , const (Bool1 False))
-    , (opt '-' >> decimal   , txt (Int1 . integer))
-    , (plus (dot && not ','), txt (Txt1 . toString))
+    , (opt '-' >> decimal   , bytes (Int1 . integer))
+    , (plus (dot && not ','), txt Txt1)
     ]
 ```
 
@@ -282,8 +281,8 @@ csv1_2 =
     , (linebreak         , const NL1)
     , ("true"            , const (Bool1 True))
     , ("false"           , const (Bool1 False))
-    , (opt '-' >> decimal, txt (Int1 . integer))
-    , (text              , txt (Txt1 . toString))
+    , (opt '-' >> decimal, bytes (Int1 . integer))
+    , (text              , txt Txt1)
     , (spaces            , Ignore)
     ]
 ```
@@ -332,9 +331,9 @@ csv1_3 =
     , (linebreak         , const NL1)
     , ("true"            , const (Bool1 True))
     , ("false"           , const (Bool1 False))
-    , (opt '-' >> decimal, txt (Int1 . integer))
-    , (text              , txt (Txt1 . toString))
-    , (quoted            , txt (Txt1 . unquote))
+    , (opt '-' >> decimal, bytes (Int1 . integer))
+    , (text              , txt Txt1)
+    , (quoted            , bytes (Txt1 . unquote))
     , (spaces            , Ignore)
     ]
 ```
@@ -378,7 +377,7 @@ lexUQ =
     , (#"\r"#, const "\r")
     , (#"\t"#, const "\t")
     , (#"""# , Ignore)
-    , (plus (dot && not '"' && not '\\'), txt toString)
+    , (plus (dot && not '"' && not '\\'), txt id)
     ]
 
 fastUnquote : ByteString -> String
@@ -448,8 +447,8 @@ csvDFA =
     , (linebreak         , const NL)
     , ("true"            , const (Cll $ CBool True))
     , ("false"           , const (Cll $ CBool False))
-    , (opt '-' >> decimal, txt (Cll . CInt . integer))
-    , (text              , txt (Cll . CStr . toString))
+    , (opt '-' >> decimal, bytes (Cll . CInt . integer))
+    , (text              , txt (Cll . CStr))
     , (spaces            , Ignore)
     ]
 ```
@@ -620,7 +619,7 @@ strDFA =
     , (#"\r"#, const $ Str "\r")
     , (#"\t"#, const $ Str "\t")
     , (linebreak, const NL)
-    , (plus (dot && not '"' && not '\\'), txt (Str . toString))
+    , (plus (dot && not '"' && not '\\'), txt Str)
     ]
 ```
 

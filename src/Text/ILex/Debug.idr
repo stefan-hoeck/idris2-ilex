@@ -130,7 +130,8 @@ prettyByte n = line "\{pre} \{toHex $ cast n}"
 prettyTok : Pretty a => {d : _} -> Tok e a -> Doc d
 prettyTok Ignore    = line "<ignore>"
 prettyTok (Const x) = pretty x
-prettyTok (Parse f) = line "<parse>"
+prettyTok (Txt   f) = line "<Txt>"
+prettyTok (Bytes f) = line "<Bytes>"
 
 prettyByteStep : Pretty a => {d : _} -> (Nat, ByteStep n e a) -> Doc d
 prettyByteStep (x,bs) =

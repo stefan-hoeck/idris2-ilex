@@ -91,6 +91,9 @@ parameters (parser    : Parser StreamBounds e t a)
     case t of
       Ignore    => sappEOI state
       Const v   => parser.step (I v state bounds) >>= sappEOI
-      Parse f   => case f bs of
+      Txt f     => case f (toString bs) of
+        Left  x => Left $ B (Custom x) bounds
+        Right v => parser.step (I v state bounds) >>= sappEOI
+      Bytes f   => case f bs of
         Left  x => Left $ B (Custom x) bounds
         Right v => parser.step (I v state bounds) >>= sappEOI

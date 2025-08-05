@@ -1,3 +1,4 @@
+-- TODO: Optimize `Txt` cases
 module Text.ILex.Runner
 
 import public Data.ByteString
@@ -166,7 +167,12 @@ parameters {0 e,t,a : Type}
       Const v => case parser.step (I v state bs) of
         Right s2 => loop (parser.lex s2) s2 till
         Left err => Left err
-      Parse f => case f (toByteString buf from till) of
+      Txt f => case f (toString $ toByteString buf from till) of
+        Left  x => Left $ B (Custom x) bs
+        Right v => case parser.step (I v state bs) of
+          Right s2 => loop (parser.lex s2) s2 till
+          Left err => Left err
+      Bytes f => case f (toByteString buf from till) of
         Left  x => Left $ B (Custom x) bs
         Right v => case parser.step (I v state bs) of
           Right s2 => loop (parser.lex s2) s2 till
@@ -260,7 +266,15 @@ parameters {0 e,t,a : Type}
                 cur  := dfa2.next `at` 0
              in sloop dfa2 np Nothing empty cpos s2 pos cur
            Left err => Left err
-         Parse f => case f prev of
+         Txt f => case f (toString prev) of
+           Left  x => Left $ B (Custom x) bs
+           Right v => case parser.step (I v state bs) of
+             Right s2 =>
+              let dfa2 := parser.lex s2
+                  cur  := dfa2.next `at` 0
+               in sloop dfa2 np Nothing empty cpos s2 pos cur
+             Left err => Left err
+         Bytes f => case f prev of
            Left  x => Left $ B (Custom x) bs
            Right v => case parser.step (I v state bs) of
              Right s2 =>
@@ -293,7 +307,15 @@ parameters {0 e,t,a : Type}
                 cur  := dfa2.next `at` 0
              in sloop dfa2 np Nothing empty cpos s2 till cur
            Left err => Left err
-         Parse f => case f (prev <+> toByteString buf from till) of
+         Txt f => case f (toString $ prev <+> toByteString buf from till) of
+           Left  x => Left $ B (Custom x) bs
+           Right v => case parser.step (I v state bs) of
+             Right s2 =>
+              let dfa2 := parser.lex s2
+                  cur  := dfa2.next `at` 0
+               in sloop dfa2 np Nothing empty cpos s2 till cur
+             Left err => Left err
+         Bytes f => case f (prev <+> toByteString buf from till) of
            Left  x => Left $ B (Custom x) bs
            Right v => case parser.step (I v state bs) of
              Right s2 =>
