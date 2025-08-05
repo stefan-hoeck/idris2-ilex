@@ -34,3 +34,15 @@ type   = "github"
 url    = "https://github.com/stefan-hoeck/idris2-bytestring"
 commit = "latest:main"
 ipkg   = "bytestring.ipkg"
+
+[custom.all.streams]
+type   = "github"
+url    = "https://github.com/stefan-hoeck/idris2-streams"
+commit = "latest:main"
+ipkg   = "streams.ipkg"
+
+[custom.all.streams-posix]
+type   = "github"
+url    = "https://github.com/stefan-hoeck/idris2-streams"
+commit = "latest:main"
+ipkg   = "posix/streams-posix.ipkg"

@@ -1,6 +1,7 @@
 module Text.ILex.FS
 
 import Data.Linear.ELift1
+import Data.Array.All
 import Text.ILex.Internal.Runner
 import Text.ILex.Runner1
 
@@ -70,7 +71,7 @@ streamParse1 :
      {auto lft : ELift1 q f}
   -> {auto has : Has (StreamError t e) es}
   -> Parser StreamBounds e t a
-  -> Pull f (Origin,ByteString) es r
+  -> Pull f (Origin,(n ** MBuffer q n)) es r
   -> Pull f a es r
 streamParse1 prs pl = do
   st <- lift1 (init1 Virtual prs)
@@ -78,7 +79,7 @@ streamParse1 prs pl = do
   where
     go :
          LexState1 q e prs.state t
-      -> Pull f (Origin,ByteString) es r
+      -> Pull f (Origin,(n ** MBuffer q n)) es r
       -> Pull f a es r
     go st p =
       assert_total $ P.uncons p >>= \case

@@ -314,9 +314,9 @@ runProg prog =
  let handled := handle [stderrLn . interpolate, stderrLn . interpolate] prog
   in epollApp $ mpull handled
 
-streamVals : Prog String () -> Prog Void ()
-streamVals pths =
-     flatMap pths (\p => readBytes p |> P.mapOutput (FileSrc p,))
+streamVals : Prog String () -> Buf -> Prog Void ()
+streamVals pths buf =
+     flatMap pths (\p => readRawBytes buf p |> P.mapOutput (FileSrc p,))
   |> streamParse1 jsonArray
   -- |> C.mapOutput show
   -- |> foreach (writeLines Stdout)
@@ -325,4 +325,4 @@ streamVals pths =
 
 covering
 main : IO ()
-main = runProg $ streamVals (P.tail args)
+main = runProg $ lift1 (buf 0xffff) >>= streamVals (P.tail args)
