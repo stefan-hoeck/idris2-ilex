@@ -325,4 +325,4 @@ streamVals pths buf =
 
 covering
 main : IO ()
-main = runProg $ lift1 (buf 0xffff) >>= streamVals (P.tail args)
+main = runProg $ lift1 (buf 8096) >>= streamVals (P.tail args)
