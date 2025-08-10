@@ -55,6 +55,9 @@ toBS1 :
   -> {auto ix     : Ix (S till) n}
   -> {auto 0  lte : LTE from (ixToNat ix)}
   -> F1 q ByteString
+toBS1 buf from till (BS 0 _) t =
+  let ib # t := bufSubstringFromTo buf from (ixToNat ix) {lt = ixLT ix} t
+   in BS _ (fromIBuffer ib)# t
 toBS1 buf from till prev t =
   let ib # t := bufSubstringFromTo buf from (ixToNat ix) {lt = ixLT ix} t
    in (prev <+> BS _ (fromIBuffer ib)) # t
