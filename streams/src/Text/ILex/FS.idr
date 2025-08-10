@@ -73,20 +73,18 @@ streamParse1 :
   -> Parser StreamBounds e t a
   -> Pull f (Origin,(n ** MBuffer q n)) es r
   -> Pull f a es r
-streamParse1 prs pl = do
-  st <- lift1 (init1 Virtual prs)
-  go st pl
+streamParse1 prs = go (init Virtual prs)
   where
     go :
-         LexState1 q e prs.state t
+         LexState e prs.state t
       -> Pull f (Origin,(n ** MBuffer q n)) es r
       -> Pull f a es r
     go st p =
       assert_total $ P.uncons p >>= \case
-        Left res      => do
-          v <- appLast1 prs st
-          emit v
-          pure res
+        Left res      =>
+          case appLast prs st.pos st.end st.dfa st.tok st.state st.prev of
+            Left err => throw err
+            Right v  => emit v $> res
         Right ((o,bs),p2) => do
-          m <- pparseBytes1 prs o st bs
-          consMaybe m (go st p2)
+          (st2,m) <- pparseBytes1 prs o st bs
+          consMaybe m (go st2 p2)

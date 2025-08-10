@@ -318,8 +318,8 @@ streamVals : Prog String () -> Buf -> Prog Void ()
 streamVals pths buf =
      flatMap pths (\p => readRawBytes buf p |> P.mapOutput (FileSrc p,))
   |> streamParse1 jsonArray
-  -- |> C.mapOutput show
-  -- |> foreach (writeLines Stdout)
+--     flatMap pths (\p => readBytes p |> P.mapOutput (FileSrc p,))
+--  |> streamParse jsonArray
   |> C.count
   |> foreach (\x => stdoutLn "\{show x} values streamed.")
 

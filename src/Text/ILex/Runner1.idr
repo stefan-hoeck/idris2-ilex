@@ -7,100 +7,25 @@ import public Text.ILex.Bounds
 import public Text.ILex.Error
 import public Text.ILex.FC
 import public Text.ILex.Lexer
+import public Text.ILex.Runner
 
 import Data.Linear.ELift1
-import Data.Array.All
 import Data.Buffer
 import Data.Buffer.Core
 import Data.Buffer.Mutable
 import Text.ILex.Internal.Runner
-
-record DBStep e t where
-  constructor DBS
-  dfa : DFA e t
-  cur : ByteStep dfa.states e t
-
-public export
-0 LexTypes : (e,s,t : Type) -> List Type
-LexTypes e s t =
-  [ s
-  , DBStep e t
-  , StreamPos
-  , Maybe (Tok e t)
-  , ByteString
-  , Origin
-  , Nat
-  , Nat
-  ]
-
-||| Lexing state.
-|||
-||| This encapsulates the current state as well as
-||| the remainder of the previous chunk that marks
-||| the beginning of the current token.
-public export
-0 LexState1 : (q,e,s,t : Type) -> Type
-LexState1 q e s t = MHArr q (LexTypes e s t)
-
-State, Cur, Pos, Tok, Prev, Org, Line, Col : Fin 8
-State = 0
-Cur   = 1
-Pos   = 2
-Tok   = 3
-Prev  = 4
-Org   = 5
-Line  = 6
-Col   = 7
-
-export
-init1 : Origin -> (p : Parser b e t a) -> F1 q (LexState1 q e p.state t)
-init1 o p t =
- let dfa := p.lex p.init
-     cur := DBS dfa (dfa.next `at` 0)
-  in mall1 [p.init, cur, (SP o $ P 0 0), Nothing, empty, o, 0, 0] t
-
-inc1 : Bits8 -> LexState1 q e s t -> F1' q
-inc1 10 lst1 t =
- let l # t := All.get lst1 Line t
-     _ # t := All.set lst1 Line (S l) t
-  in All.set lst1 Col 0 t
-inc1 _  lst1 t =
- let c # t := All.get lst1 Col t
-  in All.set lst1 Col (S c) t
 
 ||| Result of a partial lexing step: In such a step, we lex
 ||| till the end of a chunk of bytes, allowing for a remainder of
 ||| bytes that could not yet be identified as a tokens.
 public export
 0 PLexRes1 : (q,e,s,t,a : Type) -> Type
-PLexRes1 q e s t a = E1 q [StreamError t e] (Maybe a)
-
-curPos : LexState1 q e s t -> F1 q StreamPos
-curPos lst1 t =
- let o # t := All.get lst1 Org t
-     l # t := All.get lst1 Line t
-     c # t := All.get lst1 Col t
-  in sp o l c # t
-
-failByte : Bits8 -> LexState1 q e s t -> PLexRes1 q e s t a
-failByte b lst1 t =
- let sp # t := curPos lst1 t
-  in fail1 (B (Byte b) (SB sp sp)) t
-
-setOrigin : Origin -> LexState1 q e s t -> F1' q
-setOrigin o lst1 t =
- let oe # t := All.get lst1 Org t
-  in case o == oe of
-       False =>
-        let _ # t := All.set lst1 Org o t
-            _ # t := All.set lst1 Line 0 t
-         in All.set lst1 Col 0 t
-       True  => () # t
+PLexRes1 q e s t a = E1 q [StreamError t e] (LexState e s t, Maybe a)
 
 plexFrom :
      (o      : Origin)
   -> (p      : Parser StreamBounds e t a)
-  -> (st     : LexState1 q e p.state t)
+  -> (st     : LexState e p.state t)
   -> (pos    : Nat)
   -> {auto x : Ix pos n}
   -> MBuffer q n
@@ -112,9 +37,9 @@ pparseBytes1 :
   -> {auto has : Has (StreamError t e) es}
   -> (p : Parser StreamBounds e t a)
   -> Origin
-  -> LexState1 q e p.state t
+  -> LexState e p.state t
   -> (n ** MBuffer q n)
-  -> f es (Maybe a)
+  -> f es (LexState e p.state t, Maybe a)
 pparseBytes1 l o st (n ** buf) =
   elift1 $ \t =>
     case plexFrom o l st n buf t of
@@ -126,12 +51,13 @@ toBS1 :
      MBuffer q n
   -> (from        : Nat)
   -> (0    till   : Nat)
+  -> (prev        : ByteString)
   -> {auto ix     : Ix (S till) n}
   -> {auto 0  lte : LTE from (ixToNat ix)}
   -> F1 q ByteString
-toBS1 buf from till t =
+toBS1 buf from till prev t =
   let ib # t := bufSubstringFromTo buf from (ixToNat ix) {lt = ixLT ix} t
-   in BS _ (fromIBuffer ib) # t
+   in (prev <+> BS _ (fromIBuffer ib)) # t
 
 export
 toBytes1 :
@@ -160,215 +86,169 @@ toStr1 buf from till prev t =
        0 => s2 # t
        _ => (toString prev ++ s2) # t
 
+%inline
+nextLine : Bits8 -> Nat -> Nat
+nextLine 10 = S
+nextLine _  = id
+
+%inline
+nextCol : Bits8 -> Nat -> Nat
+nextCol 10 _ = 0
+nextCol _  n = S n
+
 parameters {0 q,e,t,a : Type}
            {0 n       : Nat}
+           (o         : Origin)
            (parser    : Parser StreamBounds e t a)
            (buf       : MBuffer q n)
-           (lst1      : LexState1 q e parser.state t)
-
-  stop :
-       (dfa : DFA e t)
-    -> (cur : ByteStep dfa.states e t)
-    -> (rem : ByteString)
-    -> PLexRes1 q e parser.state t a
-  stop dfa cur rem t =
-   let st     # t := All.get lst1 State t
-       (s2,m)     := parser.chunk st
-       prev   # t := All.get lst1 Prev t
-       _      # t := All.set lst1 Prev (prev <+> rem) t
-       _      # t := All.set lst1 State s2 t
-       _      # t := All.set lst1 Cur (DBS dfa cur) t
-    in R m t
 
   covering
   sinner :
        (dfa         : DFA e t)
+    -> (spos        : StreamPos)
+    -> (tok         : Maybe (Tok e t))
+    -> (prev        : ByteString)
+    -> (line,col    : Nat)
     -> (start       : Nat)                     -- start of current token
+    -> (state       : parser.state)            -- accumulated tokens
     -> (pos         : Nat)                     -- reverse position in the byte array
     -> {auto x      : Ix pos n}                -- position in the byte array
-    -> {auto xt     : Ix (S pos) n}            -- position in the byte array
+    -> {auto xt     : Ix (S pos) n}           -- position in the byte array
     -> {auto 0 lte1 : LTE start (ixToNat xt)}
     -> {auto 0 lte2 : LTE start (ixToNat x)}
     -> (cur         : ByteStep dfa.states e t) -- current automaton state
-    -> PLexRes1 q e parser.state t a
+    -> PLexRes1 q  e parser.state t a
 
-  covering %inline
+  covering
   sloop :
-       (dfa    : DFA e t)
-    -> (pos    : Nat)                  -- reverse position in the byte array
-    -> {auto x : Ix pos n}             -- position in the byte array
-    -> (cur    : ByteStep dfa.states e t) -- current automaton state
+       (dfa      : DFA e t)
+    -> (spos     : StreamPos)
+    -> (tok      : Maybe (Tok e t))
+    -> (prev     : ByteString)
+    -> (line,col : Nat)
+    -> (state    : parser.state)         -- accumulated tokens
+    -> (pos      : Nat)                  -- reverse position in the byte array
+    -> {auto x   : Ix pos n}             -- position in the byte array
+    -> (cur      : ByteStep dfa.states e t) -- current automaton state
     -> PLexRes1 q e parser.state t a
 
   covering
   sapp0 :
        (dfa         : DFA e t)
+    -> (spos        : StreamPos)
+    -> (prev        : ByteString)
+    -> (line,col    : Nat)
+    -> parser.state
     -> Tok e t
     -> (pos         : Nat)
     -> {auto ix     : Ix pos n}
     -> PLexRes1 q e parser.state t a
-  sapp0 dfa tok pos t =
-   let start # t := All.get lst1 Pos t
-       np    # t := curPos lst1 t
-       bs        := SB start np
-       state # t := All.get lst1 State t
-       prev  # t := All.get lst1 Prev t
-       _     # t := All.set lst1 Prev empty t
-       _     # t := All.set lst1 Tok Nothing t
-       _     # t := All.set lst1 Pos np t
-    in case tok of
-         Ignore  => sloop dfa pos (dfa.next `at` 0) t
+  sapp0 dfa spos prev line col state conv pos t =
+   let np := sp o line col
+       bs := SB spos np
+    in case conv of
+         Ignore  => sloop dfa np Nothing empty line col state pos (dfa.next `at` 0) t
          Const v => case parser.step (I v state bs) of
            Right s2 =>
-            let dfa2  := parser.lex s2
-                cur   := dfa2.next `at` 0
-                _ # t := All.setElem lst1 s2 t
-             in sloop dfa2 pos cur t
+            let dfa2 := parser.lex s2
+                cur  := dfa2.next `at` 0
+             in sloop dfa2 np Nothing empty line col s2 pos cur t
            Left err => fail1 err t
          Txt f => case f (toString prev) of
            Left  x => fail1 (B (Custom x) bs) t
            Right v => case parser.step (I v state bs) of
              Right s2 =>
-              let dfa2  := parser.lex s2
-                  cur   := dfa2.next `at` 0
-                  _ # t := All.setElem lst1 s2 t
-               in sloop dfa2 pos cur t
+              let dfa2 := parser.lex s2
+                  cur  := dfa2.next `at` 0
+               in sloop dfa2 np Nothing empty line col s2 pos cur t
              Left err => fail1 err t
          Bytes f => case f prev of
            Left  x => fail1 (B (Custom x) bs) t
            Right v => case parser.step (I v state bs) of
              Right s2 =>
-              let dfa2  := parser.lex s2
-                  cur   := dfa2.next `at` 0
-                  _ # t := All.setElem lst1 s2 t
-               in sloop dfa2 pos cur t
+              let dfa2 := parser.lex s2
+                  cur  := dfa2.next `at` 0
+               in sloop dfa2 np Nothing empty line col s2 pos cur t
              Left err => fail1 err t
 
   covering
   sapp :
        (dfa         : DFA e t)
+    -> (spos        : StreamPos)
+    -> (prev        : ByteString)
+    -> (line,col    : Nat)
+    -> parser.state
     -> Tok e t
     -> (from        : Nat)
     -> (till        : Nat)
     -> {auto ix     : Ix (S till) n}
     -> {auto 0  lte : LTE from (ixToNat ix)}
     -> PLexRes1 q e parser.state t a
-  sapp dfa tok from till t =
-   let start # t := All.get lst1 Pos t
-       np    # t := curPos lst1 t
-       bs        := SB start np
-       state # t := All.get lst1 State t
-       prev  # t := All.get lst1 Prev t
-       _     # t := All.set lst1 Prev empty t
-       _     # t := All.set lst1 Tok Nothing t
-       _     # t := All.set lst1 Pos np t
-    in case tok of
-         Ignore  => sloop dfa till (dfa.next `at` 0) t
+  sapp dfa spos prev line col state conv from till t =
+   let np := SP o (P line col)
+       bs := SB spos np
+    in case conv of
+         Ignore  => sloop dfa np Nothing empty line col state till (dfa.next `at` 0) t
          Const v => case parser.step (I v state bs) of
            Right s2 =>
-            let dfa2  := parser.lex s2
-                cur   := dfa2.next `at` 0
-                _ # t := All.set lst1 State s2 t
-             in sloop dfa2 till cur t
+            let dfa2 := parser.lex s2
+                cur  := dfa2.next `at` 0
+             in sloop dfa2 np Nothing empty line col s2 till cur t
            Left err => fail1 err t
          Txt f =>
-          let str # t := toStr1 buf from till prev t
-           in case f str of
-                Left  x => fail1 (B (Custom x) bs) t
-                Right v => case parser.step (I v state bs) of
-                  Right s2 =>
-                   let dfa2  := parser.lex s2
-                       cur   := dfa2.next `at` 0
-                       _ # t := All.set lst1 State s2 t
-                    in sloop dfa2 till cur t
-                  Left err => fail1 err t
+          let str # t  := toStr1 buf from till prev t
+              Right v  := f str         | Left x => fail1 (B (Custom x) bs) t
+              i        := I v state bs
+              Right s2 := parser.step i | Left x => fail1 x t
+              dfa2     := parser.lex s2
+              cur      := dfa2.next `at` 0
+           in sloop dfa2 np Nothing empty line col s2 till cur t
          Bytes f =>
-          let bytes # t := toBS1 buf from till t
-           in case f (prev <+> bytes) of
-                Left  x => fail1 (B (Custom x) bs) t
-                Right v => case parser.step (I v state bs) of
-                  Right s2 =>
-                   let dfa2  := parser.lex s2
-                       cur   := dfa2.next `at` 0
-                       _ # t := All.set lst1 State s2 t
-                    in sloop dfa2 till cur t
-                  Left err => fail1 err t
+          let bts # t  := toBS1 buf from till prev t
+              Right v  := f bts         | Left x => fail1 (B (Custom x) bs) t
+              i        := I v state bs
+              Right s2 := parser.step i | Left x => fail1 x t
+              dfa2     := parser.lex s2
+              cur      := dfa2.next `at` 0
+           in sloop dfa2 np Nothing empty line col s2 till cur t
 
-  sinner dfa start 0     cur t =
-   let bytes # t := toBytes1 buf start 0 t
-    in stop dfa cur bytes t
-  sinner dfa start (S k) cur t =
+  sinner dfa spos tok prev line col start state 0     cur t =
+    let (s2,m) := parser.chunk state
+        bs # t := toBytes1 buf start 0 t
+        bytes  := prev <+> bs
+     in R (LST s2 dfa spos cur tok bytes $ sp o line col, m) t
+  sinner dfa spos tok prev line col start state (S k) cur t =
    let b # t := getIx buf k t
+       l2    := nextLine b line
+       c2    := nextCol b col
     in case cur `atByte` b of
-         KeepT        =>
-          let _ # t := inc1 b lst1 t
-           in sinner dfa start k cur t
-         Done tok     =>
-          let _ # t := inc1 b lst1 t
-           in sapp dfa tok start k t
-         Keep         =>
-          let _ # t := inc1 b lst1 t
-              _ # t := All.set lst1 Tok Nothing t
-           in sinner dfa start k cur t
-         Move st      =>
-          let _ # t := inc1 b lst1 t
-              _ # t := All.set lst1 Tok Nothing t
-           in sinner dfa start k (dfa.next `at` st) t
-         MoveT st tok =>
-          let _ # t := inc1 b lst1 t
-              _ # t := All.set lst1 Tok (Just tok) t
-           in sinner dfa start k (dfa.next `at` st) t
-         Bottom       => case All.get lst1 Tok t of
-           Just v  # t => sapp dfa v start (S k) t
-           Nothing # t => failByte b lst1 t
+         KeepT        => sinner dfa spos tok        prev l2 c2 start state k cur t
+         Done tok     => sapp dfa spos prev l2 c2 state tok start k t
+         Keep         => sinner dfa spos Nothing    prev l2 c2 start state k cur t
+         Move st      => sinner dfa spos Nothing    prev l2 c2 start state k (dfa.next `at` st) t
+         MoveT st tok => sinner dfa spos (Just tok) prev l2 c2 start state k (dfa.next `at` st) t
+         Bottom       => case tok of
+           Nothing => fail1 (seByte o (P line col) b) t
+           Just v  => sapp dfa spos prev line col state v start (S k) t
 
-  sloop dfa 0     cur t = stop dfa cur empty t
-  sloop dfa (S k) cur t =
+  sloop dfa spos tok prev line col state 0       cur t =
+    let (s2,m) := parser.chunk state
+     in R (LST s2 dfa spos cur tok prev $ sp o line col, m) t
+  sloop dfa spos tok prev line col state (S k) cur t =
    let b # t := getIx buf k t
+       l2    := nextLine b line
+       c2    := nextCol b col
     in case cur `atByte` b of
-         KeepT        =>
-          let _ # t := inc1 b lst1 t
-           in sinner dfa (ixToNat x) k cur t
-         Done tok     =>
-          let _ # t := inc1 b lst1 t
-           in sapp dfa tok (ixToNat x) k t
-         Keep         =>
-          let _ # t := inc1 b lst1 t
-              _ # t := All.set lst1 Tok Nothing t
-           in sinner dfa (ixToNat x) k cur t
-         Move st      =>
-          let _ # t := inc1 b lst1 t
-              _ # t := All.set lst1 Tok Nothing t
-           in sinner dfa (ixToNat x) k (dfa.next `at` st) t
-         MoveT st tok =>
-          let _ # t := inc1 b lst1 t
-              _ # t := All.set lst1 Tok (Just tok) t
-           in sinner dfa (ixToNat x) k (dfa.next `at` st) t
-         Bottom       => case All.get lst1 Tok t of
-           Just v  # t => sapp0 dfa v (S k) t
-           Nothing # t => failByte b lst1 t
+        KeepT        => sinner dfa spos tok        prev l2 c2 (ixToNat x) state k cur t
+        Done tok     => sapp dfa spos prev l2 c2 state tok (ixToNat x) k t
+        Keep         => sinner dfa spos Nothing    prev l2 c2 (ixToNat x) state k cur t
+        Move st      => sinner dfa spos Nothing    prev l2 c2 (ixToNat x) state k (dfa.next `at` st) t
+        MoveT st tok => sinner dfa spos (Just tok) prev l2 c2 (ixToNat x) state k (dfa.next `at` st) t
+        Bottom       => case tok of
+          Just v  => sapp0 dfa spos prev line col state v (S k) t
+          Nothing => fail1 (seByte o (P line col) b) t
 
-plexFrom o lx lst1 pos buf t =
-  assert_total $
-   let _  # t := setOrigin o lst1 t
-       v  # t := All.get lst1 Cur t
-    in assert_total $ sloop lx buf lst1 v.dfa pos v.cur t
-
-export
-appLast1 :
-     {auto lft : ELift1 q f}
-  -> {auto has : Has (StreamError t e) es}
-  -> (parser : Parser StreamBounds e t a)
-  -> (lst1   : LexState1 q e parser.state t)
-  -> f es a
-appLast1 parser lst1 =
-  elift1 $ \t =>
-   let start # t := All.get lst1 Pos t
-       end   # t := curPos lst1 t
-       cur   # t := All.get lst1 Cur t
-       state # t := All.get lst1 State t
-       tok   # t := All.get lst1 Tok t
-       prev  # t := All.get lst1 Prev t
-    in case appLast parser start end cur.dfa tok state prev of
-         Right v => R v t
-         Left  x => throw1 x t
+plexFrom o lx (LST st dfa spos cur tok prev (SP oe (P l c))) pos buf t =
+  assert_total $ case o == oe of
+    True  => sloop o lx buf dfa spos tok prev l c st pos cur t
+    False => sloop o lx buf dfa spos tok prev 0 0 st pos cur t

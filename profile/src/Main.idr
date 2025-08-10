@@ -8,6 +8,7 @@ import Examples.JSON
 import Language.JSON
 import Profile
 import Text.ILex
+import Text.ILex.Debug
 
 %default total
 
