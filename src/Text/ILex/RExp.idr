@@ -58,9 +58,6 @@ adjRanges f (Star x)  = Star (adjRanges f x)
 ||| states, so they correspond to `Bottom`.
 public export
 data Tok : (e, a : Type) -> Type where
-  ||| Marks a non-terminal state.
-  Bottom : Tok e a
-
   ||| Marks a terminal state that does not produce a token.
   ||| This can be used for comments or whitespace that should be
   ||| ignored.
@@ -70,15 +67,22 @@ data Tok : (e, a : Type) -> Type where
   Const  : a -> Tok e a
 
   ||| A token that needs to be parsed from its corresponding bytestring.
-  Parse  : (ByteString -> Either e a) -> Tok e a
+  Txt    : (String -> Either e a) -> Tok e a
+
+  ||| A token that needs to be parsed from its corresponding bytestring.
+  Bytes  : (ByteString -> Either e a) -> Tok e a
 
 export %inline
 const : a -> Tok e a
 const = Const
 
 export %inline
-txt : (ByteString -> a) -> Tok e a
-txt f = Parse (Right . f)
+txt : (String -> a) -> Tok e a
+txt f = Txt (Right . f)
+
+export %inline
+bytes : (ByteString -> a) -> Tok e a
+bytes f = Bytes (Right . f)
 
 public export
 0 TokenMap : Type -> Type

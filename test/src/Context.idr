@@ -34,7 +34,7 @@ spaces = plus (oneof [' ', '\n', '\r', '\t'])
 strLit : DFA Void Lit
 strLit =
   dfa
-    [ (chr,    txt (SL . toString))
+    [ (chr,    txt SL)
     , ("\\\\", const $ SL "\\")
     , ("\\\"", const $ SL "\"")
     , ('"',    const QQ)
@@ -46,7 +46,7 @@ strLit =
 dfltLit : DFA Void Lit
 dfltLit =
   dfa
-    [ (decimal, txt (Num . cast . toString))
+    [ (decimal, txt (Num . cast))
     , ('"', const $ SP [<])
     , (spaces, Ignore)
     ]

@@ -5,7 +5,9 @@ brief   = "Lexing streams of raw bytes"
 langversion >= 0.7
 depends = ilex
         , streams
+        , elin
 
 sourcedir = "src"
 
 modules = Text.ILex.FS
+        , Text.ILex.Runner1

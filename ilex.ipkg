@@ -7,7 +7,6 @@ depends = elab-util
         , elab-pretty
         , array
         , bytestring
-        , refined
 
 sourcedir = "src"
 

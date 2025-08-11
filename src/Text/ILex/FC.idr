@@ -28,6 +28,11 @@ record Position where
 
 %runElab derive "Position" [Show,Eq]
 
+export
+inc : Bits8 -> Position -> Position
+inc 10 (P l c) = P (S l) c
+inc _  (P l c) = P l     (S c)
+
 public export
 Interpolation Position where
   interpolate (P l c) = show (l+1) ++ ":" ++ show (c+1)

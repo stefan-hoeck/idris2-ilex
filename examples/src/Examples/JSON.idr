@@ -1,8 +1,10 @@
 module Examples.JSON
 
 import Data.SnocList.Quantifiers
-import Text.ILex
 import Derive.Prelude
+import Text.ILex
+import Text.ILex.Debug
+import Text.PrettyPrint.Bernardy
 
 import FS.Posix
 import FS.Posix.Internal
@@ -16,9 +18,9 @@ import Text.ILex.FS
 %hide Data.Linear.(.)
 
 export
-pretty : Interpolation e => Show a => Either e a -> IO ()
-pretty (Left x)  = putStrLn $ interpolate x
-pretty (Right v) = printLn v
+prettyVal : Interpolation e => Show a => Either e a -> IO ()
+prettyVal (Left x)  = putStrLn $ interpolate x
+prettyVal (Right v) = printLn v
 
 export
 prettyList : Interpolation e => Show a => Either e (List a) -> IO ()
@@ -63,16 +65,19 @@ data JTok : Type where
 
 export
 Interpolation JTok where
-  interpolate Comma      = ","
-  interpolate Colon      = ":"
+  interpolate Comma      = "','"
+  interpolate Colon      = "':'"
   interpolate (JV x)     = show x
-  interpolate (JStr str) = str
-  interpolate Quote      = "\""
-  interpolate PO         = "["
-  interpolate PC         = "]"
-  interpolate BO         = "{"
-  interpolate BC         = "}"
+  interpolate (JStr str) = show str
+  interpolate Quote      = "'\"'"
+  interpolate PO         = "'['"
+  interpolate PC         = "']'"
+  interpolate BO         = "'{'"
+  interpolate BC         = "'}'"
   interpolate NL         = "line break"
+
+export
+Pretty JTok where prettyPrec p = line . interpolate
 
 --------------------------------------------------------------------------------
 -- Regular DFA
@@ -100,8 +105,8 @@ jsonDFA =
     , (','               , const Comma)
     , (':'               , const Colon)
     , ('"'               , const Quote)
-    , (opt '-' >> decimal, txt (JV . JInteger . integer))
-    , (double            , txt (JV . JDouble . cast . toString))
+    , (opt '-' >> decimal, bytes (JV . JInteger . integer))
+    , (double            , txt (JV . JDouble . cast))
     , (spaces            , Ignore)
     ]
 
@@ -126,7 +131,7 @@ strDFA =
   dfa
     [ ('"', const Quote)
     , ('\n', const NL)
-    , (plus (dot && not '"' && not '\\'), txt (JStr . toString))
+    , (plus (dot && not '"' && not '\\'), txt JStr)
     , (#"\""#, const $ JStr "\"")
     , (#"\n"#, const $ JStr "\n")
     , (#"\f"#, const $ JStr "\f")
@@ -135,7 +140,7 @@ strDFA =
     , (#"\t"#, const $ JStr "\t")
     , (#"\\"#, const $ JStr "\\")
     , (#"\/"#, const $ JStr "\/")
-    , (codepoint, txt (JStr . decode))
+    , (codepoint, bytes (JStr . decode))
     ]
 
 --------------------------------------------------------------------------------
@@ -289,6 +294,7 @@ arrChunk (Lbl sx x sy y sstr) = let (a,b) := extract sx in (Lbl a x sy y sstr, b
 arrChunk st                   = (st, Nothing)
 
 arrEOI : EOI b e (ST b) JTok (List JVal)
+arrEOI bs SI = Right []
 arrEOI bs st =
   case jeoi bs st of
     Right (JArray vs) => Right vs
@@ -308,15 +314,13 @@ runProg prog =
  let handled := handle [stderrLn . interpolate, stderrLn . interpolate] prog
   in epollApp $ mpull handled
 
-streamVals : Prog String () -> Prog Void ()
-streamVals pths =
-     flatMap pths (\p => readBytes p |> P.mapOutput (FileSrc p,))
-  |> streamParse jsonValues
-  -- |> C.mapOutput show
-  -- |> foreach (writeLines Stdout)
+streamVals : Prog String () -> Buf -> Prog Void ()
+streamVals pths buf =
+     flatMap pths (\p => readRawBytes buf p |> P.mapOutput (FileSrc p,))
+  |> streamParse jsonArray
   |> C.count
   |> foreach (\x => stdoutLn "\{show x} values streamed.")
 
 covering
 main : IO ()
-main = runProg $ streamVals (P.tail args)
+main = runProg $ lift1 (buf 0xfff) >>= streamVals (P.tail args)

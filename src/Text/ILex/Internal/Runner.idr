@@ -61,37 +61,3 @@ toBytes buf from to =
 export %inline
 sp : Origin -> (l,c : Nat) -> StreamPos
 sp o l c = SP o $ P l c
-
-export
-seByte : Origin -> (l,c : Nat) -> Bits8 -> StreamError t e
-seByte o l c b = let p := sp o l c in B (Byte b) (SB p p)
-
-parameters (parser    : Parser StreamBounds e t a)
-           (start,end : StreamPos)
-
-  %inline
-  sappEOI : parser.state -> Either (StreamError t e) a
-  sappEOI state = parser.eoi (SB end end) state
-
-  %inline
-  bounds : StreamBounds
-  bounds = SB start end
-
-  ||| Tries to read the last token of an input stream and
-  ||| append it to the already accumulated list of tokens.
-  export
-  appLast :
-       (dfa : DFA e t)
-    -> (cur : Fin (S dfa.states))
-    -> (state : parser.state)
-    -> ByteString
-    -> Either (StreamError t e) a
-  appLast dfa cur state (BS 0 _) = sappEOI state
-  appLast dfa cur state bs       =
-    case dfa.term `at` cur of
-      Bottom    => Left (B EOI (SB end end))
-      Ignore    => sappEOI state
-      Const v   => parser.step (I v state bounds) >>= sappEOI
-      Parse f   => case f bs of
-        Left  x => Left $ B (Custom x) bounds
-        Right v => parser.step (I v state bounds) >>= sappEOI
