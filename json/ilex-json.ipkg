@@ -1,0 +1,9 @@
+package ilex-json
+version   = 0.1.0
+authors   = "stefan-hoeck"
+sourcedir = "src"
+depends   = ilex
+
+brief     = "Total and efficient parser and lexer for the JSON file format"
+
+modules   = JSON.Parser

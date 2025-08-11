@@ -23,6 +23,12 @@ type = "local"
 path = "profile"
 ipkg = "profile.ipkg"
 
+[custom.all.ilex-json]
+type = "local"
+path = "json"
+ipkg = "ilex-json.ipkg"
+test = "test/test.ipkg"
+
 [custom.all.array]
 type   = "github"
 url    = "https://github.com/stefan-hoeck/idris2-array"

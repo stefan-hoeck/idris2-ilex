@@ -1,0 +1,10 @@
+package ilex-json-test
+version = 0.1.0
+authors = "stefan-hoeck"
+
+depends = ilex-json
+        , hedgehog
+
+main = Main
+executable = "ilex-json-test"
+sourcedir = "src"

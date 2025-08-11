@@ -1,48 +1,112 @@
-module Examples.JSON
+module JSON.Parser
 
-import Data.SnocList.Quantifiers
 import Derive.Prelude
-import Text.ILex
-import Text.ILex.Debug
-import Text.PrettyPrint.Bernardy
-
-import FS.Posix
-import FS.Posix.Internal
-import FS.System
-import IO.Async.Loop.Epoll
-import IO.Async.Loop.Posix
-import Text.ILex.FS
+import public Text.ILex
 
 %default total
 %language ElabReflection
-%hide Data.Linear.(.)
-
-export
-prettyVal : Interpolation e => Show a => Either e a -> IO ()
-prettyVal (Left x)  = putStrLn $ interpolate x
-prettyVal (Right v) = printLn v
-
-export
-prettyList : Interpolation e => Show a => Either e (List a) -> IO ()
-prettyList (Left x)   = putStrLn $ interpolate x
-prettyList (Right vs) = traverse_ printLn vs
 
 --------------------------------------------------------------------------------
--- JSON values
+--          String Encoding
 --------------------------------------------------------------------------------
 
-||| A tree data type for JSON values
 public export
-data JVal : Type where
-  JNull   : JVal
-  JInteger : Integer -> JVal
-  JDouble : Double -> JVal
-  JBool   : Bool   -> JVal
-  JString : String -> JVal
-  JArray  : List JVal -> JVal
-  JObject : List (String, JVal) -> JVal
+escape : SnocList Char -> Char -> SnocList Char
+escape sc '"'  = sc :< '\\' :< '"'
+escape sc '\n' = sc :< '\\' :< 'n'
+escape sc '\f' = sc :< '\\' :< 'f'
+escape sc '\b' = sc :< '\\' :< 'b'
+escape sc '\r' = sc :< '\\' :< 'r'
+escape sc '\t' = sc :< '\\' :< 't'
+escape sc '\\' = sc :< '\\' :< '\\'
+escape sc '/'  = sc :< '\\' :< '/'
+escape sc c =
+  if isControl c
+    then
+      let x  := the Integer $ cast c
+          d1 := hexChar $ x `div` 0x1000
+          d2 := hexChar $ (x `mod` 0x1000) `div` 0x100
+          d3 := hexChar $ (x `mod` 0x100)  `div` 0x10
+          d4 := hexChar $ x `mod` 0x10
+       in sc :< '\\' :< 'u' :< d1 :< d2 :< d3 :< d4
+    else sc :< c
 
-%runElab derive "JVal" [Show,Eq]
+public export
+encode : String -> String
+encode s = pack (foldl escape [<'"'] (unpack s) <>> ['"'])
+
+--------------------------------------------------------------------------------
+--          JSON
+--------------------------------------------------------------------------------
+
+public export
+data JSON : Type where
+  JNull   : JSON
+  JInteger : Integer -> JSON
+  JDouble : Double -> JSON
+  JBool   : Bool   -> JSON
+  JString : String -> JSON
+  JArray  : List JSON -> JSON
+  JObject : List (String, JSON) -> JSON
+
+%runElab derive "JSON" [Eq]
+
+showValue : SnocList String -> JSON -> SnocList String
+
+showPair : SnocList String -> (String,JSON) -> SnocList String
+
+showArray : SnocList String -> List JSON -> SnocList String
+
+showObject : SnocList String -> List (String,JSON) -> SnocList String
+
+showValue ss JNull              = ss :< "null"
+showValue ss (JInteger ntgr)      = ss :< show ntgr
+showValue ss (JDouble dbl)      = ss :< show dbl
+showValue ss (JBool True)       = ss :< "true"
+showValue ss (JBool False)      = ss :< "false"
+showValue ss (JString str)      = ss :< encode str
+showValue ss (JArray [])        = ss :< "[]"
+showValue ss (JArray $ h :: t)  =
+  let ss' = showValue (ss :< "[") h
+   in showArray ss' t
+showValue ss (JObject [])       = ss :< "{}"
+showValue ss (JObject $ h :: t) =
+  let ss' = showPair (ss :< "{") h
+   in showObject ss' t
+
+showPair ss (s,v) = showValue (ss :< encode s :< ":") v
+
+showArray ss [] = ss :< "]"
+showArray ss (h :: t) =
+  let ss' = showValue (ss :< ",") h in showArray ss' t
+
+showObject ss [] = ss :< "}"
+showObject ss (h :: t) =
+  let ss' = showPair (ss :< ",") h in showObject ss' t
+
+showImpl : JSON -> String
+showImpl v = fastConcat $ showValue Lin v <>> Nil
+
+export %inline
+Show JSON where
+  show = showImpl
+
+||| Recursively drops `Null` entries from JSON objects.
+export
+dropNull : JSON -> JSON
+
+dropNulls : SnocList JSON -> List JSON -> JSON
+dropNulls sx []        = JArray $ sx <>> []
+dropNulls sx (x :: xs) = dropNulls (sx :< dropNull x) xs
+
+dropNullsP : SnocList (String,JSON) -> List (String,JSON) -> JSON
+dropNullsP sx []                = JObject $ sx <>> []
+dropNullsP sx ((_,JNull) :: xs) = dropNullsP sx xs
+dropNullsP sx ((s,j)     :: xs) = dropNullsP (sx :< (s, dropNull j)) xs
+
+dropNull (JArray xs)  = dropNulls [<] xs
+dropNull (JObject xs) = dropNullsP [<] xs
+dropNull x            = x
 
 --------------------------------------------------------------------------------
 -- Token Type
@@ -52,7 +116,7 @@ public export
 data JTok : Type where
   Comma : JTok
   Colon : JTok
-  JV    : JVal -> JTok
+  JV    : JSON -> JTok
   JStr  : String -> JTok
   Quote : JTok
   PO    : JTok
@@ -75,9 +139,6 @@ Interpolation JTok where
   interpolate BO         = "'{'"
   interpolate BC         = "'}'"
   interpolate NL         = "line break"
-
-export
-Pretty JTok where prettyPrec p = line . interpolate
 
 --------------------------------------------------------------------------------
 -- Regular DFA
@@ -148,8 +209,8 @@ strDFA =
 --------------------------------------------------------------------------------
 
 data Part : Type -> Type where
-  PArr : b -> SnocList JVal -> Part b
-  PObj : b -> SnocList (String,JVal) -> String -> Part b
+  PArr : b -> SnocList JSON -> Part b
+  PObj : b -> SnocList (String,JSON) -> String -> Part b
 
 0 Parts : Type -> Type
 Parts = SnocList . Part
@@ -157,14 +218,14 @@ Parts = SnocList . Part
 export
 data ST : Type -> Type where
   SI  : ST b
-  SV  : JVal -> ST b
-  Arr : Parts b -> b -> SnocList JVal -> SepTag -> ST b
-  Prs : Parts b -> b -> SnocList (String,JVal) -> SepTag -> ST b
-  Obj : Parts b -> b -> SnocList (String,JVal) -> String -> SepTag -> ST b
+  SV  : JSON -> ST b
+  Arr : Parts b -> b -> SnocList JSON -> SepTag -> ST b
+  Prs : Parts b -> b -> SnocList (String,JSON) -> SepTag -> ST b
+  Obj : Parts b -> b -> SnocList (String,JSON) -> String -> SepTag -> ST b
   Str : Parts b -> b -> SnocList String -> ST b
-  Lbl : Parts b -> b -> SnocList (String,JVal) -> b -> SnocList String -> ST b
+  Lbl : Parts b -> b -> SnocList (String,JSON) -> b -> SnocList String -> ST b
 
-part : Parts b -> JVal -> ST b
+part : Parts b -> JSON -> ST b
 part [<]               v = SV v
 part (p:<PArr bs sx)   v = Arr p bs (sx:<v) Val
 part (p:<PObj bs sx l) v = Prs p bs (sx:<(l,v)) Val
@@ -213,10 +274,10 @@ step tok st bs = case st of
     Quote  => Right $ Obj sx x sy (snocPack ss) Val
     _      => unexpected bs tok
 
-chunk : ST b -> (ST b, Maybe JVal)
+chunk : ST b -> (ST b, Maybe JSON)
 chunk st = (st, Nothing)
 
-jeoi : EOI b e (ST b) JTok JVal
+jeoi : EOI b e (ST b) JTok JSON
 jeoi _  (SV x)          = Right x
 jeoi _  (Arr _ x _ _)   = unclosed x PO
 jeoi _  (Prs _ x _ _)   = unclosed x BO
@@ -230,10 +291,18 @@ jdfa (Str {}) = strDFA
 jdfa (Lbl {}) = strDFA
 jdfa _        = jsonDFA
 
-||| Parses a single JSON value.
+||| A parser for a single JSON value.
+|||
+||| See also `jsonValues` and `jsonArray` for streaming versions
+||| of JSON parsers.
 export
-json : Parser b Void JTok JVal
+json : Parser b Void JTok JSON
 json = P SI jdfa (\(I t s b) => step t s b) chunk jeoi
+
+||| Parses a single string and converts it to a JSON value.
+export %inline
+parseJSON : Origin -> String -> ParseRes Void JTok JSON
+parseJSON o = parseString o json
 
 --------------------------------------------------------------------------------
 -- Streaming
@@ -242,32 +311,37 @@ json = P SI jdfa (\(I t s b) => step t s b) chunk jeoi
 export
 record StreamST b where
   constructor S
-  vals  : SnocList JVal
+  vals  : SnocList JSON
   state : ST b
 
 valsStep : Step b e (StreamST b) JTok
 valsStep tok (S sv (SV v)) bs = S (sv:<v) <$> step tok SI bs
 valsStep tok (S sv st)     bs = S sv      <$> step tok st bs
 
-valsChunk : StreamST b -> (StreamST b, Maybe $ List JVal)
+valsChunk : StreamST b -> (StreamST b, Maybe $ List JSON)
 valsChunk (S vs st) = (S [<] st, maybeList vs)
 
-valsEOI : EOI b e (StreamST b) JTok (List JVal)
+valsEOI : EOI b e (StreamST b) JTok (List JSON)
 valsEOI _  (S vs SI)     = Right (vs <>> [])
 valsEOI _  (S vs (SV v)) = Right (vs <>> [v])
 valsEOI bs (S _  st)     = jeoi bs st $> []
 
+||| Parser that is capable of streaming large amounts of
+||| JSON values.
+|||
+||| Values need not be separated by whitespace but the longest
+||| possible value will always be consumed.
 export
-jsonValues : Parser b Void JTok (List JVal)
+jsonValues : Parser b Void JTok (List JSON)
 jsonValues = P (S [<] SI) (jdfa . state) (\(I t s b) => valsStep t s b) valsChunk valsEOI
 
-extract : Parts b -> (Parts b, Maybe $ List JVal)
+extract : Parts b -> (Parts b, Maybe $ List JSON)
 extract sp =
   case sp <>> [] of
     PArr x sx :: xs => ([<PArr x [<]] <>< xs, maybeList sx)
     ps              => ([<] <>< ps, Nothing)
 
-arrChunk : ST b -> (ST b, Maybe $ List JVal)
+arrChunk : ST b -> (ST b, Maybe $ List JSON)
 arrChunk (SV (JArray vs))     = (SI, Just vs)
 arrChunk (Arr sx x sy y)      = let (a,b) := extract sx in (Arr a x sy y, b)
 arrChunk (Prs sx x sy y)      = let (a,b) := extract sx in (Prs a x sy y, b)
@@ -276,7 +350,7 @@ arrChunk (Str sx x sstr)      = let (a,b) := extract sx in (Str a x sstr, b)
 arrChunk (Lbl sx x sy y sstr) = let (a,b) := extract sx in (Lbl a x sy y sstr, b)
 arrChunk st                   = (st, Nothing)
 
-arrEOI : EOI b e (ST b) JTok (List JVal)
+arrEOI : EOI b e (ST b) JTok (List JSON)
 arrEOI bs SI = Right []
 arrEOI bs st =
   case jeoi bs st of
@@ -284,26 +358,8 @@ arrEOI bs st =
     Right _           => Error.eoi bs
     Left x            => Left x
 
+||| A parser that is capable of streaming a single large
+||| array of JSON values.
 export
-jsonArray : Parser b Void JTok (List JVal)
+jsonArray : Parser b Void JTok (List JSON)
 jsonArray = P SI jdfa (\(I t s b) => step t s b) arrChunk arrEOI
-
-0 Prog : Type -> Type -> Type
-Prog o r = AsyncPull Poll o [StreamError JTok Void, Errno] r
-
-covering
-runProg : Prog Void () -> IO ()
-runProg prog =
- let handled := handle [stderrLn . interpolate, stderrLn . interpolate] prog
-  in epollApp $ mpull handled
-
-streamVals : Prog String () -> Buf -> Prog Void ()
-streamVals pths buf =
-     flatMap pths (\p => readRawBytes buf p |> P.mapOutput (FileSrc p,))
-  |> streamParse jsonArray
-  |> C.count
-  |> foreach (\x => stdoutLn "\{show x} values streamed.")
-
-covering
-main : IO ()
-main = runProg $ lift1 (buf 0xfff) >>= streamVals (P.tail args)
