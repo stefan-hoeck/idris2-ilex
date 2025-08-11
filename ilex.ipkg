@@ -7,7 +7,6 @@ depends = elab-util
         , elab-pretty
         , array
         , bytestring
-        , elin
 
 sourcedir = "src"
 
@@ -30,5 +29,4 @@ modules = Text.ILex
         , Text.ILex.Lexer
         , Text.ILex.RExp
         , Text.ILex.Runner
-        , Text.ILex.Runner1
         , Text.ILex.Util

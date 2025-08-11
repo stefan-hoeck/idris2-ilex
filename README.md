@@ -773,11 +773,12 @@ And here's an example how to stream a single, possibly huge, CSV file
 ```idris
 streamCSV : String -> Prog Void ()
 streamCSV pth =
-     readBytes pth
-  |> P.mapOutput (FileSrc pth,)
-  |> streamParse csv
-  |> C.count
-  |> printLnTo Stdout
+  lift1 (buf 0xffff) >>= \buf =>
+       readRawBytes buf pth
+    |> P.mapOutput (FileSrc pth,)
+    |> streamParse csv
+    |> C.count
+    |> printLnTo Stdout
 ```
 
 Functions `readBytes`, `mapOutput`, and `printLnTo` are just standard
@@ -797,9 +798,9 @@ strings of data:
   string with the error.
 
 ```idris
-streamCSVFiles : Prog String () -> Prog Void ()
-streamCSVFiles pths =
-     flatMap pths (\p => readBytes p |> P.mapOutput (FileSrc p,))
+streamCSVFiles : Prog String () -> Buf -> Prog Void ()
+streamCSVFiles pths buf =
+     flatMap pths (\p => readRawBytes buf p |> P.mapOutput (FileSrc p,))
   |> streamParse csv
   |> C.count
   |> printLnTo Stdout
@@ -820,7 +821,7 @@ values and so on.
 ```idris
 covering
 main : IO ()
-main = runProg $ streamCSVFiles (P.tail args)
+main = runProg $ lift1 (buf 0xffff) >>= streamCSVFiles (P.tail args)
 ```
 
 In order to compile this and check it against your own

@@ -317,10 +317,10 @@ runProg prog =
 streamVals : Prog String () -> Buf -> Prog Void ()
 streamVals pths buf =
      flatMap pths (\p => readRawBytes buf p |> P.mapOutput (FileSrc p,))
-  |> streamParse1 jsonArray
+  |> streamParse jsonArray
   |> C.count
   |> foreach (\x => stdoutLn "\{show x} values streamed.")
 
 covering
 main : IO ()
-main = runProg $ lift1 (buf 0xffff) >>= streamVals (P.tail args)
+main = runProg $ lift1 (buf 0xfff) >>= streamVals (P.tail args)
