@@ -45,7 +45,7 @@ maxiBS = (_ ** fromString maxi)
 ultraBS : (n ** IBuffer n)
 ultraBS = (_ ** fromString ultra)
 
-lexBS : (n ** IBuffer n) -> ParseRes Void JTok JVal
+lexBS : (n ** IBuffer n) -> ParseRes Void JTok JSON.Parser.JSON
 lexBS (n ** buf) = parse Virtual json buf
 
 -- This profiles our JSON lexer against the one from parser-json
@@ -57,16 +57,6 @@ bench = Group "JSON" [
   , Single "extra"      (basic lexBS extraBS)
   , Single "maxi"       (basic lexBS maxiBS)
   , Single "ultra"      (basic lexBS ultraBS)
-  , Single "short lex"  (basic lexJSON short)
-  , Single "long lex"   (basic lexJSON long)
-  , Single "extra lex"  (basic lexJSON extra)
-  , Single "maxi lex"   (basic lexJSON maxi)
-  , Single "ultra lex"  (basic lexJSON ultra)
-  , Single "short prs"  (basic (parseJSON Virtual) short)
-  , Single "long prs"   (basic (parseJSON Virtual) long)
-  , Single "extra prs"  (basic (parseJSON Virtual) extra)
-  , Single "maxi prs"   (basic (parseJSON Virtual) maxi)
-  , Single "ultra prs"  (basic (parseJSON Virtual) ultra)
   , Single "short ctr"  (basic JSON.parse short)
   , Single "long ctr"   (basic JSON.parse long)
   , Single "extra ctr"  (basic JSON.parse extra)
