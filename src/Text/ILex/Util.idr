@@ -2,9 +2,11 @@ module Text.ILex.Util
 
 import public Data.DPair
 import Data.ByteString
+import Derive.Prelude
 import Text.ILex.Lexer
 
 %default total
+%language ElabReflection
 
 --------------------------------------------------------------------------------
 -- Reading Numbers
@@ -70,6 +72,56 @@ integer bs@(BS (S k) bv) =
     43 => decimal (BS k $ tail bv)
     _  => decimal bs
 integer bs = decimal bs
+
+--------------------------------------------------------------------------------
+-- Working with Lists
+--------------------------------------------------------------------------------
+
+public export
+data SepTag = New | Val | Sep
+
+%runElab derive "SepTag" [Show,Eq,Ord]
+
+export
+sep : SepTag -> a -> b -> t -> ParseRes b e a t
+sep Val v _  _   = Right v
+sep _   _ bs tok = unexpected bs tok
+
+export
+val : SepTag -> a -> b -> t -> ParseRes b e a t
+val Val _ bs tok = unexpected bs tok
+val _   v _  _   = Right v
+
+export
+close : SepTag -> a -> b -> t -> ParseRes b e a t
+close Sep _ bs tok = unexpected bs tok
+close _   v _  _   = Right v
+
+--------------------------------------------------------------------------------
+-- Encodings
+--------------------------------------------------------------------------------
+
+||| Converts an integer to a hexadecimal digit.
+|||
+||| This assumes that the integer is already in the range 0 - 15.
+public export
+hexChar : Integer -> Char
+hexChar 0 = '0'
+hexChar 1 = '1'
+hexChar 2 = '2'
+hexChar 3 = '3'
+hexChar 4 = '4'
+hexChar 5 = '5'
+hexChar 6 = '6'
+hexChar 7 = '7'
+hexChar 8 = '8'
+hexChar 9 = '9'
+hexChar 10 = 'a'
+hexChar 11 = 'b'
+hexChar 12 = 'c'
+hexChar 13 = 'd'
+hexChar 14 = 'e'
+hexChar _  = 'f'
 
 --------------------------------------------------------------------------------
 -- Tagged Parsers
