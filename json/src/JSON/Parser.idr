@@ -147,8 +147,9 @@ Interpolation JTok where
 spaces : RExp True
 spaces = plus (oneof [' ', '\n', '\r', '\t'])
 
-double : RExp True
-double =
+export
+jsonDouble : RExp True
+jsonDouble =
   let frac  = '.' >> plus digit
       exp   = oneof ['e','E'] >> opt (oneof ['+','-']) >> plus digit
    in opt '-' >> decimal >> opt frac >> opt exp
@@ -167,7 +168,7 @@ jsonDFA =
     , (':'               , const Colon)
     , ('"'               , const Quote)
     , (opt '-' >> decimal, bytes (JV . JInteger . integer))
-    , (double            , txt (JV . JDouble . cast))
+    , (jsonDouble        , txt (JV . JDouble . cast))
     , (spaces            , Ignore)
     ]
 
