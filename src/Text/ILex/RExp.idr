@@ -188,6 +188,37 @@ sep : (sep : RExpOf True t) -> RExpOf True t -> RExpOf False t
 sep s x = opt (sep1 s x)
 
 --------------------------------------------------------------------------------
+-- Repetitions
+--------------------------------------------------------------------------------
+
+public export
+rep : Nat -> Bool
+rep (S _) = True
+rep _     = False
+
+||| Repeats the given expression exactly `n` times
+export
+repeat : (n : Nat) -> RExpOf True t -> RExpOf (rep n) t
+repeat 0     x = Eps
+repeat (S k) x = x >> repeat k x
+
+||| Repeats the given expression exactly at most `n` times
+export %inline
+atmost : (n : Nat) -> RExpOf True t -> RExpOf False t
+atmost 0     x = eps
+atmost (S k) x = opt (x >> atmost k x)
+
+||| Repeats the given expression between `m` and `n`  times
+export
+repeatRange : (m,n : Nat) -> RExpOf True t -> RExpOf (rep m) t
+repeatRange m n x = orF $ repeat m x >> atmost (n `minus` m) x
+
+||| Repeats the given expression at least `n` times
+export %inline
+atleast : (n : Nat) -> RExpOf True t -> RExpOf (rep n) t
+atleast n x = orF $ repeat n x >> star x
+
+--------------------------------------------------------------------------------
 -- Character Classes
 --------------------------------------------------------------------------------
 

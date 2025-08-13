@@ -3,6 +3,7 @@ module Main
 import Context
 import FC
 import Hedgehog
+import Repeat
 import Range
 import Runner
 import Set
@@ -14,6 +15,7 @@ main : IO ()
 main =
   test
     [ Range.props
+    , Repeat.props
     , Set.props
     , FC.props
     , Runner.props
