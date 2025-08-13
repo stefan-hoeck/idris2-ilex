@@ -7,7 +7,7 @@ import JSON.Parser
 %default total
 
 key : Gen String
-key = string (linear 1 10) printableAscii
+key = string (linear 1 10) unicodeAll
 
 prim : Gen JSON
 prim = frequency
@@ -22,7 +22,7 @@ prim = frequency
             0x100000000000000000000000000000000
           )
     )
-  , (5, JString <$> string (linear 0 10) unicode)
+  , (5, JString <$> string (linear 0 10) unicodeAll)
   ]
 
 json_ : (depth : Nat) -> Gen JSON

@@ -28,5 +28,6 @@ modules = Text.ILex
         , Text.ILex.FC
         , Text.ILex.Lexer
         , Text.ILex.RExp
+        , Text.ILex.RExp.Unicode
         , Text.ILex.Runner
         , Text.ILex.Util
