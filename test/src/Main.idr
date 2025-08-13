@@ -6,6 +6,7 @@ import Hedgehog
 import Range
 import Runner
 import Set
+import Unicode
 
 %default total
 
@@ -17,4 +18,5 @@ main =
     , FC.props
     , Runner.props
     , Context.props
+    , Unicode.props
     ]
