@@ -17,6 +17,10 @@ of this library:
   used in the lexers is provided together with a few basic conversion
   functions to extract lexicographic tokens from the matched byte
   arrays.
+* Full unicode (UTF-8) support: Regular expressions based on
+  characters (unicode code points) are automatically converted to
+  state machines that handle non-ascii code points correctly at
+  the byte level.
 * Streaming: It is straight forward to use the state machines in
   a setting where large amounts of data have to be streamed chunk-wise
   without loading them all at once into memory.

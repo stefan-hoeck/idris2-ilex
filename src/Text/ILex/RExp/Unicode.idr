@@ -21,7 +21,7 @@ uppercaseLetter : RExp True
 export
 lowercaseLetter : RExp True
 
-||| Unicode codepoints of the `Titlecase_Letter` (Ll)
+||| Unicode codepoints of the `Titlecase_Letter` (Lt)
 ||| general category
 export
 titlecaseLetter : RExp True
