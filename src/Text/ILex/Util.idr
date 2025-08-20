@@ -83,17 +83,17 @@ data SepTag = New | Val | Sep
 %runElab derive "SepTag" [Show,Eq,Ord]
 
 export
-sep : SepTag -> a -> b -> t -> ParseRes b e a t
+sep : SepTag -> a -> Bounds -> t -> StepRes e a t
 sep Val v _  _   = Right v
 sep _   _ bs tok = unexpected bs tok
 
 export
-val : SepTag -> a -> b -> t -> ParseRes b e a t
+val : SepTag -> a -> Bounds -> t -> StepRes e a t
 val Val _ bs tok = unexpected bs tok
 val _   v _  _   = Right v
 
 export
-close : SepTag -> a -> b -> t -> ParseRes b e a t
+close : SepTag -> a -> Bounds -> t -> StepRes e a t
 close Sep _ bs tok = unexpected bs tok
 close _   v _  _   = Right v
 
@@ -129,44 +129,13 @@ hexChar _  = 'f'
 
 ||| A parsing step over a plain state.
 public export
-0 Step : Type -> Type -> Type -> Type -> Type
-Step b e s t = t -> s -> b -> ParseRes b e s t
+0 Step : Type -> Type -> Type -> Type
+Step e s t = t -> s -> Bounds -> StepRes e s t
 
 ||| A parsing end-of-input computation over a plain state.
 public export
-0 EOI : Type -> Type -> Type -> Type -> Type -> Type
-EOI b e s t a = b -> s -> ParseRes b e a t
-
-||| A parsing step over a tagged state.
-public export
-0 EStep : Type -> Type -> (k -> Type) -> Type -> Type
-EStep b e s t = {0 v : k} -> t -> s v -> b -> ParseRes b e (Exists s) t
-
-public export
-right : {0 s : k -> Type} -> s v -> Either e (Exists s)
-right v = Right (Evidence _ v)
-
-||| A parsing end-of-input computation over a tagged state.
-public export
-0 EEOI : Type -> Type -> (k -> Type) -> Type -> Type -> Type
-EEOI b e s t a = {0 v : k} -> b -> s v -> ParseRes b e a t
-
-||| Utility for generating parsers over a tagged state.
-public export %inline
-eparser :
-     {0 s : k -> Type}
-  -> (init : s v)
-  -> (lex  : Exists s -> DFA e t)
-  -> EStep b e s t
-  -> EEOI b e s t a
-  -> Parser b e t a
-eparser init lex step eoi =
-  P
-    (Evidence _ init)
-    lex
-    (\(I tok ev bs) => step tok ev.snd bs)
-    (\st => (st,Nothing))
-    (\bs,ev => eoi bs ev.snd)
+0 EOI : Type -> Type -> Type -> Type -> Type
+EOI e s t a = Bounds -> s -> StepRes e a t
 
 ||| Utility for combining a snoc-list of expressions combined
 ||| via left-binding operators of different fixity into a single
@@ -218,3 +187,95 @@ snocPack : SnocList String -> String
 snocPack [<]  = ""
 snocPack [<s] = s
 snocPack ss   = fastConcat $ ss <>> []
+
+--------------------------------------------------------------------------------
+-- Lexing Steps
+--------------------------------------------------------------------------------
+
+public export
+data Res : (strt, n : Nat) -> (e,t : Type) -> Type where
+  R :
+       (p,line,col : Nat)
+    -> {auto x     : Ix p n}
+    -> {auto 0 lt  : LT p strt}
+    -> (tok        : Tok e t)
+    -> Res strt n e t
+
+  E : (p : Position) -> (err : InnerError t e) -> Res strt n e t
+
+export %inline
+apply :
+     (p  : Parser e t a)
+  -> (st : p.state)
+  -> Tok e t
+  -> Lazy ByteString
+  -> Lazy Bounds
+  -> Either (Bounded $ InnerError t e) p.state
+apply p st tok bytes bs =
+  case tok of
+    Ignore  => Right st
+    Const v => p.step (I v st bs)
+    Txt f   => case f (toString bytes) of
+      Left  x => Left $ B (Custom x) bs
+      Right v => p.step (I v st bs)
+    Bytes f => case f bytes of
+      Left  x => Left $ B (Custom x) bs
+      Right v => p.step (I v st bs)
+
+parameters (dfa : DFA e t)
+           (buf : IBuffer n)
+
+  succ :
+       (tok        : Tok e t)
+    -> (p,line,col : Nat)
+    -> (cur        : ByteStep dfa.states e t)
+    -> {auto x     : Ix p n}
+    -> {auto 0 lt  : LT p strt}
+    -> Res strt n e t
+
+  inner :
+       (p,line,col : Nat)
+    -> (cur        : ByteStep dfa.states e t)
+    -> {auto x     : Ix p n}
+    -> {auto 0 lt  : LT p strt}
+    -> Res strt n e t
+  inner 0     l c cur = E (P l c) EOI
+  inner (S k) l c cur =
+   let b  := buf `ix` k
+       l2 := incLine b l
+       c2 := incCol  b c
+    in case cur `atByte` b of
+         KeepT     => inner k l2 c2 cur
+         Done y    => R k l2 c2 y
+         Keep      => inner k l2 c2 cur
+         Move y    => inner k l2 c2 (dfa.next `at` y)
+         MoveT y z => succ z k l2 c2 (dfa.next `at` y)
+         Bottom    => E (P l c) (Byte $ buf `ix` k)
+
+  succ tok 0     l c cur = R 0 l c tok
+  succ tok (S k) l c cur =
+   let b  := buf `ix` k
+       l2 := incLine b l
+       c2 := incCol  b c
+    in case cur `atByte` b of
+         KeepT     => succ tok k l2 c2 cur
+         Done y    => R k l2 c2 y
+         Keep      => succ tok k l2 c2 cur
+         Move y    => inner k l2 c2 (dfa.next `at` y)
+         MoveT y z => succ z k l2 c2 (dfa.next `at` y)
+         Bottom    => R (S k) l c tok
+
+  export
+  step : (p,line,col : Nat) -> (x : Ix (S p) n) => Res (S p) n e t
+  step p l c =
+   let cur := dfa.next `at` 0
+       b   := buf `ix` p
+       l2  := incLine b l
+       c2  := incCol  b c
+    in case cur `atByte` b of
+         Done y    => R p l2 c2 y
+         Move y    => inner p l2 c2 (dfa.next `at` y)
+         MoveT y z => succ z p l2 c2 (dfa.next `at` y)
+         KeepT     => inner p l2 c2 cur
+         Keep      => inner p l2 c2 cur
+         Bottom    => E (P l2 c2) (Byte b)

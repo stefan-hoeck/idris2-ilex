@@ -34,11 +34,11 @@ runProg prog =
   in epollApp $ mpull handled
 
 streamVals : Prog String () -> Buf -> Prog Void ()
-streamVals pths buf =
-     flatMap pths (\p => readRawBytes buf p |> P.mapOutput (FileSrc p,))
-  |> streamParse jsonArray
-  |> C.count
-  |> foreach (\x => stdoutLn "\{show x} values streamed.")
+-- streamVals pths buf =
+--      flatMap pths (\p => readRawBytes buf p |> P.mapOutput (FileSrc p,))
+--   |> streamParse jsonArray
+--   |> C.count
+--   |> foreach (\x => stdoutLn "\{show x} values streamed.")
 
 covering
 main : IO ()

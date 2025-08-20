@@ -104,7 +104,7 @@ tokens we can recognize in a (very basic) CSV
 file. Without further ado, here is our first CSV lexer:
 
 ```idris
-csv0 : Lexer b Void CSV0
+csv0 : Lexer Void CSV0
 csv0 =
   lexer $ dfa
     [ (','                  , const Comma0)
@@ -145,10 +145,8 @@ Cell tokens are a bit more involved: We expect one or more (`plus`)
 printable characters (`dot`) that are also not commas (`&& not ','`)
 and convert them to a `Cell0` token.
 
-A quick note about the types: `Lexer b Void CSV0` describes a
-lexer that uses `b` for its token bounds (there are different
-types of bounds we support; in many cases, we want to keep this
-abstract), `Void` is the type of custom errors our lexer throws
+A quick note about the types: `Lexer Void CSV0` describes a
+lexer that uses `Void` as its custom error type
 (no custom errors in this case, because `Void` is uninhabited),
 and `CSV0` is the token type the lexer generates. We will later
 see that this is actually a utility alias for something more
@@ -188,7 +186,7 @@ And here's the corresponding lexer:
 linebreak : RExp True
 linebreak = '\n' <|> "\n\r" <|> "\r\n" <|> '\r' <|> '\RS'
 
-csv1 : Lexer b Void CSV1
+csv1 : Lexer Void CSV1
 csv1 =
   lexer $ dfa
     [ (','                  , const Comma1)
@@ -278,7 +276,7 @@ drop during lexing:
 spaces : RExp True
 spaces = plus $ oneof [' ', '\t']
 
-csv1_2 : Lexer b Void CSV1
+csv1_2 : Lexer Void CSV1
 csv1_2 =
   lexer $ dfa
     [ (','               , const Comma1)
@@ -328,7 +326,7 @@ With this, we can enhance our lexer:
 ```idris
 unquote : ByteString -> String
 
-csv1_3 : Lexer b Void CSV1
+csv1_3 : Lexer Void CSV1
 csv1_3 =
   lexer $ dfa
     [ (','               , const Comma1)
@@ -372,7 +370,7 @@ faster than the above, but I suggest to profile this properly if it
 is used in performance critical code.
 
 ```idris
-lexUQ : Lexer b Void String
+lexUQ : Lexer Void String
 lexUQ =
   lexer $ dfa
     [ (#"\""#, const "\"")
@@ -476,9 +474,9 @@ use a simple tag to keep track of this.
 ```idris
 data Tag = New | Val | Com
 
-data CState : Type -> Type where
-  CL : Nat -> SnocList Line -> SnocList Cell -> Tag -> CState b
-  CS : Nat -> SnocList Line -> SnocList Cell -> b -> SnocList String -> CState b
+data CState : Type where
+  CL : Nat -> SnocList Line -> SnocList Cell -> Tag -> CState
+  CS : Nat -> SnocList Line -> SnocList Cell -> Bounds -> SnocList String -> CState
 ```
 
 As you can see, our parser state consists of two data constructors
@@ -498,16 +496,16 @@ updated parser state or an error.
 Here's the corresponding state transition function:
 
 ```idris
-new : Nat -> SnocList Line -> Either e (CState b)
+new : Nat -> SnocList Line -> Either e CState
 new n sl = Right $ CL (S n) sl [<] New
 
-cv : Nat -> SnocList Line -> SnocList Cell -> Either e (CState b)
+cv : Nat -> SnocList Line -> SnocList Cell -> Either e CState
 cv n sl sc = Right $ CL n sl sc Val
 
-cc : Nat -> SnocList Line -> SnocList Cell -> Either e (CState b)
+cc : Nat -> SnocList Line -> SnocList Cell -> Either e CState
 cc n sl sc = Right $ CL n sl sc Com
 
-step2 : Input b (CState b) CSV -> ParseRes b e (CState b) CSV
+step2 : Input CState CSV -> StepRes e CState CSV
 step2 (I t (CS _ _ _ bs _) b) = unclosed bs Quote
 step2 (I t (CL n sl sc tg) b) =
   case t of
@@ -559,7 +557,7 @@ from the accumulated state in order not to blow up our application's
 memory consumption. Here's the utility to do this:
 
 ```idris
-chunkCSV : CState b -> (CState b, Maybe Table)
+chunkCSV : CState -> (CState, Maybe Table)
 chunkCSV (CL k sx sy x)      = (CL k [<] sy x, maybeList sx)
 chunkCSV (CS k sx sy x sstr) = (CS k [<] sy x sstr, maybeList sx)
 ```
@@ -571,11 +569,11 @@ things simple, we just invoke `step2` with a line break
 token:
 
 ```idris
-lines : CState b -> List Line
+lines : CState -> List Line
 lines (CL _ sx _ _)   = sx <>> []
 lines (CS _ sx _ _ _) = sx <>> []
 
-eoiCSV : b -> CState b -> ParseRes b e Table CSV
+eoiCSV : Bounds -> CState -> StepRes e Table CSV
 eoiCSV bs s = lines <$> step2 (I NL s bs)
 ```
 
@@ -583,10 +581,10 @@ With these utilities defined, we can assemble everything
 in a proper parser:
 
 ```idris
-init : CState b
+init : CState
 init = CL 1 [<] [<] New
 
-csv2 : Parser b Void CSV Table
+csv2 : Parser Void CSV Table
 csv2 = P init (const csvDFA) step2 chunkCSV eoiCSV
 ```
 
@@ -639,7 +637,7 @@ the corresponding token state as well as close that state
 once we arrive at the closing quote:
 
 ```idris
-stepCSV : Input b (CState b) CSV -> ParseRes b e (CState b) CSV
+stepCSV : Input CState CSV -> StepRes e CState CSV
 stepCSV i@(I t (CS n sl sc bs ss) b) =
   case t of
     Quote => cv n sl (sc :< CStr (snocPack ss))
@@ -656,11 +654,11 @@ string literal, we want to use `strDFA`, otherwise we'll use
 the default (`csvDFA`):
 
 ```idris
-lexCSV : CState b -> DFA e CSV
+lexCSV : CState -> DFA e CSV
 lexCSV (CL {}) = csvDFA
 lexCSV (CS {}) = strDFA
 
-csv : Parser b Void CSV Table
+csv : Parser Void CSV Table
 csv = P (CL 1 [<] [<] New) lexCSV stepCSV chunkCSV eoiCSV
 ```
 

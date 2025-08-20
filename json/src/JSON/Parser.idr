@@ -209,29 +209,29 @@ strDFA =
 -- Parser
 --------------------------------------------------------------------------------
 
-data Part : Type -> Type where
-  PArr : b -> SnocList JSON -> Part b
-  PObj : b -> SnocList (String,JSON) -> String -> Part b
+data Part : Type where
+  PArr : Bounds -> SnocList JSON -> Part
+  PObj : Bounds -> SnocList (String,JSON) -> String -> Part
 
-0 Parts : Type -> Type
-Parts = SnocList . Part
+0 Parts : Type
+Parts = SnocList Part
 
 export
-data ST : Type -> Type where
-  SI  : ST b
-  SV  : JSON -> ST b
-  Arr : Parts b -> b -> SnocList JSON -> SepTag -> ST b
-  Prs : Parts b -> b -> SnocList (String,JSON) -> SepTag -> ST b
-  Obj : Parts b -> b -> SnocList (String,JSON) -> String -> SepTag -> ST b
-  Str : Parts b -> b -> SnocList String -> ST b
-  Lbl : Parts b -> b -> SnocList (String,JSON) -> b -> SnocList String -> ST b
+data ST : Type where
+  SI  : ST
+  SV  : JSON -> ST
+  Arr : Parts -> Bounds -> SnocList JSON -> SepTag -> ST
+  Prs : Parts -> Bounds -> SnocList (String,JSON) -> SepTag -> ST
+  Obj : Parts -> Bounds -> SnocList (String,JSON) -> String -> SepTag -> ST
+  Str : Parts -> Bounds -> SnocList String -> ST
+  Lbl : Parts -> Bounds -> SnocList (String,JSON) -> Bounds -> SnocList String -> ST
 
-part : Parts b -> JSON -> ST b
+part : Parts -> JSON -> ST
 part [<]               v = SV v
 part (p:<PArr bs sx)   v = Arr p bs (sx:<v) Val
 part (p:<PObj bs sx l) v = Prs p bs (sx:<(l,v)) Val
 
-step : Step b e (ST b) JTok
+step : Step e ST JTok
 step tok st bs = case st of
   SI               => case tok of
     JV x   => Right $ SV x
@@ -275,10 +275,10 @@ step tok st bs = case st of
     Quote  => Right $ Obj sx x sy (snocPack ss) Val
     _      => unexpected bs tok
 
-chunk : ST b -> (ST b, Maybe JSON)
+chunk : ST -> (ST, Maybe JSON)
 chunk st = (st, Nothing)
 
-jeoi : EOI b e (ST b) JTok JSON
+jeoi : EOI e ST JTok JSON
 jeoi _  (SV x)          = Right x
 jeoi _  (Arr _ x _ _)   = unclosed x PO
 jeoi _  (Prs _ x _ _)   = unclosed x BO
@@ -287,7 +287,7 @@ jeoi _  (Str _ x _)     = unclosed x Quote
 jeoi _  (Lbl _ x _ _ _) = unclosed x Quote
 jeoi bs _               = Error.eoi bs
 
-jdfa : ST b -> DFA e JTok
+jdfa : ST -> DFA e JTok
 jdfa (Str {}) = strDFA
 jdfa (Lbl {}) = strDFA
 jdfa _        = jsonDFA
@@ -297,70 +297,70 @@ jdfa _        = jsonDFA
 ||| See also `jsonValues` and `jsonArray` for streaming versions
 ||| of JSON parsers.
 export
-json : Parser b Void JTok JSON
+json : Parser Void JTok JSON
 json = P SI jdfa (\(I t s b) => step t s b) chunk jeoi
 
 ||| Parses a single string and converts it to a JSON value.
 export %inline
 parseJSON : Origin -> String -> ParseRes Void JTok JSON
 parseJSON o = parseString o json
-
---------------------------------------------------------------------------------
--- Streaming
---------------------------------------------------------------------------------
-
-export
-record StreamST b where
-  constructor S
-  vals  : SnocList JSON
-  state : ST b
-
-valsStep : Step b e (StreamST b) JTok
-valsStep tok (S sv (SV v)) bs = S (sv:<v) <$> step tok SI bs
-valsStep tok (S sv st)     bs = S sv      <$> step tok st bs
-
-valsChunk : StreamST b -> (StreamST b, Maybe $ List JSON)
-valsChunk (S vs st) = (S [<] st, maybeList vs)
-
-valsEOI : EOI b e (StreamST b) JTok (List JSON)
-valsEOI _  (S vs SI)     = Right (vs <>> [])
-valsEOI _  (S vs (SV v)) = Right (vs <>> [v])
-valsEOI bs (S _  st)     = jeoi bs st $> []
-
-||| Parser that is capable of streaming large amounts of
-||| JSON values.
-|||
-||| Values need not be separated by whitespace but the longest
-||| possible value will always be consumed.
-export
-jsonValues : Parser b Void JTok (List JSON)
-jsonValues = P (S [<] SI) (jdfa . state) (\(I t s b) => valsStep t s b) valsChunk valsEOI
-
-extract : Parts b -> (Parts b, Maybe $ List JSON)
-extract sp =
-  case sp <>> [] of
-    PArr x sx :: xs => ([<PArr x [<]] <>< xs, maybeList sx)
-    ps              => ([<] <>< ps, Nothing)
-
-arrChunk : ST b -> (ST b, Maybe $ List JSON)
-arrChunk (SV (JArray vs))     = (SI, Just vs)
-arrChunk (Arr sx x sy y)      = let (a,b) := extract sx in (Arr a x sy y, b)
-arrChunk (Prs sx x sy y)      = let (a,b) := extract sx in (Prs a x sy y, b)
-arrChunk (Obj sx x sy str y)  = let (a,b) := extract sx in (Obj a x sy str y, b)
-arrChunk (Str sx x sstr)      = let (a,b) := extract sx in (Str a x sstr, b)
-arrChunk (Lbl sx x sy y sstr) = let (a,b) := extract sx in (Lbl a x sy y sstr, b)
-arrChunk st                   = (st, Nothing)
-
-arrEOI : EOI b e (ST b) JTok (List JSON)
-arrEOI bs SI = Right []
-arrEOI bs st =
-  case jeoi bs st of
-    Right (JArray vs) => Right vs
-    Right _           => Error.eoi bs
-    Left x            => Left x
-
-||| A parser that is capable of streaming a single large
-||| array of JSON values.
-export
-jsonArray : Parser b Void JTok (List JSON)
-jsonArray = P SI jdfa (\(I t s b) => step t s b) arrChunk arrEOI
+--
+-- --------------------------------------------------------------------------------
+-- -- Streaming
+-- --------------------------------------------------------------------------------
+--
+-- export
+-- record StreamST b where
+--   constructor S
+--   vals  : SnocList JSON
+--   state : ST b
+--
+-- valsStep : Step b e (StreamST b) JTok
+-- valsStep tok (S sv (SV v)) bs = S (sv:<v) <$> step tok SI bs
+-- valsStep tok (S sv st)     bs = S sv      <$> step tok st bs
+--
+-- valsChunk : StreamST b -> (StreamST b, Maybe $ List JSON)
+-- valsChunk (S vs st) = (S [<] st, maybeList vs)
+--
+-- valsEOI : EOI b e (StreamST b) JTok (List JSON)
+-- valsEOI _  (S vs SI)     = Right (vs <>> [])
+-- valsEOI _  (S vs (SV v)) = Right (vs <>> [v])
+-- valsEOI bs (S _  st)     = jeoi bs st $> []
+--
+-- ||| Parser that is capable of streaming large amounts of
+-- ||| JSON values.
+-- |||
+-- ||| Values need not be separated by whitespace but the longest
+-- ||| possible value will always be consumed.
+-- export
+-- jsonValues : Parser b Void JTok (List JSON)
+-- jsonValues = P (S [<] SI) (jdfa . state) (\(I t s b) => valsStep t s b) valsChunk valsEOI
+--
+-- extract : Parts b -> (Parts b, Maybe $ List JSON)
+-- extract sp =
+--   case sp <>> [] of
+--     PArr x sx :: xs => ([<PArr x [<]] <>< xs, maybeList sx)
+--     ps              => ([<] <>< ps, Nothing)
+--
+-- arrChunk : ST b -> (ST b, Maybe $ List JSON)
+-- arrChunk (SV (JArray vs))     = (SI, Just vs)
+-- arrChunk (Arr sx x sy y)      = let (a,b) := extract sx in (Arr a x sy y, b)
+-- arrChunk (Prs sx x sy y)      = let (a,b) := extract sx in (Prs a x sy y, b)
+-- arrChunk (Obj sx x sy str y)  = let (a,b) := extract sx in (Obj a x sy str y, b)
+-- arrChunk (Str sx x sstr)      = let (a,b) := extract sx in (Str a x sstr, b)
+-- arrChunk (Lbl sx x sy y sstr) = let (a,b) := extract sx in (Lbl a x sy y sstr, b)
+-- arrChunk st                   = (st, Nothing)
+--
+-- arrEOI : EOI b e (ST b) JTok (List JSON)
+-- arrEOI bs SI = Right []
+-- arrEOI bs st =
+--   case jeoi bs st of
+--     Right (JArray vs) => Right vs
+--     Right _           => Error.eoi bs
+--     Left x            => Left x
+--
+-- ||| A parser that is capable of streaming a single large
+-- ||| array of JSON values.
+-- export
+-- jsonArray : Parser b Void JTok (List JSON)
+-- jsonArray = P SI jdfa (\(I t s b) => step t s b) arrChunk arrEOI

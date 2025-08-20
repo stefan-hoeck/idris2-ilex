@@ -12,7 +12,7 @@ spaces : RExp True
 spaces = plus (oneof [' ', '\n', '\r', '\t'])
 
 export
-aOrB : Lexer b Void AorB
+aOrB : Lexer Void AorB
 aOrB =
   lexer $ dfa
     [ (plus ('A' <|> 'a'), const A)
@@ -38,7 +38,7 @@ identifier : RExp True
 identifier = plus $ alphaNum <|> '_'
 
 export
-ident : Lexer b Void Ident
+ident : Lexer Void Ident
 ident =
   lexer $ dfa
     [ ("else", const Else)

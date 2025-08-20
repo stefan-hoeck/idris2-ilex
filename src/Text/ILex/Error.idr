@@ -86,35 +86,35 @@ fromVoid (Byte x)    = Byte x
 --------------------------------------------------------------------------------
 
 public export
-interface FailParse (0 m : Type -> Type) (0 b,t,e : Type) | m where
-  parseFail : b -> InnerError t e -> m a
+interface FailParse (0 m : Type -> Type) (0 t,e : Type) | m where
+  parseFail : Bounds -> InnerError t e -> m a
 
 public export %inline
-FailParse (Either $ GenBounded b $ InnerError t e) b t e where
+FailParse (Either $ Bounded $ InnerError t e) t e where
   parseFail b err = Left (B err b)
 
 public export %inline
-custom : FailParse m b t e => b -> e -> m a
+custom : FailParse m t e => Bounds -> e -> m a
 custom b = parseFail b . Custom
 
 public export %inline
-expected : FailParse m b t e => b -> t -> m a
+expected : FailParse m t e => Bounds -> t -> m a
 expected b = parseFail b . Expected
 
 public export %inline
-unclosed : FailParse m b t e => b -> t -> m a
+unclosed : FailParse m t e => Bounds -> t -> m a
 unclosed b = parseFail b . Unclosed
 
 public export %inline
-unexpected : FailParse m b t e => b -> t -> m a
+unexpected : FailParse m t e => Bounds -> t -> m a
 unexpected b = parseFail b . Unexpected
 
 public export %inline
-eoi : FailParse m b t e => b -> m a
+eoi : FailParse m t e => Bounds -> m a
 eoi b = parseFail b EOI
 
 public export %inline
-expectedEOI : FailParse m b t e => b -> m a
+expectedEOI : FailParse m t e => Bounds -> m a
 expectedEOI b = parseFail b ExpectedEOI
 
 --------------------------------------------------------------------------------
@@ -134,24 +134,23 @@ record ParseError t e where
 export
 Interpolation t => Interpolation e => Interpolation (ParseError t e) where
   interpolate (PE origin bounds cont err) =
-    case bounds of
-      Empty  => "Error in \{origin}: \{err}"
-      BS s e =>
-       let fc := FC origin (toPosition s cont) (toPosition e cont)
-        in unlines $ "Error: \{err}" :: printFC fc (lines $ toString cont)
+    let fc := FC origin bounds
+     in unlines $ "Error: \{err}" :: printFC fc (lines $ toString cont)
 
 --------------------------------------------------------------------------------
 --          Stream Error
 --------------------------------------------------------------------------------
 
 public export
-0 StreamError : (t,e : Type) -> Type
-StreamError t e = GenBounded StreamBounds (InnerError t e)
+record StreamError (t,e : Type) where
+  constructor SE
+  err : InnerError t e
+  fc  : FileContext
 
 export
 Interpolation t => Interpolation e => Interpolation (StreamError t e) where
-  interpolate (B err bs) =
+  interpolate (SE err fc) =
     """
     Error: \{err}
-    \{bs}
+    \{fc}
     """

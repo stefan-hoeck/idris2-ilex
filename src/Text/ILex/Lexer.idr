@@ -56,35 +56,35 @@ record DFA e t where
   next   : Stepper states e t
 
 public export
-0 ParseRes : (b,e,s,t : Type) -> Type
-ParseRes b e s t = Either (GenBounded b $ InnerError t e) s
+0 StepRes : (e,s,t : Type) -> Type
+StepRes e s t = Either (Bounded $ InnerError t e) s
 
 public export
-record Input b s t where
+record Input s t where
   constructor I
   token  : t
   state  : s
-  bounds : b
+  bounds : Bounds
 
 ||| A parser is a system of automata, where each
 ||| lexicographic token determines the next automaton
 ||| state plus lexer to use.
 public export
-record Parser b e t a where
+record Parser e t a where
   constructor P
   {0 state : Type}
   init     : state
   lex      : state -> DFA e t
-  step     : Input b state t -> ParseRes b e state t
+  step     : Input state t -> StepRes e state t
   chunk    : state -> (state, Maybe a)
-  eoi      : b -> state -> ParseRes b e a t
+  eoi      : Bounds -> state -> StepRes e a t
 
 public export
-0 Lexer : (b,e,t : Type) -> Type
-Lexer b e t = Parser b e t (List $ GenBounded b t)
+0 Lexer : (e,t : Type) -> Type
+Lexer e t = Parser e t (List $ Bounded t)
 
 export
-lexer : DFA e t -> Lexer b e t
+lexer : DFA e t -> Lexer e t
 lexer dfa =
   P [<] (const dfa)
     (\(I v st bs) => Right (st:<B v bs))
