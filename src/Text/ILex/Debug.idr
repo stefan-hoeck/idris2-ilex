@@ -127,13 +127,14 @@ prettyByte n = line "\{pre} \{toHex $ cast n}"
        True  => "   "
        False => "'\{String.singleton $ cast n}'"
 
-prettyTok : Pretty a => {d : _} -> Tok e a -> Doc d
-prettyTok Ignore    = line "<ignore>"
-prettyTok (Const x) = pretty x
-prettyTok (Txt   f) = line "<Txt>"
-prettyTok (Bytes f) = line "<Bytes>"
+export
+Pretty a => Pretty (Tok e a) where
+  prettyPrec _ Ignore    = line "<ignore>"
+  prettyPrec _ (Const x) = pretty x
+  prettyPrec _ (Txt   f) = line "<Txt>"
+  prettyPrec _ (Bytes f) = line "<Bytes>"
 
-prettyByteStep : Pretty a => {d : _} -> (Nat, ByteStep n e a) -> Doc d
+prettyByteStep : Pretty a => {d : _} -> (Nat, ByteStep n a) -> Doc d
 prettyByteStep (x,bs) =
   vsep
     [ line (show x)
@@ -141,21 +142,21 @@ prettyByteStep (x,bs) =
     ]
 
   where
-    trans : (Nat, Transition n e a) -> Maybe (Doc d)
+    trans : (Nat, Transition n a) -> Maybe (Doc d)
     trans (byte,t) =
       case t of
         Keep      => Just (prettyByte byte <+> colon <++> line "stay")
         KeepT     => Just (prettyByte byte <+> colon <++> line "stay (terminal)")
-        Done y    => Just (prettyByte byte <+> colon <++> prettyTok y <++> line "(done)")
+        Done y    => Just (prettyByte byte <+> colon <++> pretty y <++> line "(done)")
         Move y    => Just (prettyByte byte <+> colon <++> line "-> \{show y}")
-        MoveT y z => Just (prettyByte byte <+> colon <++> prettyTok z <++> line "(-> \{show y})")
+        MoveT y z => Just (prettyByte byte <+> colon <++> pretty z <++> line "(-> \{show y})")
         Bottom    => Nothing
 
 export
-Pretty a => Pretty (DFA e a) where
+Pretty a => Pretty (DFA a) where
   prettyPrec p (L _ next) =
     vsep $ prettyByteStep <$> zipWithIndex (toList next)
 
 export
-prettyLexer : Pretty a => DFA e a -> IO ()
+prettyLexer : Pretty a => DFA a -> IO ()
 prettyLexer dfa = putPretty dfa

@@ -59,7 +59,7 @@ parameters (parser    : Parser StreamBounds e t a)
   ||| append it to the already accumulated list of tokens.
   export
   appLast :
-       (dfa   : DFA e t)
+       (dfa   : DFA (Tok e t))
     -> (cur   : Maybe (Tok e t))
     -> (state : parser.state)
     -> ByteString

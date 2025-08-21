@@ -21,29 +21,29 @@ import Text.ILex.Internal.Types
 %language ElabReflection
 
 public export
-data Transition : (n : Nat) -> (e,a : Type) -> Type where
-  KeepT  : Transition n e a
-  Done   : Tok e a -> Transition n e a
-  Keep   : Transition n e a
-  Move   : Fin (S n) -> Transition n e a
-  MoveT  : Fin (S n) -> Tok e a -> Transition n e a
-  Bottom : Transition n e a
+data Transition : (n : Nat) -> (a : Type) -> Type where
+  KeepT  : Transition n a
+  Done   : a -> Transition n a
+  Keep   : Transition n a
+  Move   : Fin (S n) -> Transition n a
+  MoveT  : Fin (S n) -> a -> Transition n a
+  Bottom : Transition n a
 
 ||| An array of arrays describing a lexer's state machine.
 public export
-0 ByteStep : Nat -> (e,a : Type) -> Type
-ByteStep n e a = IArray 256 (Transition n e a)
+0 ByteStep : Nat -> (a : Type) -> Type
+ByteStep n a = IArray 256 (Transition n a)
 
 ||| An array of arrays describing a lexer's state machine.
 public export
-0 Stepper : Nat -> (e,a : Type) -> Type
-Stepper n e a = IArray (S n) (ByteStep n e a)
+0 Stepper : Nat -> (a : Type) -> Type
+Stepper n a = IArray (S n) (ByteStep n a)
 
 ||| A discrete finite automaton (DFA) encoded as
 ||| an array of state transitions plus an array
 ||| describing the terminal token states.
 public export
-record DFA e t where
+record DFA a where
   constructor L
   ||| Number of non-zero states in the automaton.
   states : Nat
@@ -53,7 +53,7 @@ record DFA e t where
   ||| If `cur` is the current state (encoded as a `Fin (S states)`
   ||| and `b` is the current input byte, the next state is determined
   ||| by `next[cur][b]` (in pseudo C-syntax).
-  next   : Stepper states e t
+  next   : Stepper states a
 
 public export
 0 ParseRes : (b,e,s,t : Type) -> Type
@@ -74,7 +74,7 @@ record Parser b e t a where
   constructor P
   {0 state : Type}
   init     : state
-  lex      : state -> DFA e t
+  lex      : state -> DFA (Tok e t)
   step     : Input b state t -> ParseRes b e state t
   chunk    : state -> (state, Maybe a)
   eoi      : b -> state -> ParseRes b e a t
@@ -84,7 +84,7 @@ public export
 Lexer b e t = Parser b e t (List $ GenBounded b t)
 
 export
-lexer : DFA e t -> Lexer b e t
+lexer : DFA (Tok e t) -> Lexer b e t
 lexer dfa =
   P [<] (const dfa)
     (\(I v st bs) => Right (st:<B v bs))
@@ -95,10 +95,10 @@ lexer dfa =
 -- Lexer Generator
 --------------------------------------------------------------------------------
 
-emptyRow : ByteStep n e a
+emptyRow : ByteStep n a
 emptyRow = fill _ Bottom
 
-emptyDFA : DFA e a
+emptyDFA : DFA a
 emptyDFA = L 0 (fill _ emptyRow)
 
 -- Extracts the terminal state of a node
@@ -119,14 +119,14 @@ index : {n : _} -> List (Nat,Node) -> SortedMap Nat (Fin (S n))
 index ns = SM.fromList $ mapMaybe (\(x,n) => (n.pos,) <$> tryNatToFin x) ns
 
 node :
-     SortedMap Nat (Either (Tok e a) (Tok e a))
+     SortedMap Nat (Either a a)
   -> (index : SortedMap Nat (Fin (S n)))
   -> (node  : (Nat,Node))
-  -> (Nat, ByteStep n e a)
+  -> (Nat, ByteStep n a)
 node terms index (ix, N me _ out) =
   (ix, fromPairs _ Bottom $ mapMaybe pair (out >>= transitions))
   where
-    pair : (Bits8,Nat) -> Maybe (Nat, Transition n e a)
+    pair : (Bits8,Nat) -> Maybe (Nat, Transition n a)
     pair (b,tgt) =
       case lookup tgt terms of
         Nothing        => case tgt == me of
@@ -139,7 +139,7 @@ node terms index (ix, N me _ out) =
 
 ||| A DFA operating on raw bytes.
 export
-byteDFA : (m : TokenMap8 (Tok e a)) -> (0 p : NonEmpty m) => DFA e a
+byteDFA : (m : TokenMap8 a) -> (0 p : NonEmpty m) => DFA a
 byteDFA m =
   let M tms graph := assert_total $ machine (toDFA m)
       terms       := SM.fromList (mapMaybe (terminals tms) (values graph))
@@ -151,5 +151,5 @@ byteDFA m =
 
 ||| A utf-8 aware DFA operating on text.
 export
-dfa : (m : TokenMap (Tok e a)) -> (0 p : NonEmpty m) => DFA e a
+dfa : (m : TokenMap a) -> (0 p : NonEmpty m) => DFA a
 dfa (p::ps) = byteDFA (toUTF8 p :: map toUTF8 ps)
