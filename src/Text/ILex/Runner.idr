@@ -57,7 +57,7 @@ parameters {0 e,t,a : Type}
            (buf     : IBuffer n)
 
   inner :
-       (dfa         : DFA e t)               -- current finite automaton
+       (dfa         : DFA (Tok e t))         -- current finite automaton
     -> (last        : Maybe $ Tok e t)       -- last encountered terminal state
     -> (start       : Nat)                   -- start of current token
     -> (lastPos     : Nat)                   -- counter for last byte in `last`
@@ -67,7 +67,7 @@ parameters {0 e,t,a : Type}
     -> {auto x      : Ix pos n}              -- position in the byte array
     -> {auto 0 lte1 : LTE start (ixToNat y)}
     -> {auto 0 lte2 : LTE start (ixToNat x)}
-    -> (cur         : ByteStep dfa.states e t)    -- current automaton state
+    -> (cur         : ByteStep dfa.states $ Tok e t)    -- current automaton state
     -> Either (Bounded $ InnerError t e) a
 
   -- Tries to create a new token from the current
@@ -78,7 +78,7 @@ parameters {0 e,t,a : Type}
   --   `now` is the current position needed in case of
   --   the encountered state being non-terminal
   app :
-       (dfa         : DFA e t)
+       (dfa         : DFA (Tok e t))
     -> (state       : parser.state)          -- state
     -> Tok e t                               -- terminal state to use
     -> (from        : Nat)                   -- start position of token
@@ -93,7 +93,7 @@ parameters {0 e,t,a : Type}
   -- immediately aborts with an error in case the current
   -- byte leads to the zero state.
   loop :
-       (dfa    : DFA e t)                 -- current finite automaton
+       (dfa    : DFA (Tok e t))                 -- current finite automaton
     -> (state  : parser.state)            -- accumulated tokens
     -> (pos    : Nat)                     -- reverse position in the byte array
     -> {auto x : Ix pos n}                -- position in the byte array

@@ -24,9 +24,9 @@ public export
 record LexState (e,s,t : Type) where
   constructor LST
   state : s
-  dfa   : DFA e t
+  dfa   : DFA (Tok e t)
   pos   : StreamPos
-  cur   : ByteStep dfa.states e t
+  cur   : ByteStep dfa.states (Tok e t)
   tok   : Maybe (Tok e t)
   prev  : ByteString
   end   : StreamPos
@@ -136,7 +136,7 @@ parameters {0 q,e,t,a : Type}
 
   covering
   inner :
-       (dfa         : DFA e t)
+       (dfa         : DFA (Tok e t))
     -> (spos        : StreamPos)
     -> (tok         : Maybe (Tok e t))
     -> (prev        : ByteString)
@@ -148,12 +148,12 @@ parameters {0 q,e,t,a : Type}
     -> {auto xt     : Ix (S pos) n}            -- position in the byte array
     -> {auto 0 lte1 : LTE start (ixToNat xt)}
     -> {auto 0 lte2 : LTE start (ixToNat x)}
-    -> (cur         : ByteStep dfa.states e t) -- current automaton state
+    -> (cur         : ByteStep dfa.states $ Tok e t) -- current automaton state
     -> PLexRes1 q  e parser.state t a
 
   covering
   loop :
-       (dfa      : DFA e t)
+       (dfa      : DFA (Tok e t))
     -> (spos     : StreamPos)
     -> (tok      : Maybe (Tok e t))
     -> (prev     : ByteString)
@@ -161,12 +161,12 @@ parameters {0 q,e,t,a : Type}
     -> (state    : parser.state)         -- accumulated tokens
     -> (pos      : Nat)                  -- reverse position in the byte array
     -> {auto x   : Ix pos n}             -- position in the byte array
-    -> (cur      : ByteStep dfa.states e t) -- current automaton state
+    -> (cur      : ByteStep dfa.states $ Tok e t) -- current automaton state
     -> PLexRes1 q e parser.state t a
 
   covering
   app0 :
-       (dfa         : DFA e t)
+       (dfa         : DFA (Tok e t))
     -> (spos        : StreamPos)
     -> (prev        : ByteString)
     -> (line,col    : Nat)
@@ -205,7 +205,7 @@ parameters {0 q,e,t,a : Type}
 
   covering
   app :
-       (dfa         : DFA e t)
+       (dfa         : DFA (Tok e t))
     -> (spos        : StreamPos)
     -> (prev        : ByteString)
     -> (line,col    : Nat)

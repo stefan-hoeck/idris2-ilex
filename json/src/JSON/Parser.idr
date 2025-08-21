@@ -154,7 +154,7 @@ jsonDouble =
       exp   = oneof ['e','E'] >> opt (oneof ['+','-']) >> plus digit
    in opt '-' >> decimal >> opt frac >> opt exp
 
-jsonDFA : DFA e JTok
+jsonDFA : DFA (Tok e JTok)
 jsonDFA =
   dfa
     [ ("null"            , const $ JV JNull)
@@ -188,7 +188,7 @@ decode (BS 6 bv) =
    hexdigit (bv `at` 5)
 decode _         = "" -- impossible
 
-strDFA : DFA e JTok
+strDFA : DFA (Tok e JTok)
 strDFA =
   dfa
     [ ('"', const Quote)
@@ -287,7 +287,7 @@ jeoi _  (Str _ x _)     = unclosed x Quote
 jeoi _  (Lbl _ x _ _ _) = unclosed x Quote
 jeoi bs _               = Error.eoi bs
 
-jdfa : ST b -> DFA e JTok
+jdfa : ST b -> DFA (Tok e JTok)
 jdfa (Str {}) = strDFA
 jdfa (Lbl {}) = strDFA
 jdfa _        = jsonDFA

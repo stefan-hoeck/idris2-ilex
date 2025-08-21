@@ -443,7 +443,7 @@ define a discrete finite automaton (DFA) for dealing
 with the tokenization part. We'll see why in a moment:
 
 ```idris
-csvDFA : DFA e CSV
+csvDFA : DFA (Tok e CSV)
 csvDFA =
   dfa
     [ (','               , const Comma)
@@ -613,7 +613,7 @@ of quoted strings, it makes sense to handle these in a
 separate automaton:
 
 ```idris
-strDFA : DFA e CSV
+strDFA : DFA (Tok e CSV)
 strDFA =
   dfa
     [ ('"',    const Quote)
@@ -656,7 +656,7 @@ string literal, we want to use `strDFA`, otherwise we'll use
 the default (`csvDFA`):
 
 ```idris
-lexCSV : CState b -> DFA e CSV
+lexCSV : CState b -> DFA (Tok e CSV)
 lexCSV (CL {}) = csvDFA
 lexCSV (CS {}) = strDFA
 

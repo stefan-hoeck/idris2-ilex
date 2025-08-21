@@ -156,7 +156,7 @@ public export %inline
 eparser :
      {0 s : k -> Type}
   -> (init : s v)
-  -> (lex  : Exists s -> DFA e t)
+  -> (lex  : Exists s -> DFA (Tok e t))
   -> EStep b e s t
   -> EEOI b e s t a
   -> Parser b e t a

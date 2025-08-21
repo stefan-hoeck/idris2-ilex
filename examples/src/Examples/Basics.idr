@@ -21,7 +21,7 @@ aOrB =
     ]
 
 export
-exprDFA : DFA Void TExpr
+exprDFA : DFA (Tok Void TExpr)
 exprDFA =
   dfa
     [ (natural, bytes (TLit . decimal))

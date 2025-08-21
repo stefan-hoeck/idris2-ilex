@@ -31,7 +31,7 @@ Interpolation Lit where interpolate = show
 spaces : RExp True
 spaces = plus (oneof [' ', '\n', '\r', '\t'])
 
-strLit : DFA Void Lit
+strLit : DFA (Tok Void Lit)
 strLit =
   dfa
     [ (chr,    txt SL)
@@ -43,7 +43,7 @@ strLit =
     chr : RExp True
     chr = plus $ dot && not '"' && not '\\'
 
-dfltLit : DFA Void Lit
+dfltLit : DFA (Tok Void Lit)
 dfltLit =
   dfa
     [ (decimal, txt (Num . cast))
@@ -54,7 +54,7 @@ dfltLit =
 concatString : SnocList String -> Bounds -> Bounds -> Bounded Lit
 concatString ss x y = B (SL $ fastConcat $ ss <>> []) (x<+>y)
 
-lex : SnocList (Bounded Lit) -> DFA Void Lit
+lex : SnocList (Bounded Lit) -> DFA (Tok Void Lit)
 lex (ss:< B (SP _) _) = strLit
 lex _                 = dfltLit
 
