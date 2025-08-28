@@ -1,9 +1,11 @@
 module Text.ILex.Util
 
-import public Data.DPair
 import Data.ByteString
+import Data.Linear.Ref1
 import Derive.Prelude
-import Text.ILex.Lexer
+import Text.ILex.Bounds
+import Text.ILex.Error
+import Text.ILex.Parser
 
 %default total
 %language ElabReflection
@@ -74,30 +76,6 @@ integer bs@(BS (S k) bv) =
 integer bs = decimal bs
 
 --------------------------------------------------------------------------------
--- Working with Lists
---------------------------------------------------------------------------------
-
-public export
-data SepTag = New | Val | Sep
-
-%runElab derive "SepTag" [Show,Eq,Ord]
-
-export
-sep : SepTag -> a -> b -> t -> ParseRes b e a t
-sep Val v _  _   = Right v
-sep _   _ bs tok = unexpected bs tok
-
-export
-val : SepTag -> a -> b -> t -> ParseRes b e a t
-val Val _ bs tok = unexpected bs tok
-val _   v _  _   = Right v
-
-export
-close : SepTag -> a -> b -> t -> ParseRes b e a t
-close Sep _ bs tok = unexpected bs tok
-close _   v _  _   = Right v
-
---------------------------------------------------------------------------------
 -- Encodings
 --------------------------------------------------------------------------------
 
@@ -124,49 +102,8 @@ hexChar 14 = 'e'
 hexChar _  = 'f'
 
 --------------------------------------------------------------------------------
--- Tagged Parsers
+-- Operator Precedence
 --------------------------------------------------------------------------------
-
-||| A parsing step over a plain state.
-public export
-0 Step : Type -> Type -> Type -> Type -> Type
-Step b e s t = t -> s -> b -> ParseRes b e s t
-
-||| A parsing end-of-input computation over a plain state.
-public export
-0 EOI : Type -> Type -> Type -> Type -> Type -> Type
-EOI b e s t a = b -> s -> ParseRes b e a t
-
-||| A parsing step over a tagged state.
-public export
-0 EStep : Type -> Type -> (k -> Type) -> Type -> Type
-EStep b e s t = {0 v : k} -> t -> s v -> b -> ParseRes b e (Exists s) t
-
-public export
-right : {0 s : k -> Type} -> s v -> Either e (Exists s)
-right v = Right (Evidence _ v)
-
-||| A parsing end-of-input computation over a tagged state.
-public export
-0 EEOI : Type -> Type -> (k -> Type) -> Type -> Type -> Type
-EEOI b e s t a = {0 v : k} -> b -> s v -> ParseRes b e a t
-
-||| Utility for generating parsers over a tagged state.
-public export %inline
-eparser :
-     {0 s : k -> Type}
-  -> (init : s v)
-  -> (lex  : Exists s -> DFA (Tok e t))
-  -> EStep b e s t
-  -> EEOI b e s t a
-  -> Parser b e t a
-eparser init lex step eoi =
-  P
-    (Evidence _ init)
-    lex
-    (\(I tok ev bs) => step tok ev.snd bs)
-    (\st => (st,Nothing))
-    (\bs,ev => eoi bs ev.snd)
 
 ||| Utility for combining a snoc-list of expressions combined
 ||| via left-binding operators of different fixity into a single
@@ -218,3 +155,232 @@ snocPack : SnocList String -> String
 snocPack [<]  = ""
 snocPack [<s] = s
 snocPack ss   = fastConcat $ ss <>> []
+
+--------------------------------------------------------------------------------
+-- Stateful Parsing Utilities
+--------------------------------------------------------------------------------
+
+||| An interface for handling the parser position and token bounds
+||| in a set of mutable values.
+public export
+interface LC (0 s : Type -> Type) where
+  line   : s q -> Ref q Nat
+  col    : s q -> Ref q Nat
+
+public export
+interface LC s => Pos s where
+  positions : s q -> Ref q (SnocList Position)
+
+public export
+interface LC s => Bnds s where
+  bounds : s q -> Ref q (SnocList Bounds)
+
+
+--------------------------------------------------------------------------------
+-- General Utilities
+--------------------------------------------------------------------------------
+
+export %inline
+writeAs : Ref q a -> a -> r -> F1 q r
+writeAs ref v res t = let _ # t := write1 ref v t in res # t
+
+export %inline
+writeVal : (0 s : Type -> Type) -> (s q -> Ref q a) -> r -> a -> S1 q s r
+writeVal _ f tgt v = \(stck # t) => writeAs (f stck) v tgt t
+
+export %inline
+push1 : Ref q (SnocList a) -> a -> F1' q
+push1 ref v t =
+ let ss # t := read1 ref t
+  in write1 ref (ss:<v) t
+
+export %inline
+push : (0 s : Type -> Type) -> (s q -> Ref q (SnocList a)) -> r -> a -> S1 q s r
+push _ f tgt v =
+  \(stck # t) =>
+    let _ # t := push1 (f stck) v t
+     in tgt # t
+
+export %inline
+const : (0 s : Type -> Type) -> r -> S1 q s r
+const _ v = \(_ # t) => v # t
+
+export %inline
+replace1 : Ref q a -> a -> F1 q a
+replace1 ref v t =
+ let s # t := read1 ref t
+     _ # t := write1 ref v t
+  in s # t
+
+export %inline
+getList : Ref q (SnocList a) -> F1 q (List a)
+getList ref t =
+ let sv # t := replace1 ref [<] t
+  in (sv <>> []) # t
+
+export %inline
+getStr : Ref q (SnocList String) -> F1 q String
+getStr ref t =
+ let sv # t := replace1 ref [<] t
+  in snocPack sv # t
+
+--------------------------------------------------------------------------------
+-- Handling positions
+--------------------------------------------------------------------------------
+
+export %inline
+incCols : LC s => Nat -> s q -> F1' q
+incCols n x t =
+ let cl    := col x
+     c # t := read1 cl t
+  in write1 cl (c+n) t
+
+export %inline
+incLine : LC s => t -> S1 q s t
+incLine v (x # t) =
+ let ln    := line x
+     l # t := read1 ln t
+     _ # t := write1 ln (S l) t
+     _ # t := write1 (col x) 0 t
+  in v # t
+
+export %inline
+newline : LC s => (v : k) -> Step1 q e k s
+newline v = Go $ incLine v
+
+export %inline
+spaces : LC s => (v : k) -> Step1 q e k s
+spaces v =
+  Rd $ \(B x bs t) => let _ # t := incCols (size bs) x t in v # t
+
+--------------------------------------------------------------------------------
+-- Bounds
+--------------------------------------------------------------------------------
+
+export %inline
+currentPos : LC s => s q -> F1 q Position
+currentPos x t =
+ let l # t := read1 (line x) t
+     c # t := read1 (col x) t
+  in P l c # t
+
+export %inline
+popPos : Pos s => s q -> F1 q Position
+popPos x t =
+  case read1 (positions x) t of
+    (sb:<b) # t => let _ # t := write1 (positions x) sb t in b # t
+    [<]     # t => P 0 0 # t
+
+export %inline
+pushPos : Pos s => s q -> F1' q
+pushPos x t =
+ let l  # t := read1 (line x) t
+     c  # t := read1 (col x) t
+     _  # t := write1 (col x) (S c) t
+  in push1 (positions x) (P l c) t
+
+||| Recognizes the given character and uses it to update the parser state
+||| as specified by `f`.
+|||
+||| The current column is increased by one, and a new entry is pushed onto
+||| the stack of bounds.
+export %inline
+copen : Pos s => Char -> S1 q s r -> (RExp True, Step1 q e r s)
+copen c f =
+  ( chr c
+  , Go $ \(p # t) => let _ # t := pushPos p t in f (p # t)
+  )
+
+||| Recognizes the given character and uses it to update the parser state
+||| as specified by `f`.
+|||
+||| The current column is increased by one, and on `Bounds` entry
+||| is popped from the stack.
+export %inline
+cclose : Pos s => Char -> S1 q s r -> (RExp True, Step1 q e r s)
+cclose c f =
+  ( chr c
+  , Go $ \(p # t) =>
+     let _ # t := incCols 1 p t
+         _ # t := popPos p t
+      in f (p # t)
+  )
+
+--------------------------------------------------------------------------------
+-- Terminals
+--------------------------------------------------------------------------------
+
+||| Recognizes the given string and uses it to update the parser state
+||| as specified by `f`.
+|||
+||| The current column is increased by the length of `v` *before* invoking `f`.
+export %inline
+str :
+     {auto lc : LC s}
+  -> (v : String)
+  -> {auto 0 prf : NonEmpty (unpack v)}
+  -> (f : S1 q s r)
+  -> (RExp True, Step1 q e r s)
+str v f =
+ let len := length v
+  in (str v, Go $ \(p # t) => let _ # t := incCols len p t in f (p # t))
+
+||| Recognizes the given character and uses it to update the parser state
+||| as specified by `f`.
+|||
+||| The current column is increased by one *before* invoking `f`.
+export %inline
+chr : LC s => Char -> S1 q s r -> (RExp True, Step1 q e r s)
+chr c f = (chr c, Go $ \(p # t) => let _ # t := incCols 1 p t in f (p # t))
+
+||| Like `chr` but returns the given result directly.
+||| as specified by `f`.
+|||
+||| The current column is increased by one as with `chr`.
+export %inline
+chr' : LC s => Char -> r -> (RExp True, Step1 q e r s)
+chr' c = chr c . const s
+
+||| Converts the recognized token to a `String`, increases the
+||| current column by its length and invokes the given state transformer.
+export %inline
+read : LC s => (String -> S1 q s r) -> Step1 q e r s
+read f =
+  Rd $ \(B st bs t) =>
+   let s     := toString bs
+       _ # t := incCols (length s) st t
+    in f s (st # t)
+
+||| Increases the current column by the recognized byte string's length
+||| before passing it on to the given state transformer.
+export %inline
+conv : LC s => (ByteString -> S1 q s r) -> Step1 q e r s
+conv f =
+  Rd $ \(B st bs t) =>
+   let _ # t := incCols (size bs) st t
+    in f bs (st # t)
+
+--------------------------------------------------------------------------------
+-- Error handling
+--------------------------------------------------------------------------------
+
+export
+unexpected : LC s => List String -> s q -> ByteString -> F1 q (BErr e)
+unexpected strs st bs t =
+ let str     := toString bs
+     cur # t := currentPos st t
+     end     := {column $= (+ (pred $ length str))} cur
+  in case size bs of
+       0 => B EOI (BS cur end) # t
+       _ => case strs of
+         [] => B (Unexpected str) (BS cur end) # t
+         _  => B (Expected strs str) (BS cur end) # t
+
+export
+unclosed : Pos s => String -> List String -> s q -> ByteString -> F1 q (BErr e)
+unclosed s ss st bs t =
+  case size bs of
+    0 =>
+     let p # t := popPos st t
+      in B (Unclosed s) (BS p p) # t
+    _ => unexpected ss st bs t

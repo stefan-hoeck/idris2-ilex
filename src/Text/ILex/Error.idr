@@ -2,10 +2,11 @@ module Text.ILex.Error
 
 import Derive.Prelude
 import Data.ByteString
+import Data.String
 
 import Text.ILex.Bounds
-import Text.ILex.Char.UTF8
 import Text.ILex.FC
+import Text.ILex.Char.UTF8
 
 %default total
 %language ElabReflection
@@ -15,143 +16,136 @@ import Text.ILex.FC
 --------------------------------------------------------------------------------
 
 public export
-data InnerError : (token, err : Type) -> Type where
+data InnerError : (err : Type) -> Type where
   ||| A custom error for the current parsing topic
-  Custom       : (err : e) -> InnerError t e
+  Custom       : (err : e) -> InnerError e
 
   ||| Unexpected end of input
-  EOI          : InnerError t e
+  EOI          : InnerError e
 
-  ||| Expected the given token but got something else.
-  Expected     : t -> InnerError t e
+  ||| Expected one of the given tokens but got something else.
+  Expected     : List String -> String -> InnerError e
 
   ||| Got more input that we expected
-  ExpectedEOI  : InnerError t e
+  ExpectedEOI  : InnerError e
 
   ||| An unclosed opening token
-  Unclosed     : t -> InnerError t e
+  Unclosed     : String -> InnerError e
 
   ||| Got an unexpected token
-  Unexpected   : t -> InnerError t e
-
-  ||| Got an unknown or invalid token
-  Byte         : Bits8 -> InnerError t e
+  Unexpected   : String -> InnerError e
 
 %runElab derive "InnerError" [Show,Eq]
 
 public export
-Bifunctor InnerError where
-  bimap f g (Custom err)   = Custom $ g err
-  bimap f g EOI            = EOI
-  bimap f g (Expected x)   = Expected $ f x
-  bimap f g ExpectedEOI    = ExpectedEOI
-  bimap f g (Unclosed x)   = Unclosed $ f x
-  bimap f g (Unexpected x) = Unexpected $ f x
-  bimap f g (Byte x)       = Byte x
+Functor InnerError where
+  map f (Custom err)    = Custom $ f err
+  map f EOI             = EOI
+  map f (Expected xs x) = Expected xs x
+  map f ExpectedEOI     = ExpectedEOI
+  map f (Unclosed x)    = Unclosed x
+  map f (Unexpected x)  = Unexpected x
+
+quote : String -> String
+quote s =
+  case length s of
+    1 => "'\{s}'"
+    _ => "\"\{s}\""
+
+quotes : List String -> String
+quotes []        = quote ""
+quotes [x]       = quote x
+quotes [x,y]     = "\{quote x} or \{quote y}"
+quotes (x :: xs) = go x xs
+  where
+    go : String -> List String -> String
+    go s []        = "or \{quote s}"
+    go s (y :: ys) = "\{quote s}, " ++ go y ys
 
 export
-Interpolation t => Interpolation e => Interpolation (InnerError t e) where
+Interpolation e => Interpolation (InnerError e) where
   interpolate EOI                = "Unexpected end of input"
-  interpolate (Expected x)       = "Expected \{x}"
+  interpolate (Expected xs x)    = "Expected \{quotes xs}, but got \{quote x}"
   interpolate ExpectedEOI        = "Expected end of input"
-  interpolate (Unclosed x)       = "Unclosed \{x}"
-  interpolate (Unexpected x)     = "Unexpected \{x}"
+  interpolate (Unclosed x)       = "Unclosed \{quote x}"
+  interpolate (Unexpected x)     = "Unexpected \{quote x}"
   interpolate (Custom err)       = interpolate err
-  interpolate (Byte b)           =
-    case b < 128 of
-      True => case isControl b of
-        True  => "Unexpected \{toHex b}"
-        False => "Unexpected \{show $ cast {to = Char} b}"
-      False => "Unexpected \{toHex b}"
 
 --------------------------------------------------------------------------------
 --          Identities
 --------------------------------------------------------------------------------
 
 public export
-voidLeft : InnerError Void e -> InnerError t e
-voidLeft EOI         = EOI
-voidLeft ExpectedEOI = ExpectedEOI
-voidLeft (Custom x)  = Custom x
-voidLeft (Byte x)    = Byte x
-
-public export
-fromVoid : InnerError Void Void -> InnerError t e
-fromVoid EOI         = EOI
-fromVoid ExpectedEOI = ExpectedEOI
-fromVoid (Byte x)    = Byte x
+fromVoid : InnerError Void -> InnerError e
+fromVoid EOI             = EOI
+fromVoid (Expected ss s) = Expected ss s
+fromVoid ExpectedEOI     = ExpectedEOI
+fromVoid (Unclosed s)    = Unclosed s
+fromVoid (Unexpected s)  = Unexpected s
 
 --------------------------------------------------------------------------------
 --          Interface
 --------------------------------------------------------------------------------
 
 public export
-interface FailParse (0 m : Type -> Type) (0 b,t,e : Type) | m where
-  parseFail : b -> InnerError t e -> m a
+interface FailParse (0 m : Type -> Type) (0 e : Type) | m where
+  parseFail : Bounds -> InnerError e -> m a
 
 public export %inline
-FailParse (Either $ GenBounded b $ InnerError t e) b t e where
+FailParse (Either $ Bounded $ InnerError e) e where
   parseFail b err = Left (B err b)
 
 public export %inline
-custom : FailParse m b t e => b -> e -> m a
+custom : FailParse m e => Bounds -> e -> m a
 custom b = parseFail b . Custom
 
 public export %inline
-expected : FailParse m b t e => b -> t -> m a
-expected b = parseFail b . Expected
+expected : FailParse m e => Bounds -> List String -> String -> m a
+expected b ss = parseFail b . Expected ss
 
 public export %inline
-unclosed : FailParse m b t e => b -> t -> m a
+unclosed : FailParse m e => Bounds -> String -> m a
 unclosed b = parseFail b . Unclosed
 
 public export %inline
-unexpected : FailParse m b t e => b -> t -> m a
+unexpected : FailParse m e => Bounds -> String -> m a
 unexpected b = parseFail b . Unexpected
 
 public export %inline
-eoi : FailParse m b t e => b -> m a
+eoi : FailParse m e => Bounds -> m a
 eoi b = parseFail b EOI
 
 public export %inline
-expectedEOI : FailParse m b t e => b -> m a
+expectedEOI : FailParse m e => Bounds -> m a
 expectedEOI b = parseFail b ExpectedEOI
+
+public export
+0 BErr : Type -> Type
+BErr = Bounded . InnerError
 
 --------------------------------------------------------------------------------
 --          Parse Error
 --------------------------------------------------------------------------------
 
 public export
-record ParseError t e where
+record ParseError e where
   constructor PE
   origin  : Origin
   bounds  : Bounds
-  content : ByteString
-  error   : InnerError t e
+  content : String
+  error   : InnerError e
 
 %runElab derive "ParseError" [Show,Eq]
 
 export
-Interpolation t => Interpolation e => Interpolation (ParseError t e) where
+toParseError : Origin -> String -> Bounded (InnerError e) -> ParseError e
+toParseError o s (B err bs) = PE o bs s err
+
+export
+Interpolation e => Interpolation (ParseError e) where
   interpolate (PE origin bounds cont err) =
     case bounds of
       Empty  => "Error in \{origin}: \{err}"
       BS s e =>
-       let fc := FC origin (toPosition s cont) (toPosition e cont)
-        in unlines $ "Error: \{err}" :: printFC fc (lines $ toString cont)
-
---------------------------------------------------------------------------------
---          Stream Error
---------------------------------------------------------------------------------
-
-public export
-0 StreamError : (t,e : Type) -> Type
-StreamError t e = GenBounded StreamBounds (InnerError t e)
-
-export
-Interpolation t => Interpolation e => Interpolation (StreamError t e) where
-  interpolate (B err bs) =
-    """
-    Error: \{err}
-    \{bs}
-    """
+       let fc := FC origin s e
+        in unlines $ "Error: \{err}" :: printFC fc (lines cont)

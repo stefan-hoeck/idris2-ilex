@@ -19,24 +19,6 @@ Interpolation Origin where
   interpolate (FileSrc p) = p
   interpolate Virtual     = "virtual"
 
-||| Character position (line and column) in a string
-public export
-record Position where
-  constructor P
-  line   : Nat
-  column : Nat
-
-%runElab derive "Position" [Show,Eq]
-
-export
-inc : Bits8 -> Position -> Position
-inc 10 (P l c) = P (S l) c
-inc _  (P l c) = P l     (S c)
-
-public export
-Interpolation Position where
-  interpolate (P l c) = show (l+1) ++ ":" ++ show (c+1)
-
 public export
 record FileContext where
   constructor FC
@@ -104,48 +86,3 @@ printFC fc@(FC o (P sr sc) (P er ec)) ls =
            emph  := indent (nsize + sc + 4) (replicate cemph '^')
            fr    := er `minus` 4 -- first row
         in lineNumbers [<"",head] nsize fr (range fr er ls) <>> [emph]
-
---------------------------------------------------------------------------------
---          Stream Bounds
---------------------------------------------------------------------------------
-
-public export
-record StreamPos where
-  constructor SP
-  origin   : Origin
-  position : Position
-
-zeroPos : StreamPos
-zeroPos = SP Virtual (P 0 0)
-
-%runElab derive "StreamPos" [Show,Eq]
-
-public export
-record StreamBounds where
-  constructor SB
-  start : StreamPos
-  end   : StreamPos
-
-export
-zero : StreamBounds
-zero = SB zeroPos zeroPos
-
-%runElab derive "StreamBounds" [Show,Eq]
-
-export
-Interpolation StreamBounds where
-  interpolate (SB (SP o1 p1) (SP o2 p2)) =
-    case o1 == o2 of
-      True  =>
-        """
-        \{FC o1 p1 p2}
-        """
-      False =>
-        """
-        \{FC o1 p1 p1} -
-        \{FC o2 p2 p2}
-        """
-
-public export
-0 StreamBounded : Type -> Type
-StreamBounded = GenBounded StreamBounds
