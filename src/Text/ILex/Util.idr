@@ -365,7 +365,7 @@ conv f =
 --------------------------------------------------------------------------------
 
 export
-unexpected : LC s => List String -> s q -> ByteString -> F1 q (BErr e)
+unexpected : LC s => List String -> s q -> ByteString -> F1 q (BoundedErr e)
 unexpected strs st bs t =
  let str     := toString bs
      cur # t := currentPos st t
@@ -377,7 +377,7 @@ unexpected strs st bs t =
          _  => B (Expected strs str) (BS cur end) # t
 
 export
-unclosed : Pos s => String -> List String -> s q -> ByteString -> F1 q (BErr e)
+unclosed : Pos s => String -> List String -> s q -> ByteString -> F1 q (BoundedErr e)
 unclosed s ss st bs t =
   case size bs of
     0 =>

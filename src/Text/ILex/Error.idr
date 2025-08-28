@@ -120,8 +120,8 @@ expectedEOI : FailParse m e => Bounds -> m a
 expectedEOI b = parseFail b ExpectedEOI
 
 public export
-0 BErr : Type -> Type
-BErr = Bounded . InnerError
+0 BoundedErr : Type -> Type
+BoundedErr = Bounded . InnerError
 
 --------------------------------------------------------------------------------
 --          Parse Error
@@ -132,14 +132,14 @@ record ParseError e where
   constructor PE
   origin  : Origin
   bounds  : Bounds
-  content : String
+  content : Maybe String
   error   : InnerError e
 
 %runElab derive "ParseError" [Show,Eq]
 
 export
 toParseError : Origin -> String -> Bounded (InnerError e) -> ParseError e
-toParseError o s (B err bs) = PE o bs s err
+toParseError o s (B err bs) = PE o bs (Just s) err
 
 export
 Interpolation e => Interpolation (ParseError e) where
@@ -148,4 +148,6 @@ Interpolation e => Interpolation (ParseError e) where
       Empty  => "Error in \{origin}: \{err}"
       BS s e =>
        let fc := FC origin s e
-        in unlines $ "Error: \{err}" :: printFC fc (lines cont)
+        in case cont of
+             Just c  => unlines $ "Error: \{err}" :: printFC fc (lines c)
+             Nothing => unlines ["Error: \{err}", interpolate fc]
