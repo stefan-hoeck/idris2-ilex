@@ -6,7 +6,10 @@ import Derive.Prelude
 import Text.ILex.Bounds
 import Text.ILex.Error
 import Text.ILex.Parser
+import Syntax.T1
 
+%hide Prelude.(>>=)
+%hide Prelude.(>>)
 %default total
 %language ElabReflection
 
@@ -166,15 +169,30 @@ public export
 interface LC (0 s : Type -> Type) where
   line   : s q -> Ref q Nat
   col    : s q -> Ref q Nat
-
-public export
-interface LC s => Pos s where
-  positions : s q -> Ref q (SnocList Position)
-
-public export
-interface LC s => Bnds s where
   bounds : s q -> Ref q (SnocList Bounds)
 
+public export
+record LexState a q where
+  constructor LS
+  line : Ref q Nat
+  col  : Ref q Nat
+  bnds : Ref q (SnocList Bounds)
+  vals : Ref q (SnocList a)
+
+export %inline
+LC (LexState a) where
+  line   = LexState.line
+  col    = LexState.col
+  bounds = LexState.bnds
+
+export
+init : F1 q (LexState a q)
+init = T1.do
+  l <- ref1 Z
+  c <- ref1 Z
+  b <- ref1 [<]
+  v <- ref1 [<]
+  pure (LS l c b v)
 
 --------------------------------------------------------------------------------
 -- General Utilities
@@ -265,19 +283,30 @@ currentPos x t =
   in P l c # t
 
 export %inline
-popPos : Pos s => s q -> F1 q Position
-popPos x t =
-  case read1 (positions x) t of
-    (sb:<b) # t => let _ # t := write1 (positions x) sb t in b # t
-    [<]     # t => P 0 0 # t
+incColAndGetBounds : LC s => Nat -> s q -> F1 q Bounds
+incColAndGetBounds n x t =
+ let l # t := read1 (line x) t
+     c # t := read1 (col x) t
+     d     := c + n
+     _ # t := write1 (col x) d t
+  in BS (P l c) (P l $ pred d) # t
 
 export %inline
-pushPos : Pos s => s q -> F1' q
+popBounds : LC s => s q -> F1 q Bounds
+popBounds x t =
+ let bs := bounds x
+  in case read1 bs t of
+       (sb:<b) # t => writeAs bs sb b t
+       [<]     # t => Empty # t
+
+export %inline
+pushPos : LC s => s q -> F1' q
 pushPos x t =
  let l  # t := read1 (line x) t
      c  # t := read1 (col x) t
      _  # t := write1 (col x) (S c) t
-  in push1 (positions x) (P l c) t
+     p      := P l c
+  in push1 (bounds x) (BS p p) t
 
 ||| Recognizes the given character and uses it to update the parser state
 ||| as specified by `f`.
@@ -285,7 +314,7 @@ pushPos x t =
 ||| The current column is increased by one, and a new entry is pushed onto
 ||| the stack of bounds.
 export %inline
-copen : Pos s => Char -> S1 q s r -> (RExp True, Step1 q e r s)
+copen : LC s => Char -> S1 q s r -> (RExp True, Step1 q e r s)
 copen c f =
   ( chr c
   , Go $ \(p # t) => let _ # t := pushPos p t in f (p # t)
@@ -297,12 +326,12 @@ copen c f =
 ||| The current column is increased by one, and on `Bounds` entry
 ||| is popped from the stack.
 export %inline
-cclose : Pos s => Char -> S1 q s r -> (RExp True, Step1 q e r s)
+cclose : LC s => Char -> S1 q s r -> (RExp True, Step1 q e r s)
 cclose c f =
   ( chr c
   , Go $ \(p # t) =>
      let _ # t := incCols 1 p t
-         _ # t := popPos p t
+         _ # t := popBounds p t
       in f (p # t)
   )
 
@@ -377,10 +406,80 @@ unexpected strs st bs t =
          _  => B (Expected strs str) (BS cur end) # t
 
 export
-unclosed : Pos s => String -> List String -> s q -> ByteString -> F1 q (BoundedErr e)
+unclosed : LC s => String -> List String -> s q -> ByteString -> F1 q (BoundedErr e)
 unclosed s ss st bs t =
   case size bs of
     0 =>
-     let p # t := popPos st t
-      in B (Unclosed s) (BS p p) # t
+     let p # t := popBounds st t
+      in B (Unclosed s) p # t
     _ => unexpected ss st bs t
+
+--------------------------------------------------------------------------------
+-- Lexer
+--------------------------------------------------------------------------------
+
+export
+record Zero where
+  constructor MkZero
+  val : Bits32
+
+export %inline
+zero : Zero
+zero = MkZero 0
+
+export %inline
+lexPush : Nat -> a -> LexState (Bounded a) q -> F1 q Zero
+lexPush n v x t =
+ let bs # t := incColAndGetBounds n x t
+     _  # t := push1 x.vals (B v bs) t
+  in zero # t
+
+
+export %inline
+ctok : Char -> a -> (RExp True, Step1 q e Zero (LexState $ Bounded a))
+ctok c v = (chr c, Go $ \(x # t) => lexPush 1 v x t)
+
+export %inline
+stok :
+     (s : String)
+  -> {auto 0 p : NonEmpty (unpack s)}
+  -> a
+  -> (RExp True, Step1 q e Zero (LexState $ Bounded a))
+stok c v = (str c, Go $ \(x # t) => lexPush (length c) v x t)
+
+export %inline
+readTok :
+     RExp True
+  -> (String -> a)
+  -> (RExp True, Step1 q e Zero (LexState $ Bounded a))
+readTok xp f =
+  ( xp
+  , Rd $ \(B x bs t) =>
+     let s      := toString bs
+      in lexPush (length s) (f s) x t
+  )
+
+export %inline
+convTok :
+     RExp True
+  -> (ByteString -> a)
+  -> (RExp True, Step1 q e Zero (LexState $ Bounded a))
+convTok xp f = (xp, Rd $ \(B x bs t) => lexPush bs.size (f bs) x t)
+
+lchunk : LexState a q -> F1 q (Maybe $ List a)
+lchunk s t = let ss # t := replace1 s.vals [<] t in maybeList ss # t
+
+leoi : Zero -> LexState a q -> F1 q (Either e $ List a)
+leoi _ s t = let ss # t := replace1 s.vals [<] t in Right (ss <>> []) # t
+
+public export
+0 L1 : (q,e,a : Type) -> Type
+L1 q e a = P1 q (BoundedErr e) Zero (LexState $ Bounded a) (List $ Bounded a)
+
+public export
+0 Lexer : (e,a : Type) -> Type
+Lexer e a = {0 q : Type} -> L1 q e a
+
+export
+lexer : TokenMap (Step1 q (BoundedErr e) Zero (LexState $ Bounded a)) -> L1 q e a
+lexer m = P zero init (lex1 [SI zero $ dfa Err m]) lchunk (\_ => unexpected []) leoi
