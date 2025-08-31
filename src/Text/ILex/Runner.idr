@@ -35,15 +35,16 @@ parseBytes l (BS s $ BV buf off lte) =
 -- Lexer run loop
 --------------------------------------------------------------------------------
 
-parameters {0 s       : Type -> Type}
-           {0 q,e,r,a : Type}
-           {0 n       : Nat}
-           (stck      : s q)
-           (parser    : P1 q e r s a)
-           (buf       : IBuffer n)
+parameters {0 s     : Type -> Type}
+           {0 r     : Bits32}
+           {0 q,e,a : Type}
+           {0 n     : Nat}
+           (stck    : s q)
+           (parser  : P1 q e r s a)
+           (buf     : IBuffer n)
 
   succ :
-       (st          : r)
+       (st          : Index r)
     -> (dfa         : Stepper k (Step1 q e r s))
     -> (cur         : ByteStep k (Step1 q e r s))
     -> (last        : Step1 q e r s)
@@ -53,10 +54,10 @@ parameters {0 s       : Type -> Type}
     -> {auto 0 lte2 : LTE (ixToNat from) (ixToNat x)}
     -> F1 q (Either e a)
 
-  loop : (st : r) -> (pos : Nat) -> (x : Ix pos n) => F1 q (Either e a)
+  loop : (st : Index r) -> (pos : Nat) -> (x : Ix pos n) => F1 q (Either e a)
   loop st 0     t = parser.eoi st stck t
   loop st (S k) t =
-   let L _ dfa := dfa1 parser.lex st
+   let L _ dfa := parser.lex `at` st
        cur     := dfa `at` 0
     in case cur `atByte` (buf `ix` k) of
          Done v      => case v of
