@@ -7,7 +7,7 @@ import Syntax.T1
 import Text.ILex.Bounds
 import Text.ILex.Error
 import Text.ILex.Parser
-import Syntax.T1
+import Text.ILex.RExp
 
 %hide Prelude.(>>=)
 %hide Prelude.(>>)
@@ -183,6 +183,10 @@ export %inline
 prs : (s q -> ByteString -> F1 q (Either e (Index r))) -> Step1 q e r s
 prs f = Prs $ \(B x bs t) => f x bs t
 
+public export
+interface LC s => LexST s a | s where
+  vals : s q -> Ref q (SnocList $ Bounded a)
+
 ||| A record of mutable variables that can be used for
 ||| basic lexing tasks
 public export
@@ -198,6 +202,10 @@ LC (LexState a) where
   line   = LexState.line
   col    = LexState.col
   bounds = LexState.bnds
+
+export %inline
+LexST (LexState (Bounded a)) a where
+  vals = LexState.vals
 
 export
 init : F1 q (LexState a q)
@@ -264,10 +272,10 @@ parameters {0 q : Type}
            {auto lc : LC s}
 
   export %inline
-  incCols : Nat -> s q -> F1' q
-  incCols n x = T1.do
+  incCols : Nat -> s q -> r -> F1 q r
+  incCols n x v = T1.do
     c <- read1 (col x)
-    write1 (col x) (c+n)
+    writeAs (col x) (c+n) v
 
   export %inline
   incLine : t -> s q -> F1 q t
@@ -283,7 +291,14 @@ parameters {0 q : Type}
 
   export %inline
   spaces : (v : Index k) -> Step1 q e k s
-  spaces v = rd $ \x,bs => incCols (size bs) x >> pure v
+  spaces v = rd $ \x,bs => incCols (size bs) x v
+
+  export
+  jsonSpaced : Index k -> TokenMap (Step1 q e k s) -> TokenMap (Step1 q e k s)
+  jsonSpaced v xs =
+    [ (plus (oneof [' ','\t']), spaces v)
+    , ('\n' <|> '\r' <|> "\r\n", newline v)
+    ] ++ xs
 
 --------------------------------------------------------------------------------
 -- Bounds
@@ -337,7 +352,7 @@ parameters {0 q : Type}
   ||| is popped from the stack.
   export %inline
   cclose : Char -> (s q -> F1 q (Index r)) -> (RExp True, Step1 q e r s)
-  cclose c f = (chr c, go $ \p => incCols 1 p >> popBounds p >>= \_ => f p)
+  cclose c f = (chr c, go $ \p => popBounds p >>= \_ => f p >>= incCols 1 p)
 
 --------------------------------------------------------------------------------
 -- Terminals
@@ -346,7 +361,7 @@ parameters {0 q : Type}
   ||| Recognizes the given string and uses it to update the parser state
   ||| as specified by `f`.
   |||
-  ||| The current column is increased by the length of `v` *before* invoking `f`.
+  ||| The current column is increased by the length of `v` *after* invoking `f`.
   export %inline
   str :
        (v : String)
@@ -355,15 +370,15 @@ parameters {0 q : Type}
     -> (RExp True, Step1 q e r s)
   str v f =
    let len := length v
-    in (str v, go $ \p => incCols len p >> f p)
+    in (str v, go $ \p => f p >>= incCols len p)
 
   ||| Recognizes the given character and uses it to update the parser state
   ||| as specified by `f`.
   |||
-  ||| The current column is increased by one *before* invoking `f`.
+  ||| The current column is increased by one *after* invoking `f`.
   export %inline
   chr : Char -> (s q -> F1 q (Index r)) -> (RExp True, Step1 q e r s)
-  chr c f = (chr c, go $ \p => incCols 1 p >> f p)
+  chr c f = (chr c, go $ \p => f p >>= incCols 1 p)
 
   ||| Like `chr` but returns the given result directly.
   ||| as specified by `f`.
@@ -378,16 +393,15 @@ parameters {0 q : Type}
   export %inline
   read : (String -> s q -> F1 q (Index r)) -> Step1 q e r s
   read f =
-    rd $ \st,bs,t =>
+    rd $ \st,bs => T1.do
      let s     := toString bs
-         _ # t := incCols (length s) st t
-      in f s st t
+     f s st >>= incCols (length s) st
 
   ||| Increases the current column by the recognized byte string's length
   ||| before passing it on to the given state transformer.
   export %inline
   conv : (ByteString -> s q -> F1 q (Index r)) -> Step1 q e r s
-  conv f = rd $ \st,bs => incCols (size bs) st >> f bs st
+  conv f = rd $ \st,bs => f bs st >>= incCols (size bs) st
 
 --------------------------------------------------------------------------------
 -- Error handling
@@ -414,52 +428,89 @@ parameters {0 q : Type}
         in B (Unclosed s) p # t
       _ => unexpected ss st bs t
 
+  export %inline
+  errs :
+       {n : _}
+    -> List (Entry n $ s q -> ByteString -> F1 q (BoundedErr e))
+    -> Arr32 n ( s q -> ByteString -> F1 q (BoundedErr e))
+  errs = arr32 n (unexpected [])
+
 --------------------------------------------------------------------------------
 -- Lexer
 --------------------------------------------------------------------------------
 
-export %inline
-lexPush : Nat -> r -> a -> LexState (Bounded a) q -> F1 q r
-lexPush n res v x = T1.do
-  bs <- incColAndGetBounds n x
-  push1 x.vals res (B v bs)
+parameters {0 s      : Type -> Type}
+           {0 a,q    : Type}
+           {auto lst : LexST s a}
 
-export %inline
-ctok : Char -> Index r -> a -> (RExp True, Step1 q e r (LexState $ Bounded a))
-ctok c res v = (chr c, go $ lexPush 1 res v)
+  export %inline
+  lexPush : Nat -> r -> a -> s q -> F1 q r
+  lexPush n res v x = T1.do
+    bs <- incColAndGetBounds n x
+    push1 (vals x) res (B v bs)
 
-export %inline
-stok :
-     (s : String)
-  -> {auto 0 p : NonEmpty (unpack s)}
-  -> Index r
-  -> a
-  -> (RExp True, Step1 q e r (LexState $ Bounded a))
-stok s res v = (str s, go $ lexPush (length s) res v)
+  export %inline
+  ctok : Char -> Index r -> a -> (RExp True, Step1 q e r s)
+  ctok c res v = (chr c, go $ lexPush 1 res v)
 
-export %inline
-readTok :
-     RExp True
-  -> Index r
-  -> (String -> a)
-  -> (RExp True, Step1 q e r (LexState $ Bounded a))
-readTok xp res f =
-  (xp, rd $ \x,bs => let s := toString bs in lexPush (length s) res (f s) x)
+  export %inline
+  stok :
+       (str : String)
+    -> {auto 0 p : NonEmpty (unpack str)}
+    -> Index r
+    -> a
+    -> (RExp True, Step1 q e r s)
+  stok s res v = (str s, go $ lexPush (length s) res v)
 
-export %inline
-convTok :
-     RExp True
-  -> Index r
-  -> (ByteString -> a)
-  -> (RExp True, Step1 q e r (LexState $ Bounded a))
-convTok xp res f = (xp, rd $ \x,bs => lexPush bs.size res (f bs) x)
+  export %inline
+  readTok :
+       RExp True
+    -> Index r
+    -> (String -> a)
+    -> (RExp True, Step1 q e r s)
+  readTok xp res f =
+    (xp, rd $ \x,bs => let s := toString bs in lexPush (length s) res (f s) x)
+
+  export %inline
+  convTok :
+       RExp True
+    -> Index r
+    -> (ByteString -> a)
+    -> (RExp True, Step1 q e r s)
+  convTok xp res f = (xp, rd $ \x,bs => lexPush bs.size res (f bs) x)
+
+parameters {0 s        : Type -> Type}
+           {0 r        : Bits32}
+           {0 a,q      : Type}
+           {auto   lst : LexST s a}
+           {auto 0 prf : 0 < r}
+
+  export %inline
+  ctok0 : Char -> a -> (RExp True, Step1 q e r s)
+  ctok0 c = ctok c 0
+
+  export %inline
+  stok0 :
+       (str : String)
+    -> {auto 0 p : NonEmpty (unpack str)}
+    -> a
+    -> (RExp True, Step1 q e r s)
+  stok0 s = stok s 0
+
+  export %inline
+  readTok0 : RExp True -> (String -> a) -> (RExp True, Step1 q e r s)
+  readTok0 xp = readTok xp 0
+
+  export %inline
+  convTok0 : RExp True -> (ByteString -> a) -> (RExp True, Step1 q e r s)
+  convTok0 xp = convTok xp 0
 
 export
 lchunk : LexState a q -> F1 q (Maybe $ List a)
 lchunk s t = let ss # t := replace1 s.vals [<] t in maybeList ss # t
 
--- leoi : Zero -> LexState a q -> F1 q (Either e $ List a)
--- leoi _ s t = let ss # t := replace1 s.vals [<] t in Right (ss <>> []) # t
+leoi : Index 1 -> LexState a q -> F1 q (Either e $ List a)
+leoi _ s = replace1 s.vals [<] >>= pure . Right . (<>> [])
 
 public export
 0 L1 : (q,e,a : Type) -> Type
@@ -471,4 +522,4 @@ Lexer e a = {0 q : Type} -> L1 q e a
 
 export
 lexer : TokenMap (Step1 q (BoundedErr e) 1 (LexState $ Bounded a)) -> L1 q e a
-lexer m = P 0 init (lex1 [E 0 $ dfa Err m]) lchunk ?fooo ?bar
+lexer m = P 0 init (lex1 [E 0 $ dfa Err m]) lchunk (errs []) leoi

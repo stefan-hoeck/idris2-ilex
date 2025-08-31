@@ -20,18 +20,13 @@ data AorB : Type where
 export
 Interpolation AorB where interpolate = show
 
-spaces : RExp True
-spaces = plus (oneof [' ', '\n', '\r', '\t'])
-
 aOrB : L1 q Void AorB
 aOrB =
-  lexer
-    [ convTok ('A' >> plus 'a') (const MA)
-    , ctok 'A' A
-    , convTok (plus ('B' <|> 'b')) (const B)
-    , stok "Ccc" C
-    , (plus (oneof [' ', '\t']), spaces zero)
-    , ('\n' <|> '\r' <|> "\r\n", newline zero)
+  lexer $ jsonSpaced 0
+    [ convTok0 ('A' >> plus 'a') (const MA)
+    , ctok0 'A' A
+    , convTok0 (plus ('B' <|> 'b')) (const B)
+    , stok0 "Ccc" C
     ]
 
 space : Nat -> Gen String
@@ -66,11 +61,14 @@ aOrBs : Gen (AorB, String)
 aOrBs = choice [genA, genMA, genB, genC]
 
 export
-lexBounds : Lexer e a -> String -> Either (ParseError e) (List $ Bounded a)
+lexBounds : Parser1 (BoundedErr e) r s a -> String -> Either (ParseError e) a
 lexBounds lex s = mapFst (toParseError Virtual s) $ parseString lex s
 
 export
-lexNoBounds : Lexer e a -> String -> Either (ParseError e) (List a)
+lexNoBounds :
+     Parser1 (BoundedErr e) r s (List $ Bounded a)
+  -> String
+  -> Either (ParseError e) (List a)
 lexNoBounds lex = map (map val) . lexBounds lex
 
 prop_lexAorB : Property

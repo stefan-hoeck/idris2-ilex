@@ -1,12 +1,15 @@
 module Context
 
 import Data.Buffer
+import Data.Linear.Ref1
 import Derive.Prelude
 import Hedgehog
 import Runner
+import Syntax.T1
 import Text.ILex
 
 %default total
+%hide Data.Linear.(.)
 %language ElabReflection
 
 public export
@@ -19,62 +22,93 @@ data Status = Dflt | Str
 public export
 data Lit : Type where
   Num : Nat -> Lit
-  QQ  : Lit -- closing quote
   SL  : String -> Lit
-  SP  : SnocList String -> Lit
 
 %runElab derive "Lit" [Show,Eq]
 
 export
 Interpolation Lit where interpolate = show
 
-spaces : RExp True
-spaces = plus (oneof [' ', '\n', '\r', '\t'])
+||| A record of mutable variables that can be used for
+||| basic lexing tasks
+public export
+record ST q where
+  constructor S
+  line     : Ref q Nat
+  col      : Ref q Nat
+  bnds     : Ref q (SnocList Bounds)
+  strs     : Ref q (SnocList String)
+  vals     : Ref q (SnocList $ Bounded Lit)
 
-strLit : DFA (Tok Void Lit)
-strLit =
-  dfa
-    [ (chr,    txt SL)
-    , ("\\\\", const $ SL "\\")
-    , ("\\\"", const $ SL "\"")
-    , ('"',    const QQ)
-    ]
-  where
-    chr : RExp True
-    chr = plus $ dot && not '"' && not '\\'
+export %inline
+LC ST where
+  line   = ST.line
+  col    = ST.col
+  bounds = ST.bnds
 
-dfltLit : DFA (Tok Void Lit)
-dfltLit =
-  dfa
-    [ (decimal, txt (Num . cast))
-    , ('"', const $ SP [<])
-    , (spaces, Ignore)
-    ]
-
-concatString : SnocList String -> Bounds -> Bounds -> Bounded Lit
-concatString ss x y = B (SL $ fastConcat $ ss <>> []) (x<+>y)
-
-lex : SnocList (Bounded Lit) -> DFA (Tok Void Lit)
-lex (ss:< B (SP _) _) = strLit
-lex _                 = dfltLit
-
-step :
-     Lit
-  -> SnocList (Bounded Lit)
-  -> Bounds
-  -> ParseRes Bounds Void (SnocList $ Bounded Lit) Lit
-step QQ       (ss:< B (SP sv) bs1) bs = Right (ss:< concatString sv bs1 bs)
-step (SL s)   (ss:< B (SP sv) bs1) bs = Right (ss:< B (SP $ sv:<s) bs1)
-step x@(SP _) ss                   bs = Right (ss:<B x bs)
-step x        ss                   bs = Right (ss:<B x bs)
-
-eoi : Bounds -> SnocList (Bounded Lit) -> Either (Bounded $ InnerError Lit Void) (List $ Bounded Lit)
-eoi bs (sx:<B (SP _) _) = Left (B EOI bs)
-eoi bs sx               = Right (sx<>>[])
+export %inline
+LexST ST Lit where
+  vals = ST.vals
 
 export
-lit : Lexer Bounds Void Lit
-lit = P [<] lex (\(I v s b) => step v s b) (\s => (s,Nothing)) Context.eoi
+init : F1 q (ST q)
+init = T1.do
+  l <- ref1 Z
+  c <- ref1 Z
+  b <- ref1 [<]
+  s <- ref1 [<]
+  v <- ref1 [<]
+  pure (S l c b s v)
+
+export
+SLit, SStr : Index 2
+SLit = 0
+SStr = 1
+
+--------------------------------------------------------------------------------
+-- Transformations
+--------------------------------------------------------------------------------
+
+closeStr : ST q -> F1 q (Index 2)
+closeStr x = T1.do
+  po <- popBounds x
+  pe <- currentPos x
+  s  <- getStr x.strs
+  push1 (ST.vals x) SLit (B (SL s) $ po <+> BS pe pe)
+
+chars : RExp True
+chars = plus $ dot && not '"' && not '\\'
+
+lit1 : Lex1 q e 2 ST
+lit1 =
+  lex1
+    [ E SLit $ dfa Err $ jsonSpaced SLit
+        [ readTok0 decimal (Context.Num . cast)
+        , copen '"' (const ST SStr)
+        ]
+    , E SStr $ dfa Err
+        [ (chars, read $ push ST strs SStr)
+        , str #"\\"# $ push ST strs SStr #"\"#
+        , str #"\""# $ push ST strs SStr #"""#
+        , chr '"' closeStr
+        ]
+    ]
+
+litErr : Arr32 2 (ST q -> ByteString -> F1 q (BoundedErr e))
+litErr = errs [E SStr $ unclosed "\"" []]
+
+leoi : Index 2 -> ST q -> F1 q (Either (BoundedErr e) $ List (Bounded Lit))
+leoi sk s =
+  case sk == SLit of
+    True  => replace1 s.vals [<] >>= pure . Right . (<>> [])
+    False => T1.do
+      let eo    := litErr `at`sk
+      x <- eo s ""
+      pure $ Left x
+
+export
+lit : P1 q (BoundedErr Void) 2 ST (List $ Bounded Lit)
+lit = P SLit init lit1 (\x => (Nothing #)) litErr leoi
 
 space : Nat -> Gen String
 space n =  string (linear 0 5) (element [' ', '\t', '\r', '\t'])
@@ -120,37 +154,37 @@ prop_lexEmptyStr =
 prop_boundsNum : Property
 prop_boundsNum =
   property1 $
-        Right [B (Num 1234) $ BS 0 3]
-    === parseString Virtual lit "1234"
+        Right [B (Num 1234) $ BS (P 0 0) (P 0 3)]
+    === lexBounds lit "1234"
 
 prop_boundsStr : Property
 prop_boundsStr =
   property1 $
-        Right [B (SL "foo") $ BS 0 4]
-    === parseString Virtual lit #""foo""#
+        Right [B (SL "foo") $ BS (P 0 0) (P 0 4)]
+    === lexBounds lit #""foo""#
 
 prop_boundsQuote : Property
 prop_boundsQuote =
   property1 $
-        Right [B (SL #"""#) $ BS 0 3]
-    === parseString Virtual lit #""\"""#
+        Right [B (SL #"""#) $ BS (P 0 0) (P 0 3)]
+    === lexBounds lit #""\"""#
 
 prop_boundsEsc : Property
 prop_boundsEsc =
-  property1 $ Right [B (SL #"\"#) $ BS 0 3]
-    === parseString Virtual lit #""\\""#
+  property1 $ Right [B (SL #"\"#) $ BS (P 0 0) (P 0 3)]
+    === lexBounds lit #""\\""#
 
 prop_boundsEscErr : Property
 prop_boundsEscErr =
   property1 $
-        Left (PE Virtual (BS 4 4) #""ab\D""# (Byte 68))
-    === parseString Virtual lit #""ab\D""#
+        Left (PE Virtual (BS (P 0 3) (P 0 4)) (Just #""ab\D""#) (Unexpected #"\D"#))
+    === lexBounds lit #""ab\D""#
 
 prop_unclosedErr : Property
 prop_unclosedErr =
   property1 $
-        Left (PE Virtual (BS 6 6) #""abc d"# EOI)
-    === parseString Virtual lit #""abc d"#
+        Left (PE Virtual (BS (P 0 0) (P 0 0)) (Just #""abc d"#) (Unclosed #"""#))
+    === lexBounds lit #""abc d"#
 
 export
 props : Group

@@ -43,37 +43,37 @@ data Cat : Type where
 
 %runElab derive "Cat" [Show,Eq]
 
-cat : Lexer b Void Cat
+cat : L1 q Void Cat
 cat =
-  lexer $ dfa
-    [ (U.unassigned, txt Cn)
-    , (U.uppercaseLetter, txt Lu)
-    , (U.lowercaseLetter, txt Ll)
-    , (U.titlecaseLetter, txt Lt)
-    , (U.modifierLetter, txt Lm)
-    , (U.otherLetter, txt Lo)
-    , (U.nonspacingMark, txt Mn)
-    , (U.enclosingMark, txt Me)
-    , (U.spacingMark, txt Mc)
-    , (U.decimalNumber, txt Nd)
-    , (U.letterNumber, txt Nl)
-    , (U.otherNumber, txt No)
-    , (U.spaceSeparator, txt Zs)
-    , (U.lineSeparator, txt Zl)
-    , (U.paragraphSeparator, txt Zp)
-    , (U.control, txt Cc)
-    , (U.format, txt Cf)
-    , (U.privateUse, txt Co)
-    , (U.dashPunctuation, txt Pd)
-    , (U.openPunctuation, txt Ps)
-    , (U.closePunctuation, txt Pe)
-    , (U.connectorPunctuation, txt Pc)
-    , (U.initialPunctuation, txt Pi)
-    , (U.finalPunctuation, txt Pf)
-    , (U.mathSymbol, txt Sm)
-    , (U.currencySymbol, txt Sc)
-    , (U.modifierSymbol, txt Sk)
-    , (U.otherSymbol, txt So)
+  lexer
+    [ readTok U.unassigned 0 Cn
+    , readTok U.uppercaseLetter 0 Lu
+    , readTok U.lowercaseLetter 0 Ll
+    , readTok U.titlecaseLetter 0 Lt
+    , readTok U.modifierLetter 0 Lm
+    , readTok U.otherLetter 0 Lo
+    , readTok U.nonspacingMark 0 Mn
+    , readTok U.enclosingMark 0 Me
+    , readTok U.spacingMark 0 Mc
+    , readTok U.decimalNumber 0 Nd
+    , readTok U.letterNumber 0 Nl
+    , readTok U.otherNumber 0 No
+    , readTok U.spaceSeparator 0 Zs
+    , readTok U.lineSeparator 0 Zl
+    , readTok U.paragraphSeparator 0 Zp
+    , readTok U.control 0 Cc
+    , readTok U.format 0 Cf
+    , readTok U.privateUse 0 Co
+    , readTok U.dashPunctuation 0 Pd
+    , readTok U.openPunctuation 0 Ps
+    , readTok U.closePunctuation 0 Pe
+    , readTok U.connectorPunctuation 0 Pc
+    , readTok U.initialPunctuation 0 Pi
+    , readTok U.finalPunctuation 0 Pf
+    , readTok U.mathSymbol 0 Sm
+    , readTok U.currencySymbol 0 Sc
+    , readTok U.modifierSymbol 0 Sk
+    , readTok U.otherSymbol 0 So
     ]
 
 checkCat : (String -> Cat) -> Char -> PropertyT ()
