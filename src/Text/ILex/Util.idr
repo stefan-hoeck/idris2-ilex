@@ -7,9 +7,11 @@ import Syntax.T1
 import Text.ILex.Bounds
 import Text.ILex.Error
 import Text.ILex.Parser
+import Syntax.T1
 
+%hide Prelude.(>>=)
+%hide Prelude.(>>)
 %default total
-%language ElabReflection
 
 --------------------------------------------------------------------------------
 -- Reading Numbers
