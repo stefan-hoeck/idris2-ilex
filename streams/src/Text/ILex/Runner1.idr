@@ -1,14 +1,9 @@
 module Text.ILex.Runner1
 
 import public Data.ByteString
-import public Data.Linear.Token
 import public Data.Vect
 import public Text.ILex.Parser
 import Text.ILex.Internal.Runner
-
---------------------------------------------------------------------------------
--- Partial Runner
---------------------------------------------------------------------------------
 
 ||| Lexing state.
 |||
@@ -16,10 +11,10 @@ import Text.ILex.Internal.Runner
 ||| the remainder of the previous chunk that marks
 ||| the beginning of the current token.
 public export
-record LexState (q,e,r : Type) (s : Type -> Type) where
+record LexState (q,e : Type) (r : Bits32) (s : Type -> Type) where
   constructor LST
   {0 sts  : Nat}
-  state   : r
+  state   : Index r
   stack   : s q
   dfa     : Stepper sts (Step1 q e r s)
   cur     : ByteStep sts (Step1 q e r s)
@@ -30,14 +25,14 @@ export
 init : P1 q e r s a -> F1 q (LexState q e r s)
 init p t =
  let stck # t := p.stck t
-     L _ dfa  := dfa1 p.lex p.init
+     L _ dfa  := p.lex `at` p.init
   in LST p.init stck dfa (dfa `at` 0) Err empty # t
 
 ||| Result of a partial lexing step: In such a step, we lex
 ||| till the end of a chunk of bytes, allowing for a remainder of
 ||| bytes that could not yet be identified as a tokens.
 public export
-0 PartRes : (q,e,r : Type) -> (s : Type -> Type) -> (a : Type) -> Type
+0 PartRes : (q,e : Type) -> (r : Bits32) -> (s : Type -> Type) -> (a : Type) -> Type
 PartRes q e r s a = F1 q (Either e (LexState q e r s, Maybe a))
 
 export
@@ -54,15 +49,20 @@ pparseBytes : P1 q e r s a -> LexState q e r s -> ByteString -> PartRes q e r s 
 pparseBytes p st (BS s $ BV buf off lte) =
   pparseFrom p st s {x = offsetToIx off} (take (off+s) buf)
 
-parameters {0 s       : Type -> Type}
-           {0 q,e,r,a : Type}
-           {0 n       : Nat}
-           (stck      : s q)
-           (parser    : P1 q e r s a)
-           (buf       : IBuffer n)
+--------------------------------------------------------------------------------
+-- Partial run loop
+--------------------------------------------------------------------------------
+
+parameters {0 s     : Type -> Type}
+           {0 r     : Bits32}
+           {0 q,e,a : Type}
+           {0 n     : Nat}
+           (stck    : s q)
+           (parser  : P1 q e r s a)
+           (buf     : IBuffer n)
 
   psucc :
-       (st          : r)                          -- accumulated state
+       (st          : Index r)
     -> (dfa         : Stepper k (Step1 q e r s))  -- current finite automaton
     -> (cur         : ByteStep k (Step1 q e r s)) -- current automaton state
     -> (prev        : ByteString)
@@ -78,13 +78,13 @@ parameters {0 s       : Type -> Type}
   -- This consumes at least one byte for the next token and
   -- immediately aborts with an error in case the current
   -- byte leads to the zero state.
-  ploop : r -> (pos : Nat) -> (x : Ix pos n) => PartRes q e r s a
+  ploop : Index r -> (pos : Nat) -> (x : Ix pos n) => PartRes q e r s a
   ploop st 0     t =
    let mv  # t := P1.chunk parser stck t
-       L _ dfa := dfa1 parser.lex st
+       L _ dfa := parser.lex `at` st
     in Right (LST st stck dfa (dfa `at` 0) Err empty, mv) # t
   ploop st (S k) t =
-   let L _ dfa := dfa1 parser.lex st
+   let L _ dfa := parser.lex `at` st
        cur     := dfa `at` 0
     in case cur `atByte` (buf `ix` k) of
          Done v      => case v of

@@ -13,12 +13,12 @@ parameters (p : P1 q e r s a)
   ||| append it to the already accumulated list of tokens.
   export
   appLast :
-       r
+       Index r
     -> s q
     -> Step1 q e r s
     -> ByteString
     -> F1 q (Either e a)
-  appLast st sk _ (BS 0 _) t = P1.eoi p st sk t
+  appLast st sk _ (BS 0 _) t = p.eoi st sk t
   appLast st sk v bs       t = lastStep p v st sk bs t
 
 export
