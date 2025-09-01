@@ -25,7 +25,7 @@ prettyList (Left x)   = putStrLn $ interpolate x
 prettyList (Right vs) = traverse_ printLn vs
 
 0 Prog : Type -> Type -> Type
-Prog o r = AsyncPull Poll o [StreamError JTok Void, Errno] r
+Prog o r = AsyncPull Poll o [ParseError Void, Errno] r
 
 covering
 runProg : Prog Void () -> IO ()
@@ -35,8 +35,7 @@ runProg prog =
 
 streamVals : Prog String () -> Buf -> Prog Void ()
 streamVals pths buf =
-     flatMap pths (\p => readRawBytes buf p |> P.mapOutput (FileSrc p,))
-  |> streamParse jsonArray
+     flatMap pths (\p => streamParse jsonArray (FileSrc p) (readBytes p))
   |> C.count
   |> foreach (\x => stdoutLn "\{show x} values streamed.")
 

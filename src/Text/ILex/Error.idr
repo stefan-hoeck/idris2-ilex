@@ -138,6 +138,10 @@ record ParseError e where
 %runElab derive "ParseError" [Show,Eq]
 
 export
+toStreamError : Origin -> Bounded (InnerError e) -> ParseError e
+toStreamError o (B err bs) = PE o bs Nothing err
+
+export
 toParseError : Origin -> String -> Bounded (InnerError e) -> ParseError e
 toParseError o s (B err bs) = PE o bs (Just s) err
 

@@ -104,13 +104,13 @@ tokens we can recognize in a (very basic) CSV
 file. Without further ado, here is our first CSV lexer:
 
 ```idris
-csv0 : Lexer b Void CSV0
-csv0 =
-  lexer $ dfa
-    [ (','                  , const Comma0)
-    , ('\n'                 , const NL0)
-    , (plus (dot && not ','), txt Cell0)
-    ]
+-- csv0 : Lexer b Void CSV0
+-- csv0 =
+--   lexer $ dfa
+--     [ (','                  , const Comma0)
+--     , ('\n'                 , const NL0)
+--     , (plus (dot && not ','), txt Cell0)
+--     ]
 ```
 
 Before we describe the definition above in some detail, let's quickly
@@ -185,19 +185,19 @@ Interpolation CSV1 where interpolate = show
 And here's the corresponding lexer:
 
 ```idris
-linebreak : RExp True
-linebreak = '\n' <|> "\n\r" <|> "\r\n" <|> '\r' <|> '\RS'
-
-csv1 : Lexer b Void CSV1
-csv1 =
-  lexer $ dfa
-    [ (','                  , const Comma1)
-    , (linebreak            , const NL1)
-    , ("true"               , const (Bool1 True))
-    , ("false"              , const (Bool1 False))
-    , (opt '-' >> decimal   , bytes (Int1 . integer))
-    , (plus (dot && not ','), txt Txt1)
-    ]
+-- linebreak : RExp True
+-- linebreak = '\n' <|> "\n\r" <|> "\r\n" <|> '\r' <|> '\RS'
+--
+-- csv1 : Lexer b Void CSV1
+-- csv1 =
+--   lexer $ dfa
+--     [ (','                  , const Comma1)
+--     , (linebreak            , const NL1)
+--     , ("true"               , const (Bool1 True))
+--     , ("false"              , const (Bool1 False))
+--     , (opt '-' >> decimal   , bytes (Int1 . integer))
+--     , (plus (dot && not ','), txt Txt1)
+--     ]
 ```
 
 The above is *much* more powerful than our original `csv0` lexer, and
@@ -275,20 +275,20 @@ With this, we can now define a whitespace token that we silently
 drop during lexing:
 
 ```idris
-spaces : RExp True
-spaces = plus $ oneof [' ', '\t']
-
-csv1_2 : Lexer b Void CSV1
-csv1_2 =
-  lexer $ dfa
-    [ (','               , const Comma1)
-    , (linebreak         , const NL1)
-    , ("true"            , const (Bool1 True))
-    , ("false"           , const (Bool1 False))
-    , (opt '-' >> decimal, bytes (Int1 . integer))
-    , (text              , txt Txt1)
-    , (spaces            , Ignore)
-    ]
+-- spaces : RExp True
+-- spaces = plus $ oneof [' ', '\t']
+--
+-- csv1_2 : Lexer b Void CSV1
+-- csv1_2 =
+--   lexer $ dfa
+--     [ (','               , const Comma1)
+--     , (linebreak         , const NL1)
+--     , ("true"            , const (Bool1 True))
+--     , ("false"           , const (Bool1 False))
+--     , (opt '-' >> decimal, bytes (Int1 . integer))
+--     , (text              , txt Txt1)
+--     , (spaces            , Ignore)
+--     ]
 ```
 
 ### Quoted Text
@@ -310,17 +310,17 @@ characters we'd like to support.
 Here's a regular expression for quoted strings:
 
 ```idris
-quoted : RExp True
-quoted = '"' >> star qchar >> '"'
-  where
-    qchar : RExp True
-    qchar =
-          (dot && not '"' && not '\\')
-      <|> #"\""#
-      <|> #"\n"#
-      <|> #"\r"#
-      <|> #"\t"#
-      <|> #"\\"#
+-- quoted : RExp True
+-- quoted = '"' >> star qchar >> '"'
+--   where
+--     qchar : RExp True
+--     qchar =
+--           (dot && not '"' && not '\\')
+--       <|> #"\""#
+--       <|> #"\n"#
+--       <|> #"\r"#
+--       <|> #"\t"#
+--       <|> #"\\"#
 ```
 
 With this, we can enhance our lexer:
@@ -328,35 +328,35 @@ With this, we can enhance our lexer:
 ```idris
 unquote : ByteString -> String
 
-csv1_3 : Lexer b Void CSV1
-csv1_3 =
-  lexer $ dfa
-    [ (','               , const Comma1)
-    , (linebreak         , const NL1)
-    , ("true"            , const (Bool1 True))
-    , ("false"           , const (Bool1 False))
-    , (opt '-' >> decimal, bytes (Int1 . integer))
-    , (text              , txt Txt1)
-    , (quoted            , bytes (Txt1 . unquote))
-    , (spaces            , Ignore)
-    ]
+-- csv1_3 : Lexer b Void CSV1
+-- csv1_3 =
+--   lexer $ dfa
+--     [ (','               , const Comma1)
+--     , (linebreak         , const NL1)
+--     , ("true"            , const (Bool1 True))
+--     , ("false"           , const (Bool1 False))
+--     , (opt '-' >> decimal, bytes (Int1 . integer))
+--     , (text              , txt Txt1)
+--     , (quoted            , bytes (Txt1 . unquote))
+--     , (spaces            , Ignore)
+--     ]
 ```
 
 In order to keep things simple, we are going use character lists
 to implement `unquote`:
 
 ```idris
-unquote = go [<] . unpack . toString
-  where
-    go : SnocList Char -> List Char -> String
-    go sc []              = pack (sc <>> [])
-    go sc ('\\'::'"' ::xs) = go (sc :< '"') xs
-    go sc ('\\'::'\\'::xs) = go (sc :< '\\') xs
-    go sc ('\\'::'t' ::xs) = go (sc :< '\t') xs
-    go sc ('\\'::'n' ::xs) = go (sc :< '\n') xs
-    go sc ('\\'::'r' ::xs) = go (sc :< '\r') xs
-    go sc ('"'::xs)        = go sc xs
-    go sc (x::xs)          = go (sc :< x) xs
+-- unquote = go [<] . unpack . toString
+--   where
+--     go : SnocList Char -> List Char -> String
+--     go sc []              = pack (sc <>> [])
+--     go sc ('\\'::'"' ::xs) = go (sc :< '"') xs
+--     go sc ('\\'::'\\'::xs) = go (sc :< '\\') xs
+--     go sc ('\\'::'t' ::xs) = go (sc :< '\t') xs
+--     go sc ('\\'::'n' ::xs) = go (sc :< '\n') xs
+--     go sc ('\\'::'r' ::xs) = go (sc :< '\r') xs
+--     go sc ('"'::xs)        = go sc xs
+--     go sc (x::xs)          = go (sc :< x) xs
 ```
 
 We are going to look at how to do this in a more performant
@@ -372,23 +372,23 @@ faster than the above, but I suggest to profile this properly if it
 is used in performance critical code.
 
 ```idris
-lexUQ : Lexer b Void String
-lexUQ =
-  lexer $ dfa
-    [ (#"\""#, const "\"")
-    , (#"\\"#, const "\\")
-    , (#"\n"#, const "\n")
-    , (#"\r"#, const "\r")
-    , (#"\t"#, const "\t")
-    , (#"""# , Ignore)
-    , (plus (dot && not '"' && not '\\'), txt id)
-    ]
-
-fastUnquote : ByteString -> String
-fastUnquote bs =
-  case parseBytes Virtual lexUQ bs of
-    Left  _  => ""
-    Right xs => fastConcat (map val xs)
+-- lexUQ : Lexer b Void String
+-- lexUQ =
+--   lexer $ dfa
+--     [ (#"\""#, const "\"")
+--     , (#"\\"#, const "\\")
+--     , (#"\n"#, const "\n")
+--     , (#"\r"#, const "\r")
+--     , (#"\t"#, const "\t")
+--     , (#"""# , Ignore)
+--     , (plus (dot && not '"' && not '\\'), txt id)
+--     ]
+--
+-- fastUnquote : ByteString -> String
+-- fastUnquote bs =
+--   case parseBytes Virtual lexUQ bs of
+--     Left  _  => ""
+--     Right xs => fastConcat (map val xs)
 ```
 
 ## Parsing CSV Files
@@ -443,18 +443,18 @@ define a discrete finite automaton (DFA) for dealing
 with the tokenization part. We'll see why in a moment:
 
 ```idris
-csvDFA : DFA (Tok e CSV)
-csvDFA =
-  dfa
-    [ (','               , const Comma)
-    , ('"'               , const Quote)
-    , (linebreak         , const NL)
-    , ("true"            , const (Cll $ CBool True))
-    , ("false"           , const (Cll $ CBool False))
-    , (opt '-' >> decimal, bytes (Cll . CInt . integer))
-    , (text              , txt (Cll . CStr))
-    , (spaces            , Ignore)
-    ]
+-- csvDFA : DFA (Tok e CSV)
+-- csvDFA =
+--   dfa
+--     [ (','               , const Comma)
+--     , ('"'               , const Quote)
+--     , (linebreak         , const NL)
+--     , ("true"            , const (Cll $ CBool True))
+--     , ("false"           , const (Cll $ CBool False))
+--     , (opt '-' >> decimal, bytes (Cll . CInt . integer))
+--     , (text              , txt (Cll . CStr))
+--     , (spaces            , Ignore)
+--     ]
 ```
 
 As you can see, the automaton emits tokens for commas, line breaks,
@@ -498,33 +498,33 @@ updated parser state or an error.
 Here's the corresponding state transition function:
 
 ```idris
-new : Nat -> SnocList Line -> Either e (CState b)
-new n sl = Right $ CL (S n) sl [<] New
-
-cv : Nat -> SnocList Line -> SnocList Cell -> Either e (CState b)
-cv n sl sc = Right $ CL n sl sc Val
-
-cc : Nat -> SnocList Line -> SnocList Cell -> Either e (CState b)
-cc n sl sc = Right $ CL n sl sc Com
-
-step2 : Input b (CState b) CSV -> ParseRes b e (CState b) CSV
-step2 (I t (CS _ _ _ bs _) b) = unclosed bs Quote
-step2 (I t (CL n sl sc tg) b) =
-  case t of
-    Comma => case tg of
-      Val => cc n sl sc
-      _   => cc n sl (sc :< Null)
-    NL    => case tg of
-      New => new n sl
-      Val => new n (sl :< L n (sc <>> []))
-      Com => new n (sl :< L n (sc <>> [Null]))
-    Cll x => case tg of
-      Val => unexpected b t
-      _   => cv n sl (sc :< x)
-    Quote => case tg of
-      Val => unexpected b t
-      _   => Right $ CS n sl sc b [<]
-    _     => unexpected b t
+-- new : Nat -> SnocList Line -> Either e (CState b)
+-- new n sl = Right $ CL (S n) sl [<] New
+--
+-- cv : Nat -> SnocList Line -> SnocList Cell -> Either e (CState b)
+-- cv n sl sc = Right $ CL n sl sc Val
+--
+-- cc : Nat -> SnocList Line -> SnocList Cell -> Either e (CState b)
+-- cc n sl sc = Right $ CL n sl sc Com
+--
+-- step2 : Input b (CState b) CSV -> ParseRes b e (CState b) CSV
+-- step2 (I t (CS _ _ _ bs _) b) = unclosed bs Quote
+-- step2 (I t (CL n sl sc tg) b) =
+--   case t of
+--     Comma => case tg of
+--       Val => cc n sl sc
+--       _   => cc n sl (sc :< Null)
+--     NL    => case tg of
+--       New => new n sl
+--       Val => new n (sl :< L n (sc <>> []))
+--       Com => new n (sl :< L n (sc <>> [Null]))
+--     Cll x => case tg of
+--       Val => unexpected b t
+--       _   => cv n sl (sc :< x)
+--     Quote => case tg of
+--       Val => unexpected b t
+--       _   => Right $ CS n sl sc b [<]
+--     _     => unexpected b t
 ```
 
 In the first line, we just fail with an error in case we are
@@ -575,8 +575,8 @@ lines : CState b -> List Line
 lines (CL _ sx _ _)   = sx <>> []
 lines (CS _ sx _ _ _) = sx <>> []
 
-eoiCSV : b -> CState b -> ParseRes b e Table CSV
-eoiCSV bs s = lines <$> step2 (I NL s bs)
+-- eoiCSV : b -> CState b -> ParseRes b e Table CSV
+-- eoiCSV bs s = lines <$> step2 (I NL s bs)
 ```
 
 With these utilities defined, we can assemble everything
@@ -586,8 +586,8 @@ in a proper parser:
 init : CState b
 init = CL 1 [<] [<] New
 
-csv2 : Parser b Void CSV Table
-csv2 = P init (const csvDFA) step2 chunkCSV eoiCSV
+-- csv2 : Parser b Void CSV Table
+-- csv2 = P init (const csvDFA) step2 chunkCSV eoiCSV
 ```
 
 As you can see, the parser consists of the initial state,
@@ -613,18 +613,18 @@ of quoted strings, it makes sense to handle these in a
 separate automaton:
 
 ```idris
-strDFA : DFA (Tok e CSV)
-strDFA =
-  dfa
-    [ ('"',    const Quote)
-    , (#"\""#, const $ Str "\"")
-    , (#"\\"#, const $ Str "\\")
-    , (#"\n"#, const $ Str "\n")
-    , (#"\r"#, const $ Str "\r")
-    , (#"\t"#, const $ Str "\t")
-    , (linebreak, const NL)
-    , (plus (dot && not '"' && not '\\'), txt Str)
-    ]
+-- strDFA : DFA (Tok e CSV)
+-- strDFA =
+--   dfa
+--     [ ('"',    const Quote)
+--     , (#"\""#, const $ Str "\"")
+--     , (#"\\"#, const $ Str "\\")
+--     , (#"\n"#, const $ Str "\n")
+--     , (#"\r"#, const $ Str "\r")
+--     , (#"\t"#, const $ Str "\t")
+--     , (linebreak, const NL)
+--     , (plus (dot && not '"' && not '\\'), txt Str)
+--     ]
 ```
 
 You might wonder, why we include the line break token in
@@ -639,13 +639,13 @@ the corresponding token state as well as close that state
 once we arrive at the closing quote:
 
 ```idris
-stepCSV : Input b (CState b) CSV -> ParseRes b e (CState b) CSV
-stepCSV i@(I t (CS n sl sc bs ss) b) =
-  case t of
-    Quote => cv n sl (sc :< CStr (snocPack ss))
-    Str x => Right $ CS n sl sc bs (ss :< x)
-    _     => step2 i
-stepCSV i = step2 i
+-- stepCSV : Input b (CState b) CSV -> ParseRes b e (CState b) CSV
+-- stepCSV i@(I t (CS n sl sc bs ss) b) =
+--   case t of
+--     Quote => cv n sl (sc :< CStr (snocPack ss))
+--     Str x => Right $ CS n sl sc bs (ss :< x)
+--     _     => step2 i
+-- stepCSV i = step2 i
 ```
 
 The functions for processing chunks and end of input need not
@@ -656,12 +656,12 @@ string literal, we want to use `strDFA`, otherwise we'll use
 the default (`csvDFA`):
 
 ```idris
-lexCSV : CState b -> DFA (Tok e CSV)
-lexCSV (CL {}) = csvDFA
-lexCSV (CS {}) = strDFA
+-- lexCSV : CState b -> DFA (Tok e CSV)
+-- lexCSV (CL {}) = csvDFA
+-- lexCSV (CS {}) = strDFA
 
-csv : Parser b Void CSV Table
-csv = P (CL 1 [<] [<] New) lexCSV stepCSV chunkCSV eoiCSV
+-- csv : Parser b Void CSV Table
+-- csv = P (CL 1 [<] [<] New) lexCSV stepCSV chunkCSV eoiCSV
 ```
 
 With all things properly tied up, we can now test our
@@ -758,14 +758,14 @@ leads to the following type alias for our data stream plus a
 runner that will pretty print all errors to `stderr`:
 
 ```idris
-0 Prog : Type -> Type -> Type
-Prog o r = AsyncPull Poll o [StreamError CSV Void, Errno] r
-
-covering
-runProg : Prog Void () -> IO ()
-runProg prog =
- let handled := handle [stderrLn . interpolate, stderrLn . interpolate] prog
-  in epollApp $ mpull handled
+-- 0 Prog : Type -> Type -> Type
+-- Prog o r = AsyncPull Poll o [StreamError CSV Void, Errno] r
+--
+-- covering
+-- runProg : Prog Void () -> IO ()
+-- runProg prog =
+--  let handled := handle [stderrLn . interpolate, stderrLn . interpolate] prog
+--   in epollApp $ mpull handled
 ```
 
 If the above is foreign to you, please work through the tutorials
@@ -775,14 +775,14 @@ And here's an example how to stream a single, possibly huge, CSV file
 (this will print the total number of non-empty CSV-lines encountered):
 
 ```idris
-streamCSV : String -> Prog Void ()
-streamCSV pth =
-  lift1 (buf 0xffff) >>= \buf =>
-       readRawBytes buf pth
-    |> P.mapOutput (FileSrc pth,)
-    |> streamParse csv
-    |> C.count
-    |> printLnTo Stdout
+-- streamCSV : String -> Prog Void ()
+-- streamCSV pth =
+--   lift1 (buf 0xffff) >>= \buf =>
+--        readRawBytes buf pth
+--     |> P.mapOutput (FileSrc pth,)
+--     |> streamParse csv
+--     |> C.count
+--     |> printLnTo Stdout
 ```
 
 Functions `readBytes`, `mapOutput`, and `printLnTo` are just standard
@@ -802,12 +802,12 @@ strings of data:
   string with the error.
 
 ```idris
-streamCSVFiles : Prog String () -> Buf -> Prog Void ()
-streamCSVFiles pths buf =
-     flatMap pths (\p => readRawBytes buf p |> P.mapOutput (FileSrc p,))
-  |> streamParse csv
-  |> C.count
-  |> printLnTo Stdout
+-- streamCSVFiles : Prog String () -> Buf -> Prog Void ()
+-- streamCSVFiles pths buf =
+--      flatMap pths (\p => readRawBytes buf p |> P.mapOutput (FileSrc p,))
+--   |> streamParse csv
+--   |> C.count
+--   |> printLnTo Stdout
 ```
 
 Below is a `main` function so you can test our CSV parser against
@@ -823,9 +823,9 @@ single characters (in single quotes like in Idris), date and time
 values and so on.
 
 ```idris
-covering
-main : IO ()
-main = runProg $ lift1 (buf 0xffff) >>= streamCSVFiles (P.tail args)
+-- covering
+-- main : IO ()
+-- main = runProg $ lift1 (buf 0xffff) >>= streamCSVFiles (P.tail args)
 ```
 
 In order to compile this and check it against your own

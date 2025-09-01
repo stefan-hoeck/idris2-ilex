@@ -1,7 +1,7 @@
 module Text.ILex.FS
 
 import public FS
-import public Text.ILex.Parser
+import public Text.ILex
 import Text.ILex.Internal.Runner
 import Text.ILex.Runner1
 
@@ -23,21 +23,22 @@ parameters (p : P1 q e r s a)
 
 export
 streamParse :
-     {auto has : Has e es}
+     {auto has : Has (ParseError e) es}
   -> {auto lft : ELift1 q f}
-  -> P1 q e r s a
+  -> P1 q (BoundedErr e) r s a
+  -> Origin
   -> Pull f ByteString es x
   -> Pull f a es x
-streamParse prs pl = lift1 (init prs) >>= flip go pl
+streamParse prs o pl = lift1 (init prs) >>= flip go pl
   where
-    go : LexState q e r s -> Pull f ByteString es x -> Pull f a es x
+    go : LexState q (BoundedErr e) r s -> Pull f ByteString es x -> Pull f a es x
     go st p =
       assert_total $ P.uncons p >>= \case
         Left res      =>
           lift1 (appLast prs st.state st.stack st.tok st.prev) >>= \case
-            Left err => throw err
+            Left err => throw (toStreamError o err)
             Right v  => emit v $> res
         Right (bs,p2) =>
           lift1 (pparseBytes prs st bs) >>= \case
-            Left x        => throw x
+            Left x        => throw (toStreamError o x)
             Right (st2,m) => consMaybe m (go st2 p2)
