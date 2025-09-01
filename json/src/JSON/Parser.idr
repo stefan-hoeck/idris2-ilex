@@ -125,11 +125,10 @@ public export
 JST = Index JSz
 
 public export
-I, V, ANew, AVal, ACom, ONew, OVal, OCom, OLbl, OCol, Str : JST
-I    = 0; V = 1
-ANew = 2; AVal = 3; ACom = 4
-ONew = 5; OVal = 6; OCom = 7; OLbl = 8; OCol = 9
-Str  = 10
+ANew, AVal, ACom, ONew, OVal, OCom, OLbl, OCol, Str : JST
+ANew = 1; AVal = 2; ACom = 3
+ONew = 4; OVal = 5; OCom = 6; OLbl = 7; OCol = 8
+Str  = 9
 
 public export
 data Part : Type where
@@ -173,8 +172,8 @@ ini prt t =
 part : Part -> JSON -> ST q -> F1 q JST
 part (PA p sy)   v x = writeAs x.part (PA p (sy :< v)) AVal
 part (PL p sy l) v x = writeAs x.part (PO p (sy :< (l,v))) OVal
-part (PV sy)     v x = writeAs x.part (PV (sy :< v)) I
-part _           v x = writeAs x.part (PF v) V
+part (PV sy)     v x = writeAs x.part (PV (sy :< v)) Ini
+part _           v x = writeAs x.part (PF v) Done
 
 %inline
 onVal : JSON -> ST q -> F1 q JST
@@ -198,7 +197,7 @@ closeVal x =
   read1 x.part >>= \case
     PO p sp => part p (JObject $ sp <>> []) x
     PA p sp => part p (JArray $ sp <>> []) x
-    _       => pure V
+    _       => pure Done
 
 --------------------------------------------------------------------------------
 -- Lexers
@@ -265,8 +264,8 @@ strTok =
 json1 : Lex1 q e JSz ST
 json1 =
   lex1
-    [ E I (valTok I [])
-    , E V (spaced V [])
+    [ E Ini (valTok Ini [])
+    , E Done (spaced Done [])
 
     , E ANew (valTok ANew [cclose ']' closeVal])
     , E ACom (valTok ACom [])
@@ -297,7 +296,7 @@ jsonErr =
 
 jsonEOI : JST -> ST q -> F1 q (Either (BoundedErr e) JSON)
 jsonEOI sk s t =
-  case sk == V of
+  case sk == Done of
     True  => case read1 s.part t of
       PF v # t => Right v # t
       _    # t => Right JNull # t
@@ -308,7 +307,7 @@ jsonEOI sk s t =
 
 export
 json : P1 q (BoundedErr Void) JSz ST JSON
-json = P I (ini PI) json1 (\x => (Nothing #)) jsonErr jsonEOI
+json = P Ini (ini PI) json1 (\x => (Nothing #)) jsonErr jsonEOI
 
 export %inline
 parseJSON : Origin -> String -> Either (ParseError Void) JSON
@@ -337,7 +336,7 @@ arrChunk sk t =
 
 arrEOI : JST -> ST q -> F1 q (Either (BoundedErr Void) (List JSON))
 arrEOI st sk t =
-  case st == I of
+  case st == Ini of
     True  => case read1 sk.part t of
       PV sv # t => Right (sv <>> []) # t
       _     # t => Right [] # t
@@ -350,7 +349,7 @@ arrEOI st sk t =
 ||| array of JSON values.
 export
 jsonArray : P1 q (BoundedErr Void) JSz ST (List JSON)
-jsonArray = P I (ini PI) json1 arrChunk jsonErr arrEOI
+jsonArray = P Ini (ini PI) json1 arrChunk jsonErr arrEOI
 
 ||| Parser that is capable of streaming large amounts of
 ||| JSON values.
@@ -359,4 +358,4 @@ jsonArray = P I (ini PI) json1 arrChunk jsonErr arrEOI
 ||| possible value will always be consumed.
 export
 jsonValues : P1 q (BoundedErr Void) JSz ST (List JSON)
-jsonValues = P I (ini $ PV [<]) json1 arrChunk jsonErr arrEOI
+jsonValues = P Ini (ini $ PV [<]) json1 arrChunk jsonErr arrEOI

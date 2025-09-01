@@ -39,6 +39,14 @@ fromInteger : (n : Integer) -> (0 p : cast n < r) => Index r
 fromInteger n = I (cast n)
 
 public export
+Ini : (0 prf : 0 < n) => Index n
+Ini = I 0
+
+public export
+Done : {n : _} -> (0 prf : (n-1) < n) => Index n
+Done = I (n-1)
+
+public export
 record BSI (q : Type) (s : Type -> Type) where
   constructor B
   stack1 : s q
