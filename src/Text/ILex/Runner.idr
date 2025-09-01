@@ -2,11 +2,13 @@ module Text.ILex.Runner
 
 import Data.Buffer
 import Text.ILex.Internal.Runner
+import public Text.ILex.Error
+import public Text.ILex.FC
 import public Text.ILex.Parser
 
 %default total
 
-parseFrom :
+runFrom :
      {n      : Nat}
   -> (l      : Parser1 e r s a)
   -> (pos    : Nat)
@@ -14,22 +16,51 @@ parseFrom :
   -> IBuffer n
   -> Either e a
 
-||| Tries to lex a whole byte vector into a list of bounded
-||| tokens.
+||| Tries to parse a byte vector into a value.
 export %inline
-parse : {n : _} -> Parser1 e r s a -> IBuffer n -> Either e a
-parse l buf = parseFrom l n buf
+run : {n : _} -> Parser1 e r s a -> IBuffer n -> Either e a
+run l buf = runFrom l n buf
 
-||| Like `lex` but processes a UTF-8 string instead.
+||| Like `run` but processes a UTF-8 string instead.
 export %inline
-parseString : Parser1 e r s a -> String -> Either e a
-parseString l s = parse l (fromString s)
+runString : Parser1 e r s a -> String -> Either e a
+runString l s = run l (fromString s)
 
-||| Like `lex` but processes a `ByteString` instead.
+||| Like `run` but processes a `ByteString` instead.
 export
-parseBytes : Parser1 e r s a -> ByteString -> Either e a
-parseBytes l (BS s $ BV buf off lte) =
-  parseFrom l s {x = offsetToIx off} (take (off+s) buf)
+runBytes : Parser1 e r s a -> ByteString -> Either e a
+runBytes l (BS s $ BV buf off lte) =
+  runFrom l s {x = offsetToIx off} (take (off+s) buf)
+
+||| Like `run` but fails with a proper parse error
+||| including error bounds and highlighting of
+||| the section where an error occurred.
+export %inline
+parse :
+     {n : _}
+  -> Parser1 (BoundedErr e) r s a
+  -> Origin
+  -> IBuffer n
+  -> Either (ParseError e) a
+parse l o buf = mapFst (toParseError o (toString buf 0 n)) (run l buf)
+
+||| Like `parse` but processes a UTF-8 string instead.
+export %inline
+parseString :
+     Parser1 (BoundedErr e) r s a
+  -> Origin
+  -> String
+  -> Either (ParseError e) a
+parseString l o s = parse l o (fromString s)
+
+||| Like `parse` but processes a `ByteString` instead.
+export %inline
+parseBytes :
+     Parser1 (BoundedErr e) r s a
+  -> Origin
+  -> ByteString
+  -> Either (ParseError e) a
+parseBytes l o bs = mapFst (toParseError o (toString bs)) (runBytes l bs)
 
 --------------------------------------------------------------------------------
 -- Lexer run loop
@@ -105,7 +136,7 @@ parameters {0 s     : Type -> Type}
              Left  x  # t => Left x # t
            Err => fail parser st stck (toBS buf from k) t
 
-parseFrom p pos buf = run1 (go p)
+runFrom p pos buf = run1 (go p)
   where
     go : P1 q e r s a -> F1 q (Either e a)
     go p t =

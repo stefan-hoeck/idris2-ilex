@@ -104,21 +104,21 @@ tokens we can recognize in a (very basic) CSV
 file. Without further ado, here is our first CSV lexer:
 
 ```idris
--- csv0 : Lexer b Void CSV0
--- csv0 =
---   lexer $ dfa
---     [ (','                  , const Comma0)
---     , ('\n'                 , const NL0)
---     , (plus (dot && not ','), txt Cell0)
---     ]
+csv0 : L1 q Void CSV0
+csv0 =
+  lexer
+    [ ctok0 ',' Comma0
+    , nltok0 '\n' NL0
+    , readTok0 (plus (dot && not ',')) Cell0
+    ]
 ```
 
 Before we describe the definition above in some detail, let's quickly
 test it at the REPL:
 
 ```repl
-README> :exec pretty (parseString Virtual csv0 csvStr1)
-B {val = Cell0 "foo", bounds = BS {x = 0, y = 2}}
+README> :exec pretty (parseString csv0 Virtual csvStr1)
+B {val = Cell0 "foo", bounds = ...}
 ...
 ```
 
@@ -185,19 +185,19 @@ Interpolation CSV1 where interpolate = show
 And here's the corresponding lexer:
 
 ```idris
--- linebreak : RExp True
--- linebreak = '\n' <|> "\n\r" <|> "\r\n" <|> '\r' <|> '\RS'
---
--- csv1 : Lexer b Void CSV1
--- csv1 =
---   lexer $ dfa
---     [ (','                  , const Comma1)
---     , (linebreak            , const NL1)
---     , ("true"               , const (Bool1 True))
---     , ("false"              , const (Bool1 False))
---     , (opt '-' >> decimal   , bytes (Int1 . integer))
---     , (plus (dot && not ','), txt Txt1)
---     ]
+linebreak : RExp True
+linebreak = '\n' <|> "\n\r" <|> "\r\n" <|> '\r' <|> '\RS'
+
+csv1 : L1 q Void CSV1
+csv1 =
+  lexer
+    [ ctok0 ',' Comma1
+    , nltok0 linebreak NL1
+    , stok0 "true" (Bool1 True)
+    , stok0 "false" (Bool1 False)
+    , convTok0 (opt '-' >> decimal) (Int1 . integer)
+    , readTok0 (plus (dot && not ',')) Txt1
+    ]
 ```
 
 The above is *much* more powerful than our original `csv0` lexer, and
@@ -275,20 +275,20 @@ With this, we can now define a whitespace token that we silently
 drop during lexing:
 
 ```idris
--- spaces : RExp True
--- spaces = plus $ oneof [' ', '\t']
---
--- csv1_2 : Lexer b Void CSV1
--- csv1_2 =
---   lexer $ dfa
---     [ (','               , const Comma1)
---     , (linebreak         , const NL1)
---     , ("true"            , const (Bool1 True))
---     , ("false"           , const (Bool1 False))
---     , (opt '-' >> decimal, bytes (Int1 . integer))
---     , (text              , txt Txt1)
---     , (spaces            , Ignore)
---     ]
+spaceExpr : RExp True
+spaceExpr = plus $ oneof [' ', '\t']
+
+csv1_2 : L1 q Void CSV1
+csv1_2 =
+  lexer
+    [ ctok0 ',' Comma1
+    , nltok0 linebreak NL1
+    , stok0 "true" (Bool1 True)
+    , stok0 "false" (Bool1 False)
+    , convTok0 (opt '-' >> decimal) (Int1 . integer)
+    , readTok0 text Txt1
+    , (spaceExpr, spaces 0)
+    ]
 ```
 
 ### Quoted Text
@@ -310,17 +310,17 @@ characters we'd like to support.
 Here's a regular expression for quoted strings:
 
 ```idris
--- quoted : RExp True
--- quoted = '"' >> star qchar >> '"'
---   where
---     qchar : RExp True
---     qchar =
---           (dot && not '"' && not '\\')
---       <|> #"\""#
---       <|> #"\n"#
---       <|> #"\r"#
---       <|> #"\t"#
---       <|> #"\\"#
+quoted : RExp True
+quoted = '"' >> star qchar >> '"'
+  where
+    qchar : RExp True
+    qchar =
+          (dot && not '"' && not '\\')
+      <|> #"\""#
+      <|> #"\n"#
+      <|> #"\r"#
+      <|> #"\t"#
+      <|> #"\\"#
 ```
 
 With this, we can enhance our lexer:
@@ -328,41 +328,41 @@ With this, we can enhance our lexer:
 ```idris
 unquote : ByteString -> String
 
--- csv1_3 : Lexer b Void CSV1
--- csv1_3 =
---   lexer $ dfa
---     [ (','               , const Comma1)
---     , (linebreak         , const NL1)
---     , ("true"            , const (Bool1 True))
---     , ("false"           , const (Bool1 False))
---     , (opt '-' >> decimal, bytes (Int1 . integer))
---     , (text              , txt Txt1)
---     , (quoted            , bytes (Txt1 . unquote))
---     , (spaces            , Ignore)
---     ]
+csv1_3 : L1 q Void CSV1
+csv1_3 =
+  lexer
+    [ ctok0 ',' Comma1
+    , nltok0 linebreak NL1
+    , stok0 "true" (Bool1 True)
+    , stok0 "false" (Bool1 False)
+    , convTok0 (opt '-' >> decimal) (Int1 . integer)
+    , readTok0 text Txt1
+    , convTok0 quoted (Txt1 . unquote)
+    , (spaceExpr, spaces 0)
+    ]
 ```
 
 In order to keep things simple, we are going use character lists
 to implement `unquote`:
 
 ```idris
--- unquote = go [<] . unpack . toString
---   where
---     go : SnocList Char -> List Char -> String
---     go sc []              = pack (sc <>> [])
---     go sc ('\\'::'"' ::xs) = go (sc :< '"') xs
---     go sc ('\\'::'\\'::xs) = go (sc :< '\\') xs
---     go sc ('\\'::'t' ::xs) = go (sc :< '\t') xs
---     go sc ('\\'::'n' ::xs) = go (sc :< '\n') xs
---     go sc ('\\'::'r' ::xs) = go (sc :< '\r') xs
---     go sc ('"'::xs)        = go sc xs
---     go sc (x::xs)          = go (sc :< x) xs
+unquote = go [<] . unpack . toString
+  where
+    go : SnocList Char -> List Char -> String
+    go sc []              = pack (sc <>> [])
+    go sc ('\\'::'"' ::xs) = go (sc :< '"') xs
+    go sc ('\\'::'\\'::xs) = go (sc :< '\\') xs
+    go sc ('\\'::'t' ::xs) = go (sc :< '\t') xs
+    go sc ('\\'::'n' ::xs) = go (sc :< '\n') xs
+    go sc ('\\'::'r' ::xs) = go (sc :< '\r') xs
+    go sc ('"'::xs)        = go sc xs
+    go sc (x::xs)          = go (sc :< x) xs
 ```
 
 We are going to look at how to do this in a more performant
 and elegant manner in a moment.
 
-I suggest you fire up a REPL session an experiment a bit with what kind
+I suggest you fire up a REPL session and experiment a bit with what kind
 of tokens our lexer is now capable of recognizing.
 
 As promised, here's an alternative version of `unquote`: We just tokenize
@@ -372,23 +372,23 @@ faster than the above, but I suggest to profile this properly if it
 is used in performance critical code.
 
 ```idris
--- lexUQ : Lexer b Void String
--- lexUQ =
---   lexer $ dfa
---     [ (#"\""#, const "\"")
---     , (#"\\"#, const "\\")
---     , (#"\n"#, const "\n")
---     , (#"\r"#, const "\r")
---     , (#"\t"#, const "\t")
---     , (#"""# , Ignore)
---     , (plus (dot && not '"' && not '\\'), txt id)
---     ]
---
--- fastUnquote : ByteString -> String
--- fastUnquote bs =
---   case parseBytes Virtual lexUQ bs of
---     Left  _  => ""
---     Right xs => fastConcat (map val xs)
+lexUQ : L1 q Void String
+lexUQ =
+  lexer
+    [ stok0 #"\""# "\""
+    , stok0 #"\\"# "\\"
+    , stok0 #"\n"# "\n"
+    , stok0 #"\r"# "\r"
+    , stok0 #"\t"# "\t"
+    , stok0 #"""#  ""
+    , readTok0 (plus (dot && not '"' && not '\\')) id
+    ]
+
+fastUnquote : ByteString -> String
+fastUnquote bs =
+  case parseBytes lexUQ Virtual bs of
+    Left  _  => ""
+    Right xs => fastConcat (map val xs)
 ```
 
 ## Parsing CSV Files

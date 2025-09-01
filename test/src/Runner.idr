@@ -62,7 +62,7 @@ aOrBs = choice [genA, genMA, genB, genC]
 
 export
 lexBounds : Parser1 (BoundedErr e) r s a -> String -> Either (ParseError e) a
-lexBounds lex s = mapFst (toParseError Virtual s) $ parseString lex s
+lexBounds lex s = parseString lex Virtual s
 
 export
 lexNoBounds :

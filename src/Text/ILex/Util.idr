@@ -328,6 +328,16 @@ parameters {0 q : Type}
     pure $ BS (P l c) (P l $ pred d)
 
   export %inline
+  incLineAndGetBounds : Nat -> s q -> F1 q Bounds
+  incLineAndGetBounds n x = T1.do
+    l <- read1 (line x)
+    c <- read1 (col x)
+    let d := c + n
+    write1 (col x) 0
+    write1 (line x) (S l)
+    pure $ BS (P l c) (P l $ pred d)
+
+  export %inline
   pushPos : s q -> F1' q
   pushPos x = T1.do
     l  <- read1 (line x)
@@ -444,6 +454,12 @@ parameters {0 s      : Type -> Type}
            {auto lst : LexST s a}
 
   export %inline
+  lexPushNL : Nat -> r -> a -> s q -> F1 q r
+  lexPushNL n res v x = T1.do
+    bs <- incLineAndGetBounds n x
+    push1 (vals x) res (B v bs)
+
+  export %inline
   lexPush : Nat -> r -> a -> s q -> F1 q r
   lexPush n res v x = T1.do
     bs <- incColAndGetBounds n x
@@ -479,11 +495,19 @@ parameters {0 s      : Type -> Type}
     -> (RExp True, Step1 q e r s)
   convTok xp res f = (xp, rd $ \x,bs => lexPush bs.size res (f bs) x)
 
+  export %inline
+  nltok : RExp True -> Index r -> a -> (RExp True, Step1 q e r s)
+  nltok xp res v = (xp, rd $ \x,bs => lexPushNL bs.size res v x)
+
 parameters {0 s        : Type -> Type}
            {0 r        : Bits32}
            {0 a,q      : Type}
            {auto   lst : LexST s a}
            {auto 0 prf : 0 < r}
+
+  export %inline
+  nltok0 : RExp True -> a -> (RExp True, Step1 q e r s)
+  nltok0 x = nltok x 0
 
   export %inline
   ctok0 : Char -> a -> (RExp True, Step1 q e r s)

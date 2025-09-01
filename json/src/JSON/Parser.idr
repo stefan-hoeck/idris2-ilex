@@ -312,7 +312,7 @@ json = P I (ini PI) json1 (\x => (Nothing #)) jsonErr jsonEOI
 
 export %inline
 parseJSON : Origin -> String -> Either (ParseError Void) JSON
-parseJSON o s = mapFst (toParseError o s) (parseString json s)
+parseJSON = parseString json
 
 --------------------------------------------------------------------------------
 -- Streaming
