@@ -23,10 +23,10 @@ Interpolation AorB where interpolate = show
 aOrB : L1 q Void AorB
 aOrB =
   lexer $ jsonSpaced 0
-    [ convTok0 ('A' >> plus 'a') (const MA)
-    , ctok0 'A' A
-    , convTok0 (plus ('B' <|> 'b')) (const B)
-    , stok0 "Ccc" C
+    [ convTok ('A' >> plus 'a') (const MA)
+    , ctok 'A' A
+    , convTok (plus ('B' <|> 'b')) (const B)
+    , stok "Ccc" C
     ]
 
 space : Nat -> Gen String

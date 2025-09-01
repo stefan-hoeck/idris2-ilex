@@ -58,6 +58,11 @@ record Bounded ty where
 
 %runElab derive "Bounded" [Show,Eq]
 
+export
+Interpolation a => Interpolation (Bounded a) where
+  interpolate (B v Empty) = interpolate v
+  interpolate (B v bs)    = "\{v}: \{bs}"
+
 -- Implementation of `(<*>)`
 appb : Bounded (a -> b) -> Bounded a -> Bounded b
 appb (B vf b1) (B va b2) = B (vf va) (b1 <+> b2)

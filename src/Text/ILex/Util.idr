@@ -447,9 +447,9 @@ parameters {0 q : Type}
 -- Lexer
 --------------------------------------------------------------------------------
 
-parameters {0 s      : Type -> Type}
-           {0 a,q    : Type}
-           {auto lst : LexST s a}
+parameters {0 s       : Type -> Type}
+           {0 a,q     : Type}
+           {auto lst  : LexST s a}
 
   export %inline
   lexPushNL : Nat -> r -> a -> s q -> F1 q r
@@ -464,72 +464,42 @@ parameters {0 s      : Type -> Type}
     push1 (vals x) res (B v bs)
 
   export %inline
-  ctok : Char -> Index r -> a -> (RExp True, Step1 q e r s)
-  ctok c res v = (chr c, go $ lexPush 1 res v)
+  ctok : (0 lt : 0 < r) => Char -> a -> (RExp True, Step1 q e r s)
+  ctok c res = (chr c, go $ lexPush 1 Ini res)
 
   export %inline
   stok :
-       (str : String)
+       {auto 0 lt : 0 < r}
+    -> (str : String)
     -> {auto 0 p : NonEmpty (unpack str)}
-    -> Index r
     -> a
     -> (RExp True, Step1 q e r s)
-  stok s res v = (str s, go $ lexPush (length s) res v)
+  stok s res = (str s, go $ lexPush (length s) Ini res)
 
   export %inline
   readTok :
-       RExp True
-    -> Index r
+       {auto 0 lt : 0 < r}
+    -> RExp True
     -> (String -> a)
     -> (RExp True, Step1 q e r s)
-  readTok xp res f =
-    (xp, rd $ \x,bs => let s := toString bs in lexPush (length s) res (f s) x)
+  readTok xp f =
+    (xp, rd $ \x,bs => let s := toString bs in lexPush (length s) Ini (f s) x)
 
   export %inline
   convTok :
-       RExp True
-    -> Index r
+       {auto 0 lt : 0 < r}
+    -> RExp True
     -> (ByteString -> a)
     -> (RExp True, Step1 q e r s)
-  convTok xp res f = (xp, rd $ \x,bs => lexPush bs.size res (f bs) x)
+  convTok xp f = (xp, rd $ \x,bs => lexPush bs.size Ini (f bs) x)
 
   export %inline
-  nltok : RExp True -> Index r -> a -> (RExp True, Step1 q e r s)
-  nltok xp res v = (xp, rd $ \x,bs => lexPushNL bs.size res v x)
-
-parameters {0 s        : Type -> Type}
-           {0 r        : Bits32}
-           {0 a,q      : Type}
-           {auto   lst : LexST s a}
-           {auto 0 prf : 0 < r}
-
-  export %inline
-  nltok0 : RExp True -> a -> (RExp True, Step1 q e r s)
-  nltok0 x = nltok x 0
-
-  export %inline
-  ctok0 : Char -> a -> (RExp True, Step1 q e r s)
-  ctok0 c = ctok c 0
-
-  export %inline
-  stok0 :
-       (str : String)
-    -> {auto 0 p : NonEmpty (unpack str)}
-    -> a
-    -> (RExp True, Step1 q e r s)
-  stok0 s = stok s 0
-
-  export %inline
-  readTok0 : RExp True -> (String -> a) -> (RExp True, Step1 q e r s)
-  readTok0 xp = readTok xp 0
-
-  export %inline
-  convTok0 : RExp True -> (ByteString -> a) -> (RExp True, Step1 q e r s)
-  convTok0 xp = convTok xp 0
+  nltok : (0 lt : 0 < r) => RExp True -> a -> (RExp True, Step1 q e r s)
+  nltok xp v = (xp, rd $ \x,bs => lexPushNL bs.size Ini v x)
 
 export
-lchunk : LexState a q -> F1 q (Maybe $ List a)
-lchunk s t = let ss # t := replace1 s.vals [<] t in maybeList ss # t
+lchunk : LexST s a => s q -> F1 q (Maybe $ List $ Bounded a)
+lchunk s t = let ss # t := replace1 (vals s) [<] t in maybeList ss # t
 
 leoi : Index 1 -> LexState a q -> F1 q (Either e $ List a)
 leoi _ s = replace1 s.vals [<] >>= pure . Right . (<>> [])
@@ -544,4 +514,4 @@ Lexer e a = {0 q : Type} -> L1 q e a
 
 export
 lexer : TokenMap (Step1 q (BoundedErr e) 1 (LexState $ Bounded a)) -> L1 q e a
-lexer m = P 0 init (lex1 [E 0 $ dfa Err m]) lchunk (errs []) leoi
+lexer m = P Ini init (lex1 [E Ini $ dfa Err m]) lchunk (errs []) leoi

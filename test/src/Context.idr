@@ -83,7 +83,7 @@ lit1 : Lex1 q e 2 ST
 lit1 =
   lex1
     [ E SLit $ dfa Err $ jsonSpaced SLit
-        [ readTok0 decimal (Context.Num . cast)
+        [ readTok decimal (Context.Num . cast)
         , copen '"' (const ST SStr)
         ]
     , E SStr $ dfa Err
@@ -100,11 +100,8 @@ litErr = errs [E SStr $ unclosed "\"" []]
 leoi : Index 2 -> ST q -> F1 q (Either (BoundedErr e) $ List (Bounded Lit))
 leoi sk s =
   case sk == SLit of
+    False => arrFail ST litErr sk s ""
     True  => replace1 s.vals [<] >>= pure . Right . (<>> [])
-    False => T1.do
-      let eo    := litErr `at`sk
-      x <- eo s ""
-      pure $ Left x
 
 export
 lit : P1 q (BoundedErr Void) 2 ST (List $ Bounded Lit)

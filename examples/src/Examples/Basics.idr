@@ -11,9 +11,9 @@ import Text.ILex.Debug
 export
 aOrB : L1 q Void AorB
 aOrB =
-  lexer $ jsonSpaced 0
-    [ convTok0 (plus ('A' <|> 'a')) (const A)
-    , convTok0 (plus ('B' <|> 'b')) (const B)
+  lexer $ jsonSpaced Ini
+    [ convTok (plus ('A' <|> 'a')) (const A)
+    , convTok (plus ('B' <|> 'b')) (const B)
     ]
 
 -- export
@@ -36,7 +36,7 @@ identifier = plus $ alphaNum <|> '_'
 export
 ident : L1 q Void Ident
 ident =
-  lexer $ jsonSpaced 0
-    [ stok0 "else" Else
-    , readTok0 identifier Id
+  lexer $ jsonSpaced Ini
+    [ stok "else" Else
+    , readTok identifier Id
     ]

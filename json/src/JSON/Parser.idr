@@ -297,13 +297,10 @@ jsonErr =
 jsonEOI : JST -> ST q -> F1 q (Either (BoundedErr e) JSON)
 jsonEOI sk s t =
   case sk == Done of
+    False => arrFail ST jsonErr sk s "" t
     True  => case read1 s.part t of
       PF v # t => Right v # t
       _    # t => Right JNull # t
-    False =>
-     let eo    := jsonErr `at`sk
-         x # t := eo s "" t
-      in Left x # t
 
 export
 json : P1 q (BoundedErr Void) JSz ST JSON
@@ -327,12 +324,10 @@ extract (PL p sv l)      = let (p2,m) := extract p in (PL p2 sv l, m)
 extract p                = (p, Nothing)
 
 arrChunk : ST q -> F1 q (Maybe $ List JSON)
-arrChunk sk t =
-  case read1 sk.part t of
-    p  # t =>
-     let (p2,res) := extract p
-         _ # t    := write1 sk.part p2 t
-      in res # t
+arrChunk sk = T1.do
+  p <- read1 sk.part
+  let (p2,res) := extract p
+  writeAs sk.part p2 res
 
 arrEOI : JST -> ST q -> F1 q (Either (BoundedErr Void) (List JSON))
 arrEOI st sk t =

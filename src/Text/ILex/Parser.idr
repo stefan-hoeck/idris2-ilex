@@ -111,11 +111,21 @@ record P1 (q,e : Type) (r : Bits32) (s : Type -> Type) (a : Type) where
   eoi   : Index r -> s q -> F1 q (Either e a)
 
 export
+arrFail :
+     (0 s : Type -> Type)
+  -> Arr32 r (s q -> ByteString -> F1 q e)
+  -> Index r
+  -> s q
+  -> ByteString
+  -> F1 q (Either e x)
+arrFail s arr ix st bs t =
+ let eo      := arr `at` ix
+     err # t := eo st bs t
+  in Left err # t
+
+export %inline
 fail : P1 q e r s a -> Index r -> s q -> ByteString -> F1 q (Either e x)
-fail p r s bs t =
- let f     := p.err `at` r
-     x # t := f s bs t
-  in Left x # t
+fail = arrFail s . err
 
 export
 lastStep :

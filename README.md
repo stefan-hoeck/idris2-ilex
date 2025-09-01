@@ -53,15 +53,16 @@ import FS.Posix
 import FS.System
 import IO.Async.Loop.Epoll
 import IO.Async.Loop.Posix
+import Syntax.T1
 import Text.ILex.FS
 
 %default total
 %language ElabReflection
 %hide Data.Linear.(.)
 
-pretty : Interpolation e => Show a => Either e (List a) -> IO ()
+pretty : Interpolation e => Interpolation a => Either e (List a) -> IO ()
 pretty (Left x)   = putStrLn $ interpolate x
-pretty (Right vs) = traverse_ printLn vs
+pretty (Right vs) = traverse_ (putStrLn . interpolate) vs
 ```
 
 ## A basic CSV Lexer
@@ -107,9 +108,9 @@ file. Without further ado, here is our first CSV lexer:
 csv0 : L1 q Void CSV0
 csv0 =
   lexer
-    [ ctok0 ',' Comma0
-    , nltok0 '\n' NL0
-    , readTok0 (plus (dot && not ',')) Cell0
+    [ ctok ',' Comma0
+    , nltok '\n' NL0
+    , readTok (plus (dot && not ',')) Cell0
     ]
 ```
 
@@ -118,15 +119,30 @@ test it at the REPL:
 
 ```repl
 README> :exec pretty (parseString csv0 Virtual csvStr1)
-B {val = Cell0 "foo", bounds = ...}
+Cell0 "foo": 1:1--1:3
+Comma0: 1:4
+Cell0 "12": 1:5--1:6
+Comma0: 1:7
+Cell0 "true": 1:8--1:11
+NL0: 1:12
+Cell0 "bar": 2:1--2:3
+Comma0: 2:4
+Cell0 "13": 2:5--2:6
+Comma0: 2:7
+Cell0 "true": 2:8--2:11
+NL0: 2:12
+Cell0 "baz": 3:1--3:3
+Comma0: 3:4
+Cell0 "14": 3:5--3:6
+Comma0: 3:7
+Cell0 "false": 3:8--3:12
 ...
 ```
 
 As you can see, the input has been cut into a list of tokens, each
-annotated with the region (its *bounds*) where in the byte array
-it appeared. Please note
-that the functions in this library cannot be evaluated directly at the
-REPL, so we have to actually compile a small program and run it using
+annotated with the region (its *bounds*) where in the string it appeared.
+Please note that the functions in this library cannot be evaluated directly
+at the REPL, so we have to actually compile a small program and run it using
 `:exec`.
 
 Feel free to experiment with this a bit. For instance, you might want to
@@ -137,22 +153,27 @@ in the input string.
 
 Now, let us have a closer look at the definition of `csv0`: We use
 a `TokenMap` to describe a lexer: a list of regular expressions each paired
-with a conversion function. Character literals just match themselves,
-so the first entry matches a single comma and converts it to a `Comma0`
-value. The same goes for the line break character.
+with a conversion function. To create these pairs, we often use
+one of the utility functions from `Text.ILex.Util`.
+Functions `ctok`, for instance, matches a single character and emits
+a properly bounded token. Likewise, `stok` matches a single string literal.
 
 Cell tokens are a bit more involved: We expect one or more (`plus`)
 printable characters (`dot`) that are also not commas (`&& not ','`)
-and convert them to a `Cell0` token.
+and convert them to a `Cell0` token. For such variable length tokens,
+we can use utilities `readTok` (if we want to the token as a `String`)
+or `convTok` (if we want the token as a `ByteString`).
 
-A quick note about the types: `Lexer b Void CSV0` describes a
-lexer that uses `b` for its token bounds (there are different
-types of bounds we support; in many cases, we want to keep this
-abstract), `Void` is the type of custom errors our lexer throws
+Please note, that the utilities described so far assume that there
+are no line breaks in the tokens they recognize. We therefore use
+a special utility (`nltok`) to recognize the line break tokens, which
+makes sure that the current line number is properly increased internally.
+
+A quick note about the types: `L1 q Void CSV0` describes a
+lexer that operates in state thread `q` (you can ignore this part
+for now), emits custom errors of type `Void`
 (no custom errors in this case, because `Void` is uninhabited),
-and `CSV0` is the token type the lexer generates. We will later
-see that this is actually a utility alias for something more
-versatile.
+and emits bounded tokens of type `CSV0`.
 
 ### Additional Cell Types
 
@@ -191,12 +212,12 @@ linebreak = '\n' <|> "\n\r" <|> "\r\n" <|> '\r' <|> '\RS'
 csv1 : L1 q Void CSV1
 csv1 =
   lexer
-    [ ctok0 ',' Comma1
-    , nltok0 linebreak NL1
-    , stok0 "true" (Bool1 True)
-    , stok0 "false" (Bool1 False)
-    , convTok0 (opt '-' >> decimal) (Int1 . integer)
-    , readTok0 (plus (dot && not ',')) Txt1
+    [ ctok ',' Comma1
+    , nltok linebreak NL1
+    , stok "true" (Bool1 True)
+    , stok "false" (Bool1 False)
+    , convTok (opt '-' >> decimal) (Int1 . integer)
+    , readTok (plus (dot && not ',')) Txt1
     ]
 ```
 
@@ -281,13 +302,13 @@ spaceExpr = plus $ oneof [' ', '\t']
 csv1_2 : L1 q Void CSV1
 csv1_2 =
   lexer
-    [ ctok0 ',' Comma1
-    , nltok0 linebreak NL1
-    , stok0 "true" (Bool1 True)
-    , stok0 "false" (Bool1 False)
-    , convTok0 (opt '-' >> decimal) (Int1 . integer)
-    , readTok0 text Txt1
-    , (spaceExpr, spaces 0)
+    [ ctok ',' Comma1
+    , nltok linebreak NL1
+    , stok "true" (Bool1 True)
+    , stok "false" (Bool1 False)
+    , convTok (opt '-' >> decimal) (Int1 . integer)
+    , readTok text Txt1
+    , (spaceExpr, spaces Ini)
     ]
 ```
 
@@ -331,14 +352,14 @@ unquote : ByteString -> String
 csv1_3 : L1 q Void CSV1
 csv1_3 =
   lexer
-    [ ctok0 ',' Comma1
-    , nltok0 linebreak NL1
-    , stok0 "true" (Bool1 True)
-    , stok0 "false" (Bool1 False)
-    , convTok0 (opt '-' >> decimal) (Int1 . integer)
-    , readTok0 text Txt1
-    , convTok0 quoted (Txt1 . unquote)
-    , (spaceExpr, spaces 0)
+    [ ctok ',' Comma1
+    , nltok linebreak NL1
+    , stok "true" (Bool1 True)
+    , stok "false" (Bool1 False)
+    , convTok (opt '-' >> decimal) (Int1 . integer)
+    , readTok text Txt1
+    , convTok quoted (Txt1 . unquote)
+    , (spaceExpr, spaces Ini)
     ]
 ```
 
@@ -375,13 +396,13 @@ is used in performance critical code.
 lexUQ : L1 q Void String
 lexUQ =
   lexer
-    [ stok0 #"\""# "\""
-    , stok0 #"\\"# "\\"
-    , stok0 #"\n"# "\n"
-    , stok0 #"\r"# "\r"
-    , stok0 #"\t"# "\t"
-    , stok0 #"""#  ""
-    , readTok0 (plus (dot && not '"' && not '\\')) id
+    [ stok #"\""# "\""
+    , stok #"\\"# "\\"
+    , stok #"\n"# "\n"
+    , stok #"\r"# "\r"
+    , stok #"\t"# "\t"
+    , stok #"""#  ""
+    , readTok (plus (dot && not '"' && not '\\')) id
     ]
 
 fastUnquote : ByteString -> String
@@ -390,6 +411,206 @@ fastUnquote bs =
     Left  _  => ""
     Right xs => fastConcat (map val xs)
 ```
+
+## Under the Hood: Context-sensitive Lexers
+
+In this section we are going to write a context-sensitive lexer.
+The techniques we learn hear are going to be used in the next section,
+where we'll write a proper CSV-parser.
+
+Before we continue, please note that ilex uses thread-local mutable
+state to keep track of the parts we parsed so far. This makes use of
+linear types and the [ref1 library](https://github.com/stefan-hoeck/idris2-ref1).
+It is strongly recommended that readers familiarize themselves with the
+techniques described there.
+
+### A Custom Mutable Lexer State
+
+We'd like to reimplement the behavior of `csv1_3` but without having to
+read every quoted string token twice. In order to do this, we already
+have to implement a mini-parser, because we are going to use different
+lexers, depending on whether we are in a quoted string token or not.
+
+The first thing we need to define for this, is a custom state type for
+parsing:
+
+```idris
+record QuotedST q where
+  constructor Q
+  line : Ref q Nat
+  col  : Ref q Nat
+  bnds : Ref q (SnocList Bounds)
+  strs : Ref q (SnocList String)
+  toks : Ref q (SnocList $ Bounded CSV1)
+
+init : F1 q (QuotedST q)
+init = T1.do
+  l <- ref1 Z
+  c <- ref1 Z
+  b <- ref1 [<]
+  s <- ref1 [<]
+  v <- ref1 [<]
+  pure (Q l c b s v)
+```
+
+Parser state `QuotedST q` is a wrapper around several mutable references
+that can be manipulated in state-thread `q`. Fields `line`, `col`,
+and `bounds` are required to implement interface `LC`, which facilitates
+handling the token bounds:
+
+```idris
+%inline
+LC QuotedST where
+  line   = QuotedST.line
+  col    = QuotedST.col
+  bounds = QuotedST.bnds
+```
+
+File `vals` is where the recognized tokens will be stored. We need
+to implement interface `LexST` to make use of utilities such as
+`ctok` and have them generate token bounds and append bounded tokens
+automatically:
+
+```idris
+%inline
+LexST QuotedST CSV1 where
+  vals = QuotedST.toks
+```
+
+### Parser States
+
+Unlike simple lexers, which are always in the same state, a proper
+parser can be in one of several states, and each state recognizes
+(and expects) different lexicographic tokens.
+
+For our very simple context-sensitive lexer, we recognize two
+states, so you state size is `2`:
+
+```idris
+QSz : Bits32
+QSz = 2
+```
+
+Our lexer can be in one of two states: `0`, which is the default
+state and is predefined as `Ini`, and `InStr`, which let's us know
+that we are currently inside a quoted string token:
+
+```idris
+QST : Type
+QST = Index QSz
+
+InStr : QST
+InStr = 1
+```
+
+As you can see, a parser state is just an index into an array of the
+given size. In ilex, almost everything is array-backed for maximum
+performance.
+
+### Lexers
+
+The next step is to define a lexer for each of the states our parser
+can be in. For every token recognized by one of the lexers we nod
+only need to describe how the token affects our mutable parser state,
+but also the state the parser will be in *after* the given token
+was recognized. For the initial state, almost nothing changes:
+
+```idris
+lexInit : DFA (Step1 q e QSz QuotedST)
+lexInit =
+  dfa Err
+    [ ctok ',' Comma1
+    , nltok linebreak NL1
+    , stok "true" (Bool1 True)
+    , stok "false" (Bool1 False)
+    , convTok (opt '-' >> decimal) (Int1 . integer)
+    , readTok text Txt1
+    , copen '"' (const QuotedST InStr)
+    , (spaceExpr, spaces Ini)
+    ]
+```
+
+As you can see, since `QuotedST` implements interfaces `LC` and `LexST`,
+we can just reuse the utilities from the previous example. However,
+we no longer recognize a whole quoted string but just the opening
+quote. We use the `copen` utility, which will push the current
+token bounds onto a stack of bounds of things that need to be closed.
+Other than that, we just return the new parser state, which will
+be `InStr`.
+
+Once we are in a quoted string, we recognize escape sequences as
+well as chunks of unescaped text. These will be appended to
+the snoc list in the `strs` mutable reference. Once we encounter
+an unescaped closing quote, we end quoted string recognition
+and append the recognized, concatenated string to the list of tokens.
+
+Here are the necessary utilities and token maps:
+
+```idris
+closeStr : QuotedST q -> F1 q QST
+
+pushStr : String -> QuotedST q -> F1 q QST
+
+lexStr : DFA (Step1 q e QSz QuotedST)
+lexStr =
+  dfa Err
+    [ str #"\""# $ pushStr "\""
+    , str #"\\"# $ pushStr "\\"
+    , str #"\n"# $ pushStr "\n"
+    , str #"\r"# $ pushStr "\r"
+    , str #"\t"# $ pushStr "\t"
+    , chr '"' closeStr
+    , (plus (dot && not '"' && not '\\'), read pushStr)
+    ]
+```
+
+Utilities `str` and `read` still take care of updating the position
+after each recognized token, so `pushStr` only needs to append the
+recognized piece of text (we use utility `push1` for this, which allows
+us to specify the return value: the new parser state, which will
+still be `InStr`):
+
+```idris
+pushStr s x = push1 x.strs InStr s
+```
+
+Function `closeStr` is more involved: In this case, we need to manually
+construct the token bounds, append the bounded token to the list of
+recognized tokens, and change the parser state back to `Init`:
+
+```idris
+closeStr x = T1.do
+  start <- popBounds x
+  end   <- currentPos x
+  s     <- getStr x.strs
+  push1 x.toks Ini (B (Txt1 s) $ start <+> BS end end)
+```
+
+We now wrap up the different lexers in an array of lexers:
+
+```idris
+quoted1 : Lex1 q e QSz QuotedST
+quoted1 = lex1 [E Ini lexInit, E InStr lexStr]
+```
+
+### Error Handling
+
+```idris
+quotedErr : Arr32 QSz (QuotedST q -> ByteString -> F1 q (BoundedErr e))
+quotedErr = arr32 QSz (unexpected []) [E InStr $ unclosed "\"" []]
+
+quotedEOI : QST -> QuotedST q -> F1 q (Either (BoundedErr e) (List $ Bounded CSV1))
+quotedEOI st x =
+  case st == Ini of
+    False => arrFail QuotedST quotedErr st x ""
+    True  => replace1 x.toks [<] >>= pure . Right . (<>> [])
+
+lexQuoted : P1 q (BoundedErr Void) QSz QuotedST (List $ Bounded CSV1)
+lexQuoted = P Ini init quoted1 lchunk quotedErr quotedEOI
+
+
+```
+
 
 ## Parsing CSV Files
 
@@ -583,8 +804,8 @@ With these utilities defined, we can assemble everything
 in a proper parser:
 
 ```idris
-init : CState b
-init = CL 1 [<] [<] New
+-- init : CState b
+-- init = CL 1 [<] [<] New
 
 -- csv2 : Parser b Void CSV Table
 -- csv2 = P init (const csvDFA) step2 chunkCSV eoiCSV

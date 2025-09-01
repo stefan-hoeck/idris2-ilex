@@ -28,11 +28,11 @@ Pretty ABC where prettyPrec _ v = line (show v)
 
 abc : L1 q Void ABC
 abc =
-  lexer $ jsonSpaced 0
-    [ readTok0 ('A' >> repeat  4 'a') (const A)
-    , readTok0 ('B' >> atmost  3 'b') (const B)
-    , readTok0 ('C' >> atleast 3 'c') (const C)
-    , readTok0 ('D' >> repeatRange 2 5 'd') (const D)
+  lexer $ jsonSpaced Ini
+    [ readTok ('A' >> repeat  4 'a') (const A)
+    , readTok ('B' >> atmost  3 'b') (const B)
+    , readTok ('C' >> atleast 3 'c') (const C)
+    , readTok ('D' >> repeatRange 2 5 'd') (const D)
     ]
 
 prop_AOnly : Property
