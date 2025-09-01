@@ -113,19 +113,19 @@ prop_boundsMany =
 prop_boundsByteErr : Property
 prop_boundsByteErr =
   property1 $
-        Left (PE Virtual (BS (P 0 4) (P 0 4)) (Just " AaaD") (Unexpected "D"))
+        Left (PE Virtual (BS (P 0 4) (P 0 4)) (Just " AaaD") (Expected [] "D"))
     === lexBounds aOrB " AaaD"
 
 prop_boundsByteErr2 : Property
 prop_boundsByteErr2 =
   property1 $
-        Left (PE Virtual (BS (P 0 0) (P 0 2)) (Just "CcD") (Unexpected "CcD"))
+        Left (PE Virtual (BS (P 0 0) (P 0 2)) (Just "CcD") (Expected [] "CcD"))
     === lexBounds aOrB "CcD"
 
 prop_boundsEoiErr : Property
 prop_boundsEoiErr =
   property1 $
-        Left (PE Virtual (BS (P 0 4) (P 0 5)) (Just " AaaCc") (Unexpected "Cc"))
+        Left (PE Virtual (BS (P 0 4) (P 0 5)) (Just " AaaCc") (Expected [] "Cc"))
     === lexBounds aOrB " AaaCc"
 
 export

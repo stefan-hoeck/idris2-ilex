@@ -45,8 +45,8 @@ maxiBS = (_ ** fromString maxi)
 ultraBS : (n ** IBuffer n)
 ultraBS = (_ ** fromString ultra)
 
-lexBS : (n ** IBuffer n) -> Either (BoundedErr Void) JSON.Parser.JSON
-lexBS (n ** buf) = parse json buf
+lexBS : (n ** IBuffer n) -> Either (ParseError Void) JSON.Parser.JSON
+lexBS (n ** buf) = parse json Virtual buf
 
 -- This profiles our JSON lexer against the one from parser-json
 -- to know what we are up against.

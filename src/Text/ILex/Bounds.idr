@@ -9,6 +9,7 @@ import Derive.Prelude
 -- Bounds
 --------------------------------------------------------------------------------
 
+||| Position (line and column; both zero-based) in a string.
 public export
 record Position where
   constructor P
@@ -21,7 +22,7 @@ public export
 Interpolation Position where
   interpolate (P l c) = show (l+1) ++ ":" ++ show (c+1)
 
-||| Upper and lower bounds of a region in a byte array.
+||| Upper and lower bounds of a region in a string.
 public export
 data Bounds : Type where
   Empty : Bounds
@@ -38,6 +39,11 @@ Semigroup Bounds where
 
 export %inline
 Monoid Bounds where neutral = Empty
+
+export
+Interpolation Bounds where
+  interpolate Empty    = "<empty>"
+  interpolate (BS s e) = if s == e then "\{s}" else "\{s}--\{e}"
 
 --------------------------------------------------------------------------------
 --          Bounded

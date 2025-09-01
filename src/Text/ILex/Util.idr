@@ -425,9 +425,7 @@ parameters {0 q : Type}
        end     := {column $= (+ (pred $ length str))} cur
     in case size bs of
          0 => B EOI (BS cur end) # t
-         _ => case strs of
-           [] => B (Unexpected str) (BS cur end) # t
-           _  => B (Expected strs str) (BS cur end) # t
+         _ => B (Expected strs str) (BS cur end) # t
 
   export
   unclosed : String -> List String -> s q -> ByteString -> F1 q (BoundedErr e)
