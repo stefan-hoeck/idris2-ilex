@@ -119,12 +119,12 @@ lastStep :
   -> F1 q (Either e a)
 lastStep p v st stck bs t =
   case v of
-    Go f  => let r # t := f (stck # t) in p.eoi st stck t
-    Rd f  => let r # t := f (B stck bs t) in p.eoi st stck t
+    Go f  => let r # t := f (stck # t) in p.eoi r stck t
+    Rd f  => let r # t := f (B stck bs t) in p.eoi r stck t
     Err   => fail p st stck bs t
     Prs f =>
      let Right r # t := f (B stck bs t) | Left x # t => Left x # t
-      in p.eoi st stck t
+      in p.eoi r stck t
 
 public export
 0 Parser1 : (e : Type) -> (r : Bits32) -> (s : Type -> Type) -> (a : Type) -> Type
