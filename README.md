@@ -119,24 +119,23 @@ test it at the REPL:
 
 ```repl
 README> :exec pretty (parseString csv0 Virtual csvStr1)
-Cell0 "foo": 1:1--1:3
-Comma0: 1:4
-Cell0 "12": 1:5--1:6
-Comma0: 1:7
-Cell0 "true": 1:8--1:11
-NL0: 1:12
-Cell0 "bar": 2:1--2:3
-Comma0: 2:4
-Cell0 "13": 2:5--2:6
-Comma0: 2:7
-Cell0 "true": 2:8--2:11
-NL0: 2:12
-Cell0 "baz": 3:1--3:3
-Comma0: 3:4
-Cell0 "14": 3:5--3:6
-Comma0: 3:7
-Cell0 "false": 3:8--3:12
-...
+Cell0 "foo": 1:1--1:4
+Comma0: 1:4--1:5
+Cell0 "12": 1:5--1:7
+Comma0: 1:7--1:8
+Cell0 "true": 1:8--1:12
+NL0: 1:12--1:13
+Cell0 "bar": 2:1--2:4
+Comma0: 2:4--2:5
+Cell0 "13": 2:5--2:7
+Comma0: 2:7--2:8
+Cell0 "true": 2:8--2:12
+NL0: 2:12--2:13
+Cell0 "baz": 3:1--3:4
+Comma0: 3:4--3:5
+Cell0 "14": 3:5--3:7
+Comma0: 3:7--3:8
+Cell0 "false": 3:8--3:13
 ```
 
 As you can see, the input has been cut into a list of tokens, each

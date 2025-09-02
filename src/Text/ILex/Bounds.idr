@@ -22,13 +22,39 @@ public export
 Interpolation Position where
   interpolate (P l c) = show (l+1) ++ ":" ++ show (c+1)
 
+||| The beginning of a string. This is an alias for `P 0 0`.
+public export
+begin : Position
+begin = P 0 0
+
+||| Increase the current column by one.
+public export %inline
+incCol : Position -> Position
+incCol = {column $= S}
+
+||| Increase the current line by one, resetting the
+||| column to 0.
+public export %inline
+incLine : Position -> Position
+incLine p = P (S p.line) 0
+
 ||| Upper and lower bounds of a region in a string.
+|||
+||| In case of non-empty bounds, the `end` is one column
+||| past the last character of a token, to facilitate the
+||| arithmetics when creating the bounds as well as when
+||| printing emphasis marks in error messages. This is as
+||| it is done in the Idris compiler itself.
 public export
 data Bounds : Type where
   Empty : Bounds
   BS    : (start,end : Position) -> Bounds
 
 %runElab derive "Bounds" [Show,Eq,Ord]
+
+export
+atPos : Position -> Bounds
+atPos p = BS p (incCol p)
 
 export
 Semigroup Bounds where
