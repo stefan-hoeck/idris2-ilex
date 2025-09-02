@@ -729,7 +729,7 @@ csvSteps =
     ]
 ```
 
-### Error Handling
+### Finalizing the Parser
 
 ```idris
 csvErr : Arr32 CSz (CSTCK q -> ByteString -> F1 q (BoundedErr e))
