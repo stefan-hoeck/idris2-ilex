@@ -261,8 +261,8 @@ strTok =
 -- Parsers
 --------------------------------------------------------------------------------
 
-json1 : Lex1 q e JSz ST
-json1 =
+jsonTrans : Lex1 q e JSz ST
+jsonTrans =
   lex1
     [ E Ini (valTok Ini [])
     , E Done (spaced Done [])
@@ -283,15 +283,15 @@ json1 =
 jsonErr : Arr32 JSz (ST q -> ByteString -> F1 q (BoundedErr e))
 jsonErr =
   arr32 JSz (unexpected [])
-    [ E ANew $ unclosed "[" []
-    , E AVal $ unclosed "[" [",", "]"]
-    , E ACom $ unclosed "[" []
-    , E ONew $ unclosed "{" ["\"", "}"]
-    , E OVal $ unclosed "{" [",", "}"]
-    , E OCom $ unclosed "{" ["\""]
-    , E OLbl $ unclosed "{" [":"]
-    , E OCol $ unclosed "{" []
-    , E Str  $ unclosed "\"" []
+    [ E ANew $ unclosedIfEOI "[" []
+    , E AVal $ unclosedIfEOI "[" [",", "]"]
+    , E ACom $ unclosedIfEOI "[" []
+    , E ONew $ unclosedIfEOI "{" ["\"", "}"]
+    , E OVal $ unclosedIfEOI "{" [",", "}"]
+    , E OCom $ unclosedIfEOI "{" ["\""]
+    , E OLbl $ unclosedIfEOI "{" [":"]
+    , E OCol $ unclosedIfEOI "{" []
+    , E Str  $ unclosedIfEOI "\"" []
     ]
 
 jsonEOI : JST -> ST q -> F1 q (Either (BoundedErr e) JSON)
@@ -304,7 +304,7 @@ jsonEOI sk s t =
 
 export
 json : P1 q (BoundedErr Void) JSz ST JSON
-json = P Ini (ini PI) json1 (\x => (Nothing #)) jsonErr jsonEOI
+json = P Ini (ini PI) jsonTrans (\x => (Nothing #)) jsonErr jsonEOI
 
 export %inline
 parseJSON : Origin -> String -> Either (ParseError Void) JSON
@@ -344,7 +344,7 @@ arrEOI st sk t =
 ||| array of JSON values.
 export
 jsonArray : P1 q (BoundedErr Void) JSz ST (List JSON)
-jsonArray = P Ini (ini PI) json1 arrChunk jsonErr arrEOI
+jsonArray = P Ini (ini PI) jsonTrans arrChunk jsonErr arrEOI
 
 ||| Parser that is capable of streaming large amounts of
 ||| JSON values.
@@ -353,4 +353,4 @@ jsonArray = P Ini (ini PI) json1 arrChunk jsonErr arrEOI
 ||| possible value will always be consumed.
 export
 jsonValues : P1 q (BoundedErr Void) JSz ST (List JSON)
-jsonValues = P Ini (ini $ PV [<]) json1 arrChunk jsonErr arrEOI
+jsonValues = P Ini (ini $ PV [<]) jsonTrans arrChunk jsonErr arrEOI

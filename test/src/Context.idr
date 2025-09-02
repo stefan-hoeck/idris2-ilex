@@ -95,7 +95,7 @@ lit1 =
     ]
 
 litErr : Arr32 2 (ST q -> ByteString -> F1 q (BoundedErr e))
-litErr = errs [E SStr $ unclosed "\"" []]
+litErr = errs [E SStr $ unclosedIfEOI "\"" []]
 
 leoi : Index 2 -> ST q -> F1 q (Either (BoundedErr e) $ List (Bounded Lit))
 leoi sk s =

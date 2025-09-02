@@ -263,6 +263,10 @@ getStr ref = T1.do
   sv <- replace1 ref [<]
   pure $ snocPack sv
 
+export %inline
+state : RExp True -> Index r -> (RExp True, Step1 q e r s)
+state exp v = (exp, go $ \_,t => v # t)
+
 --------------------------------------------------------------------------------
 -- Handling positions
 --------------------------------------------------------------------------------
@@ -421,6 +425,24 @@ parameters {0 q : Type}
     -> (RExp True, Step1 q e r s)
   conv exp f = (exp, rd $ \st,bs => f bs st >>= incCols (size bs) st)
 
+  ||| Like `read` put for transitions that ignore the token's
+  ||| byte sequence.
+  |||
+  ||| Note: Consider using `str` or `chr` if the recognized byte sequence
+  |||       is a constant.
+  export %inline
+  read' : RExp True -> (s q -> F1 q (Index r)) -> (RExp True, Step1 q e r s)
+  read' exp f = read exp (const f)
+
+  ||| Like `conv` put for transitions that ignore the token's
+  ||| byte sequence.
+  |||
+  ||| Note: Consider using `str` or `chr` if the recognized byte sequence
+  |||       is a constant.
+  export %inline
+  conv' : RExp True -> (s q -> F1 q (Index r)) -> (RExp True, Step1 q e r s)
+  conv' exp f = conv exp (const f)
+
 --------------------------------------------------------------------------------
 -- Error handling
 --------------------------------------------------------------------------------
@@ -436,13 +458,17 @@ parameters {0 q : Type}
          _ => B (Expected strs str) (BS cur end) # t
 
   export
-  unclosed : String -> List String -> s q -> ByteString -> F1 q (BoundedErr e)
-  unclosed s ss st bs t =
+  unclosed : String -> s q -> ByteString -> F1 q (BoundedErr e)
+  unclosed s st bs t =
+   let p # t := popBounds st t
+    in B (Unclosed s) p # t
+
+  export
+  unclosedIfEOI : String -> List String -> s q -> ByteString -> F1 q (BoundedErr e)
+  unclosedIfEOI s ss st bs =
     case size bs of
-      0 =>
-       let p # t := popBounds st t
-        in B (Unclosed s) p # t
-      _ => unexpected ss st bs t
+      0 => unclosed s st bs
+      _ => unexpected ss st bs
 
   export %inline
   errs :
