@@ -13,7 +13,7 @@ import Text.ILex.Internal.DFA
 import Text.ILex.Internal.ENFA
 import Text.ILex.Internal.NFA
 import Text.ILex.Internal.Types
-import Text.ILex.Lexer
+import Text.ILex.Parser
 import Text.ILex.RExp
 
 %default total
@@ -145,17 +145,22 @@ prettyByteStep (x,bs) =
     trans : (Nat, Transition n a) -> Maybe (Doc d)
     trans (byte,t) =
       case t of
-        Keep      => Just (prettyByte byte <+> colon <++> line "stay")
-        KeepT     => Just (prettyByte byte <+> colon <++> line "stay (terminal)")
-        Done y    => Just (prettyByte byte <+> colon <++> pretty y <++> line "(done)")
-        Move y    => Just (prettyByte byte <+> colon <++> line "-> \{show y}")
-        MoveT y z => Just (prettyByte byte <+> colon <++> pretty z <++> line "(-> \{show y})")
-        Bottom    => Nothing
+        Keep     => Just (prettyByte byte <+> colon <++> line "stay")
+        Done y   => Just (prettyByte byte <+> colon <++> pretty y <++> line "(done)")
+        Move y z => Just (prettyByte byte <+> colon <++> pretty z <++> line "(-> \{show y})")
+        Bottom   => Nothing
 
 export
 Pretty a => Pretty (DFA a) where
   prettyPrec p (L _ next) =
     vsep $ prettyByteStep <$> zipWithIndex (toList next)
+
+export
+Pretty (Step1 q e r s) where
+  prettyPrec p (Go f)  = line "<Go>"
+  prettyPrec p (Rd f)  = line "<Rd>"
+  prettyPrec p (Prs f) = line "<Prs>"
+  prettyPrec p Err     = line "<Err>"
 
 export
 prettyLexer : Pretty a => DFA a -> IO ()

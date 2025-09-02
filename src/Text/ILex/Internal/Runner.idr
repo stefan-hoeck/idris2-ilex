@@ -23,41 +23,25 @@ offsetToIx 0     = IZ
 offsetToIx (S k) = rewrite plusSuccRightSucc k s in IS (offsetToIx k)
 
 export
-toByteString :
+toBS :
      IBuffer n
-  -> (from        : Nat)
+  -> (from        : Ix m n)
   -> (0    till   : Nat)
-  -> {auto ix     : Ix (S till) n}
-  -> {auto 0  lte : LTE from (ixToNat ix)}
+  -> {auto ix     : Ix till n}
+  -> {auto 0  lte : LTE (ixToNat from) (ixToNat ix)}
   -> ByteString
-toByteString buf from till =
+toBS buf from till =
   let bv := fromIBuffer buf
-   in BS _ $ substringFromTo from (ixToNat ix) {lt = ixLT ix} bv
+   in BS _ $ substringFromTill (ixToNat from) (ixToNat ix) {lt2 = ixLTE ix} bv
 
 export
-tillByteString :
-     IBuffer n
-  -> (from        : Nat)
+toBSP :
+     ByteString
+  -> IBuffer n
+  -> (from        : Ix m n)
   -> (0    till   : Nat)
-  -> {auto ix     : Ix (S till) n}
-  -> {auto 0  lte : LTE from (ixToNat ix)}
+  -> {auto ix     : Ix till n}
+  -> {auto 0  lte : LTE (ixToNat from) (ixToNat ix)}
   -> ByteString
-tillByteString buf from till =
-  let bv := fromIBuffer buf
-   in BS _ $ substringFromTill from (ixToNat ix) {lt2 = ixLTE ix} bv
-
-export
-toBytes :
-     IBuffer n
-  -> (from        : Nat)
-  -> (0    to     : Nat)
-  -> {auto ix     : Ix to n}
-  -> {auto 0  lte : LTE from (ixToNat ix)}
-  -> ByteString
-toBytes buf from to =
-  let bv := fromIBuffer buf
-   in BS _ $ substringFromTill from (ixToNat ix) {lt2 = ixLTE ix} bv
-
-export %inline
-sp : Origin -> (l,c : Nat) -> StreamPos
-sp o l c = SP o $ P l c
+toBSP (BS 0 _) buf from till = toBS buf from till
+toBSP prev     buf from till = prev <+> toBS buf from till

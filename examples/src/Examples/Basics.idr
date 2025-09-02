@@ -8,40 +8,35 @@ import Text.ILex.Debug
 %default total
 %hide Data.Linear.(.)
 
-spaces : RExp True
-spaces = plus (oneof [' ', '\n', '\r', '\t'])
-
 export
-aOrB : Lexer b Void AorB
+aOrB : L1 q Void AorB
 aOrB =
-  lexer $ dfa
-    [ (plus ('A' <|> 'a'), const A)
-    , (plus ('B' <|> 'b'), const B)
-    , (spaces, Ignore)
+  lexer $ jsonSpaced Ini
+    [ convTok (plus ('A' <|> 'a')) (const A)
+    , convTok (plus ('B' <|> 'b')) (const B)
     ]
 
-export
-exprDFA : DFA (Tok Void TExpr)
-exprDFA =
-  dfa
-    [ (natural, bytes (TLit . decimal))
-    , ('+', const $ TOp P)
-    , ('-', const $ TOp S)
-    , ('*', const $ TOp M)
-    , ('^', const $ TOp X)
-    , ('(', const PO)
-    , (')', const PC)
-    , (spaces, Ignore)
-    ]
-
+-- export
+-- exprDFA : DFA (Tok Void TExpr)
+-- exprDFA =
+--   dfa
+--     [ (natural, bytes (TLit . decimal))
+--     , ('+', const $ TOp P)
+--     , ('-', const $ TOp S)
+--     , ('*', const $ TOp M)
+--     , ('^', const $ TOp X)
+--     , ('(', const PO)
+--     , (')', const PC)
+--     , (spaces, Ignore)
+--     ]
+--
 identifier : RExp True
 identifier = plus $ alphaNum <|> '_'
 
 export
-ident : Lexer b Void Ident
+ident : L1 q Void Ident
 ident =
-  lexer $ dfa
-    [ ("else", const Else)
-    , (identifier, txt Id)
-    , (spaces, Ignore)
+  lexer $ jsonSpaced Ini
+    [ stok "else" Else
+    , readTok identifier Id
     ]
