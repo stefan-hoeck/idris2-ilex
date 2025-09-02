@@ -88,7 +88,7 @@ printFC fc@(FC o $ BS (P sr sc) (P er ec)) ls =
      False =>
        lineNumbers [<"",head] nsize sr (range sr (min er $ sr+5) ls) <>> []
      True  =>
-       let cemph := S $ ec `minus` sc
+       let cemph := min 1 $ ec `minus` sc
            emph  := indent (nsize + sc + 4) (replicate cemph '^')
            fr    := er `minus` 4 -- first row
         in lineNumbers [<"",head] nsize fr (range fr er ls) <>> [emph]

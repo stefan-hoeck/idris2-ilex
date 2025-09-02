@@ -329,7 +329,7 @@ parameters {0 q : Type}
     c <- read1 (col x)
     let d := c + n
     write1 (col x) d
-    pure $ BS (P l c) (P l $ pred d)
+    pure $ BS (P l c) (P l d)
 
   export %inline
   incLineAndGetBounds : Nat -> s q -> F1 q Bounds
@@ -339,7 +339,7 @@ parameters {0 q : Type}
     let d := c + n
     write1 (col x) 0
     write1 (line x) (S l)
-    pure $ BS (P l c) (P l $ pred d)
+    pure $ BS (P l c) (P l d)
 
   export %inline
   pushPos : s q -> F1' q
@@ -348,7 +348,7 @@ parameters {0 q : Type}
     c  <- read1 (col x)
     write1 (col x) (S c)
     let p := P l c
-    push1 (bounds x) () (BS p p)
+    push1 (bounds x) () (atPos p)
 
   ||| Recognizes the given character and uses it to update the parser state
   ||| as specified by `f`.
@@ -452,7 +452,7 @@ parameters {0 q : Type}
   unexpected strs st bs t =
    let str     := toString bs
        cur # t := currentPos st t
-       end     := {column $= (+ (pred $ length str))} cur
+       end     := {column $= (+ length str)} cur
     in case size bs of
          0 => B EOI (BS cur end) # t
          _ => B (Expected strs str) (BS cur end) # t

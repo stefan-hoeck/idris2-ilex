@@ -82,7 +82,7 @@ prop_boundsAOnly : Property
 prop_boundsAOnly =
   property1 $
         Right
-          [ B A $ BS (P 0 0) (P 0 0)
+          [ B A $ BS (P 0 0) (P 0 1)
           ]
     === lexBounds aOrB "A"
 
@@ -90,7 +90,7 @@ prop_boundsAsOnly : Property
 prop_boundsAsOnly =
   property1 $
         Right
-          [ B MA $ BS (P 0 1) (P 0 4)
+          [ B MA $ BS (P 0 1) (P 0 5)
           ]
     === lexBounds aOrB " Aaaa"
 
@@ -98,34 +98,34 @@ prop_boundsMany : Property
 prop_boundsMany =
   property1 $
         Right
-          [ B MA $ BS (P 0  1) (P 0  4)
-          , B B  $ BS (P 0  8) (P 0  9)
-          , B B  $ BS (P 0 11) (P 0 14)
-          , B A  $ BS (P 0 16) (P 0 16)
-          , B MA $ BS (P 0 19) (P 0 21)
-          , B A  $ BS (P 0 22) (P 0 22)
-          , B B  $ BS (P 0 23) (P 0 23)
-          , B C  $ BS (P 0 24) (P 0 26)
-          , B MA $ BS (P 0 29) (P 0 30)
+          [ B MA $ BS (P 0  1) (P 0  5)
+          , B B  $ BS (P 0  8) (P 0 10)
+          , B B  $ BS (P 0 11) (P 0 15)
+          , B A  $ BS (P 0 16) (P 0 17)
+          , B MA $ BS (P 0 19) (P 0 22)
+          , B A  $ BS (P 0 22) (P 0 23)
+          , B B  $ BS (P 0 23) (P 0 24)
+          , B C  $ BS (P 0 24) (P 0 27)
+          , B MA $ BS (P 0 29) (P 0 31)
           ]
     === lexBounds aOrB " Aaaa   Bb Bbbb A  AaaABCcc  Aa"
 
 prop_boundsByteErr : Property
 prop_boundsByteErr =
   property1 $
-        Left (PE Virtual (BS (P 0 4) (P 0 4)) (Just " AaaD") (Expected [] "D"))
+        Left (PE Virtual (BS (P 0 4) (P 0 5)) (Just " AaaD") (Expected [] "D"))
     === lexBounds aOrB " AaaD"
 
 prop_boundsByteErr2 : Property
 prop_boundsByteErr2 =
   property1 $
-        Left (PE Virtual (BS (P 0 0) (P 0 2)) (Just "CcD") (Expected [] "CcD"))
+        Left (PE Virtual (BS (P 0 0) (P 0 3)) (Just "CcD") (Expected [] "CcD"))
     === lexBounds aOrB "CcD"
 
 prop_boundsEoiErr : Property
 prop_boundsEoiErr =
   property1 $
-        Left (PE Virtual (BS (P 0 4) (P 0 5)) (Just " AaaCc") (Expected [] "Cc"))
+        Left (PE Virtual (BS (P 0 4) (P 0 6)) (Just " AaaCc") (Expected [] "Cc"))
     === lexBounds aOrB " AaaCc"
 
 export

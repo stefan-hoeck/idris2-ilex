@@ -38,36 +38,36 @@ abc =
 prop_AOnly : Property
 prop_AOnly =
   property1 $ do
-    Right [B A $ BS (P 0 0) (P 0 4)] === lexBounds abc "Aaaaa"
+    Right [B A $ BS (P 0 0) (P 0 5)] === lexBounds abc "Aaaaa"
     assert $ isLeft (lexBounds abc "Aaaa")
     assert $ isLeft (lexBounds abc "Aaaaaa")
 
 prop_BOnly : Property
 prop_BOnly =
   property1 $ do
-    Right [ B B $ BS (P 0 0) (P 0 0) ] === lexBounds abc "B"
-    Right [ B B $ BS (P 0 0) (P 0 1) ] === lexBounds abc "Bb"
-    Right [ B B $ BS (P 0 0) (P 0 2) ] === lexBounds abc "Bbb"
-    Right [ B B $ BS (P 0 0) (P 0 3) ] === lexBounds abc "Bbbb"
+    Right [ B B $ BS (P 0 0) (P 0 1) ] === lexBounds abc "B"
+    Right [ B B $ BS (P 0 0) (P 0 2) ] === lexBounds abc "Bb"
+    Right [ B B $ BS (P 0 0) (P 0 3) ] === lexBounds abc "Bbb"
+    Right [ B B $ BS (P 0 0) (P 0 4) ] === lexBounds abc "Bbbb"
     assert $ isLeft (lexBounds abc "Bbbbb")
 
 prop_COnly : Property
 prop_COnly =
   property1 $ do
-    Right [ B C $ BS (P 0 0) (P 0 3) ] === lexBounds abc "Cccc"
-    Right [ B C $ BS (P 0 0) (P 0 4) ] === lexBounds abc "Ccccc"
-    Right [ B C $ BS (P 0 0) (P 0 5) ] === lexBounds abc "Cccccc"
-    Right [ B C $ BS (P 0 0) (P 0 6) ] === lexBounds abc "Ccccccc"
+    Right [ B C $ BS (P 0 0) (P 0 4) ] === lexBounds abc "Cccc"
+    Right [ B C $ BS (P 0 0) (P 0 5) ] === lexBounds abc "Ccccc"
+    Right [ B C $ BS (P 0 0) (P 0 6) ] === lexBounds abc "Cccccc"
+    Right [ B C $ BS (P 0 0) (P 0 7) ] === lexBounds abc "Ccccccc"
     assert $ isLeft (lexBounds abc "Ccc")
     assert $ isLeft (lexBounds abc "Cc")
 
 prop_DOnly : Property
 prop_DOnly =
   property1 $ do
-    Right [ B D $ BS (P 0 0) (P 0 2) ] === lexBounds abc "Ddd"
-    Right [ B D $ BS (P 0 0) (P 0 3) ] === lexBounds abc "Dddd"
-    Right [ B D $ BS (P 0 0) (P 0 4) ] === lexBounds abc "Ddddd"
-    Right [ B D $ BS (P 0 0) (P 0 5) ] === lexBounds abc "Dddddd"
+    Right [ B D $ BS (P 0 0) (P 0 3) ] === lexBounds abc "Ddd"
+    Right [ B D $ BS (P 0 0) (P 0 4) ] === lexBounds abc "Dddd"
+    Right [ B D $ BS (P 0 0) (P 0 5) ] === lexBounds abc "Ddddd"
+    Right [ B D $ BS (P 0 0) (P 0 6) ] === lexBounds abc "Dddddd"
     assert $ isLeft (lexBounds abc "Dd")
     assert $ isLeft (lexBounds abc "D")
     assert $ isLeft (lexBounds abc "Ddddddd")

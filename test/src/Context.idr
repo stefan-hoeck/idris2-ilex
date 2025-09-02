@@ -74,7 +74,7 @@ closeStr x = T1.do
   po <- popBounds x
   pe <- currentPos x
   s  <- getStr x.strs
-  push1 (ST.vals x) SLit (B (SL s) $ po <+> BS pe pe)
+  push1 (ST.vals x) SLit (B (SL s) $ po <+> atPos pe)
 
 chars : RExp True
 chars = plus $ dot && not '"' && not '\\'
@@ -151,36 +151,36 @@ prop_lexEmptyStr =
 prop_boundsNum : Property
 prop_boundsNum =
   property1 $
-        Right [B (Num 1234) $ BS (P 0 0) (P 0 3)]
+        Right [B (Num 1234) $ BS (P 0 0) (P 0 4)]
     === lexBounds lit "1234"
 
 prop_boundsStr : Property
 prop_boundsStr =
   property1 $
-        Right [B (SL "foo") $ BS (P 0 0) (P 0 4)]
+        Right [B (SL "foo") $ BS (P 0 0) (P 0 5)]
     === lexBounds lit #""foo""#
 
 prop_boundsQuote : Property
 prop_boundsQuote =
   property1 $
-        Right [B (SL #"""#) $ BS (P 0 0) (P 0 3)]
+        Right [B (SL #"""#) $ BS (P 0 0) (P 0 4)]
     === lexBounds lit #""\"""#
 
 prop_boundsEsc : Property
 prop_boundsEsc =
-  property1 $ Right [B (SL #"\"#) $ BS (P 0 0) (P 0 3)]
+  property1 $ Right [B (SL #"\"#) $ BS (P 0 0) (P 0 4)]
     === lexBounds lit #""\\""#
 
 prop_boundsEscErr : Property
 prop_boundsEscErr =
   property1 $
-        Left (PE Virtual (BS (P 0 3) (P 0 4)) (Just #""ab\D""#) (Expected [] #"\D"#))
+        Left (PE Virtual (BS (P 0 3) (P 0 5)) (Just #""ab\D""#) (Expected [] #"\D"#))
     === lexBounds lit #""ab\D""#
 
 prop_unclosedErr : Property
 prop_unclosedErr =
   property1 $
-        Left (PE Virtual (BS (P 0 0) (P 0 0)) (Just #""abc d"#) (Unclosed #"""#))
+        Left (PE Virtual (BS (P 0 0) (P 0 1)) (Just #""abc d"#) (Unclosed #"""#))
     === lexBounds lit #""abc d"#
 
 export
