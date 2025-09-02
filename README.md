@@ -251,67 +251,6 @@ In this case, the first matching expression takes precedence.
 Therefore, `"true"` is interpreted as a boolean and `"123"` as
 an integer, although both would also be valid text tokens.
 
-### Dealing with Whitespace
-
-We'd like to further generalize our lexer, so that it properly deals
-with whitespace that might surround our tokens. We expect the
-following to be interpreted the same way as `csvStr1`:
-
-```idris
-csvStr2 : String
-csvStr2 =
-  """
-    foo ,  12,  true\t\t
-  bar,13  ,   true
-    baz,  14,false
-  """
-```
-
-There are several strategies that could help us here. For instance,
-we could enhance all our tokens to accept a pre- and postfix of
-arbitrary whitespace. However, this would require us to manually
-trim text tokens, and it would lead to quite some code duplication
-in our token expressions. The alternative is to add a specific whitespace
-token. With this, only the text token has to be adjusted: It must
-now start and end with a non-whitespace character.
-
-```idris
-text : RExp True
-text = nonspace >> opt (star textChar >> nonspace)
-  where
-    nonspace, textChar : RExp True
-    textChar = dot && not ','
-    nonspace = textChar && not ' ' && not '"'
-```
-
-The above defines a text character as any printable character (`dot`)
-that's not a comma (`&& not ','`), and a non-space character as
-a text character that's not a space (`&& not ' '`) (and not a
-quote, which we are going to need once we look at quoted strings). A text
-token is then a non-space character followed by an optional
-suffix consisting of an arbitrary number of text characters
-terminated by another non-space.
-
-With this, we can now define a whitespace token that we silently
-drop during lexing:
-
-```idris
-spaceExpr : RExp True
-spaceExpr = plus $ oneof [' ', '\t']
-
-csv1_2 : L1 q Void CSV1
-csv1_2 =
-  lexer
-    [ ctok ',' Comma1
-    , nltok linebreak NL1
-    , stok "true" (Bool1 True)
-    , stok "false" (Bool1 False)
-    , convTok (opt '-' >> decimal) (Int1 . integer)
-    , readTok text Txt1
-    , (spaceExpr, spaces Ini)
-    ]
-```
-
 ### Quoted Text
 
 Currently, our CSV lexer cannot process any text that contains
@@ -336,12 +275,11 @@ quoted = '"' >> star qchar >> '"'
   where
     qchar : RExp True
     qchar =
-          (dot && not '"' && not '\\')
-      <|> #"\""#
-      <|> #"\n"#
-      <|> #"\r"#
-      <|> #"\t"#
-      <|> #"\\"#
+          (dot && not '"')
+      <|> #""""#
+      <|> #""n"#
+      <|> #""r"#
+      <|> #""t"#
 ```
 
 With this, we can enhance our lexer:
@@ -349,17 +287,16 @@ With this, we can enhance our lexer:
 ```idris
 unquote : ByteString -> String
 
-csv1_3 : L1 q Void CSV1
-csv1_3 =
+csv1_2 : L1 q Void CSV1
+csv1_2 =
   lexer
     [ ctok ',' Comma1
     , nltok linebreak NL1
     , stok "true" (Bool1 True)
     , stok "false" (Bool1 False)
     , convTok (opt '-' >> decimal) (Int1 . integer)
-    , readTok text Txt1
+    , readTok (plus (dot && not ',' && not '"')) Txt1
     , convTok quoted (Txt1 . unquote)
-    , (spaceExpr, spaces Ini)
     ]
 ```
 
@@ -371,13 +308,12 @@ unquote = go [<] . unpack . toString
   where
     go : SnocList Char -> List Char -> String
     go sc []              = pack (sc <>> [])
-    go sc ('\\'::'"' ::xs) = go (sc :< '"') xs
-    go sc ('\\'::'\\'::xs) = go (sc :< '\\') xs
-    go sc ('\\'::'t' ::xs) = go (sc :< '\t') xs
-    go sc ('\\'::'n' ::xs) = go (sc :< '\n') xs
-    go sc ('\\'::'r' ::xs) = go (sc :< '\r') xs
-    go sc ('"'::xs)        = go sc xs
-    go sc (x::xs)          = go (sc :< x) xs
+    go sc ('"'::'"' ::xs) = go (sc :< '"') xs
+    go sc ('"'::'t' ::xs) = go (sc :< '\t') xs
+    go sc ('"'::'n' ::xs) = go (sc :< '\n') xs
+    go sc ('"'::'r' ::xs) = go (sc :< '\r') xs
+    go sc ('"'::xs)       = go sc xs
+    go sc (x::xs)         = go (sc :< x) xs
 ```
 
 We are going to look at how to do this in a more performant
@@ -396,11 +332,10 @@ is used in performance critical code.
 lexUQ : L1 q Void String
 lexUQ =
   lexer
-    [ stok #"\""# "\""
-    , stok #"\\"# "\\"
-    , stok #"\n"# "\n"
-    , stok #"\r"# "\r"
-    , stok #"\t"# "\t"
+    [ stok #""""# "\""
+    , stok #""n"# "\n"
+    , stok #""r"# "\r"
+    , stok #""t"# "\t"
     , stok #"""#  ""
     , readTok (plus (dot && not '"' && not '\\')) id
     ]
@@ -435,7 +370,7 @@ The first thing we need to define for this, is a custom state type for
 parsing:
 
 ```idris
-record QuotedST q where
+record QSTCK q where
   constructor Q
   line : Ref q Nat
   col  : Ref q Nat
@@ -443,7 +378,7 @@ record QuotedST q where
   strs : Ref q (SnocList String)
   toks : Ref q (SnocList $ Bounded CSV1)
 
-init : F1 q (QuotedST q)
+init : F1 q (QSTCK q)
 init = T1.do
   l <- ref1 Z
   c <- ref1 Z
@@ -453,17 +388,17 @@ init = T1.do
   pure (Q l c b s v)
 ```
 
-Parser state `QuotedST q` is a wrapper around several mutable references
+Parser state `QSTCK q` is a wrapper around several mutable references
 that can be manipulated in state-thread `q`. Fields `line`, `col`,
 and `bounds` are required to implement interface `LC`, which facilitates
 handling the token bounds:
 
 ```idris
 %inline
-LC QuotedST where
-  line   = QuotedST.line
-  col    = QuotedST.col
-  bounds = QuotedST.bnds
+LC QSTCK where
+  line   = QSTCK.line
+  col    = QSTCK.col
+  bounds = QSTCK.bnds
 ```
 
 File `vals` is where the recognized tokens will be stored. We need
@@ -473,8 +408,8 @@ automatically:
 
 ```idris
 %inline
-LexST QuotedST CSV1 where
-  vals = QuotedST.toks
+LexST QSTCK CSV1 where
+  vals = QSTCK.toks
 ```
 
 ### Parser States
@@ -516,7 +451,7 @@ but also the state the parser will be in *after* the given token
 was recognized. For the initial state, almost nothing changes:
 
 ```idris
-lexInit : DFA (Step1 q e QSz QuotedST)
+lexInit : DFA (Step1 q e QSz QSTCK)
 lexInit =
   dfa Err
     [ ctok ',' Comma1
@@ -524,13 +459,12 @@ lexInit =
     , stok "true" (Bool1 True)
     , stok "false" (Bool1 False)
     , convTok (opt '-' >> decimal) (Int1 . integer)
-    , readTok text Txt1
-    , copen '"' (const QuotedST InStr)
-    , (spaceExpr, spaces Ini)
+    , readTok (plus (dot && not ',' && not '"')) Txt1
+    , copen '"' (const QSTCK InStr)
     ]
 ```
 
-As you can see, since `QuotedST` implements interfaces `LC` and `LexST`,
+As you can see, since `QSTCK` implements interfaces `LC` and `LexST`,
 we can just reuse the utilities from the previous example. However,
 we no longer recognize a whole quoted string but just the opening
 quote. We use the `copen` utility, which will push the current
@@ -547,20 +481,19 @@ and append the recognized, concatenated string to the list of tokens.
 Here are the necessary utilities and token maps:
 
 ```idris
-closeStr : QuotedST q -> F1 q QST
+closeStr : QSTCK q -> F1 q QST
 
-pushStr : String -> QuotedST q -> F1 q QST
+pushStr : String -> QSTCK q -> F1 q QST
 
-lexStr : DFA (Step1 q e QSz QuotedST)
+lexStr : DFA (Step1 q e QSz QSTCK)
 lexStr =
   dfa Err
-    [ str #"\""# $ pushStr "\""
-    , str #"\\"# $ pushStr "\\"
-    , str #"\n"# $ pushStr "\n"
-    , str #"\r"# $ pushStr "\r"
-    , str #"\t"# $ pushStr "\t"
+    [ str #""""# $ pushStr "\""
+    , str #""n"# $ pushStr "\n"
+    , str #""r"# $ pushStr "\r"
+    , str #""t"# $ pushStr "\t"
     , chr '"' closeStr
-    , (plus (dot && not '"' && not '\\'), read pushStr)
+    , read (plus $ dot && not '"') pushStr
     ]
 ```
 
@@ -589,28 +522,25 @@ closeStr x = T1.do
 We now wrap up the different lexers in an array of lexers:
 
 ```idris
-quoted1 : Lex1 q e QSz QuotedST
+quoted1 : Lex1 q e QSz QSTCK
 quoted1 = lex1 [E Ini lexInit, E InStr lexStr]
 ```
 
 ### Error Handling
 
 ```idris
-quotedErr : Arr32 QSz (QuotedST q -> ByteString -> F1 q (BoundedErr e))
+quotedErr : Arr32 QSz (QSTCK q -> ByteString -> F1 q (BoundedErr e))
 quotedErr = arr32 QSz (unexpected []) [E InStr $ unclosed "\"" []]
 
-quotedEOI : QST -> QuotedST q -> F1 q (Either (BoundedErr e) (List $ Bounded CSV1))
+quotedEOI : QST -> QSTCK q -> F1 q (Either (BoundedErr e) (List $ Bounded CSV1))
 quotedEOI st x =
   case st == Ini of
-    False => arrFail QuotedST quotedErr st x ""
+    False => arrFail QSTCK quotedErr st x ""
     True  => replace1 x.toks [<] >>= pure . Right . (<>> [])
 
-lexQuoted : P1 q (BoundedErr Void) QSz QuotedST (List $ Bounded CSV1)
-lexQuoted = P Ini init quoted1 lchunk quotedErr quotedEOI
-
-
+csv1_3 : P1 q (BoundedErr Void) QSz QSTCK (List $ Bounded CSV1)
+csv1_3 = P Ini init quoted1 lchunk quotedErr quotedEOI
 ```
-
 
 ## Parsing CSV Files
 
@@ -636,287 +566,201 @@ record Line where
 
 %runElab derive "Line" [Show,Eq]
 
+Interpolation Line where interpolate = show
+
 0 Table : Type
 Table = List Line
 ```
 
-We go back to using a more basic lexer for the time being
-(no quoted strings with escape sequences; we'll look at
-those further below), but our token type will already
-include everything needed to parser quoted strings with
-escape sequences:
+As you can see, a CSV table is just a list of lines, with a line
+consisting of a line number and a list of cells.
+
+### Parser Stack and State
+
+Below is the record of mutable references we are going to use to accumulate
+lines: As usual, we include the fields for keeping track of
+token bounds. In addition, we have mutable references for
+accumulating quoted strings, the current list, and the whole
+table. Typically, we call this the parser's *stack*, even though
+it consists of more than a single (snoc)list:
 
 ```idris
-data CSV : Type where
-  Comma : CSV
-  NL    : CSV
-  Quote : CSV
-  Str   : String -> CSV
-  Cll   : Cell -> CSV
+public export
+record CSTCK (q : Type) where
+  constructor C
+  line  : Ref q Nat
+  col   : Ref q Nat
+  bnds  : Ref q (SnocList Bounds)
+  strs  : Ref q (SnocList String)
+  cells : Ref q (SnocList Cell)
+  lines : Ref q (SnocList Line)
 
-%runElab derive "CSV" [Show,Eq]
+export %inline
+LC CSTCK where
+  line   = CSTCK.line
+  col    = CSTCK.col
+  bounds = CSTCK.bnds
 
-Interpolation CSV where interpolate = show
+export
+cinit : F1 q (CSTCK q)
+cinit = T1.do
+  l  <- ref1 Z
+  c  <- ref1 Z
+  bs <- ref1 [<]
+  ss <- ref1 [<]
+  cs <- ref1 [<]
+  ls <- ref1 [<]
+  pure (C l c bs ss cs ls)
 ```
 
-The new thing is, that instead of a `Lexer`, we just
-define a discrete finite automaton (DFA) for dealing
-with the tokenization part. We'll see why in a moment:
+Next, we'll define the different parser states. We want to make
+sure we add an empty `Null` cell in case we encounter two
+consecutive commas or a comma followed by a line break. Also,
+there must not be two consecutive values, and we want to know
+whether we are currently parsing a quoted string. This
+leads to four distinct parser states (the initial state `Ini`
+marks the beginning of a line):
 
 ```idris
--- csvDFA : DFA (Tok e CSV)
--- csvDFA =
---   dfa
---     [ (','               , const Comma)
---     , ('"'               , const Quote)
---     , (linebreak         , const NL)
---     , ("true"            , const (Cll $ CBool True))
---     , ("false"           , const (Cll $ CBool False))
---     , (opt '-' >> decimal, bytes (Cll . CInt . integer))
---     , (text              , txt (Cll . CStr))
---     , (spaces            , Ignore)
---     ]
+public export
+CSz : Bits32
+CSz = 4
+
+public export
+0 CST : Type
+CST = Index CSz
+
+export
+Val, Str, Com : CST
+Val = 1; Str = 2; Com = 3
 ```
 
-As you can see, the automaton emits tokens for commas, line breaks,
-and complete data fields (cells). The quote character gets special
-treatment and will lead to a `Quote` token being emitted. More on
-this when we talk about string literals.
+### State Transitions
 
-### State and Parsing
+We are now going to define the parser's state transitions:
+The lexicographic tokens we recognize at each parser
+state, how they affect the parser stack, and the parser
+state *after* encountering a token.
 
-With  the DFA defined above we can already define a proper
-CSV parser by implementing a bunch of state transitions based
-on the tokens we encounter. We build lines from top to bottom
-keeping track of the current line number. Likewise, we
-build each line from left to right. Finally, we have to
-keep track of where in the parsing process we are (at the
-beginning of a line, after a comma, or after a value). We
-use a simple tag to keep track of this.
+First: After encountering a CSV cell, we push it onto the
+`cells` stack and switch to the `Val` state, because
+we just encountered a value:
 
 ```idris
-data Tag = New | Val | Com
-
-data CState : Type -> Type where
-  CL : Nat -> SnocList Line -> SnocList Cell -> Tag -> CState b
-  CS : Nat -> SnocList Line -> SnocList Cell -> b -> SnocList String -> CState b
+onCell : Cell -> CSTCK q -> F1 q CST
+onCell v x = push1 x.cells Val v
 ```
 
-As you can see, our parser state consists of two data constructors
-and is parameterized by the type of bounds provided by the
-driver we use for parsing. The `CL` data constructor corresponds
-to a partially parsed line (line number, lines parsed so far,
-cells parsed so far, tag describing the current position) as
-described above. Constructor `CS` holds the same information,
-but we use it to accumulate a string literal. We will look
-at this one more closely in the next section.
+Second: After encountering a line break, we increase the line
+number and assemble the CSV line from the current line number
+and collected cells. If the list of cells is empty, we do not
+append an empty line to the table.
 
-The main complexity comes from defining the state transitions.
-Given a value of type `Input b s t` (holding the current token,
-the current parser state, and the token bounds), we produce an
-updated parser state or an error.
-
-Here's the corresponding state transition function:
+There is one special case we have to consider: If the line
+break occurred right after a comma, make sure to push a
+`Null` cell onto the stack of cells:
 
 ```idris
--- new : Nat -> SnocList Line -> Either e (CState b)
--- new n sl = Right $ CL (S n) sl [<] New
---
--- cv : Nat -> SnocList Line -> SnocList Cell -> Either e (CState b)
--- cv n sl sc = Right $ CL n sl sc Val
---
--- cc : Nat -> SnocList Line -> SnocList Cell -> Either e (CState b)
--- cc n sl sc = Right $ CL n sl sc Com
---
--- step2 : Input b (CState b) CSV -> ParseRes b e (CState b) CSV
--- step2 (I t (CS _ _ _ bs _) b) = unclosed bs Quote
--- step2 (I t (CL n sl sc tg) b) =
---   case t of
---     Comma => case tg of
---       Val => cc n sl sc
---       _   => cc n sl (sc :< Null)
---     NL    => case tg of
---       New => new n sl
---       Val => new n (sl :< L n (sc <>> []))
---       Com => new n (sl :< L n (sc <>> [Null]))
---     Cll x => case tg of
---       Val => unexpected b t
---       _   => cv n sl (sc :< x)
---     Quote => case tg of
---       Val => unexpected b t
---       _   => Right $ CS n sl sc b [<]
---     _     => unexpected b t
+onNL : (afterComma : Bool) -> CSTCK q -> F1 q CST
+onNL afterComma x = T1.do
+  incLine () x
+  when1 afterComma (push1 x.cells () Null)
+  cs@(_::_) <- getList x.cells | [] => pure Ini
+  ln <- read1 x.line
+  push1 x.lines Ini (L ln cs)
 ```
 
-In the first line, we just fail with an error in case we are
-currently in a string literal. This will be fixed in the next
-section. Note, however, that the error we produce here tells us
-that an opening quote has not properly been closed. In order to
-get a nice visualization of this, we use the bounds of the opening
-quote to describe where in the input string the error happened.
-
-The rest is plain pattern matches on the lexicographic token:
-
-* After a comma, we change the state's tag. In case the last token
-  was not a value, we append an empty cell (`Null`).
-* After a line break, we start a new line and append the current
-  line to the list of lines. Like with a comma, we might append
-  an empty cell. Note, that we do not generate entries for empty
-  lines. This is an opinionated choice. You might decide to do
-  otherwise (or let client code decide via a settings parameter)
-  in your own CSV parser
-* After a value, we append the value to the list of cells unless
-  the last token was already a value, in which case we fail with
-  an error.
-* After a quote, we start a partial string or fail with an error
-  (in case the last token was a value).
-
-Hard part's over. To complete our parser, we need two additional
-functions. The first is related to streaming large chunks of
-data. We will come back to this in a later section. For now,
-suffice to say that in a data stream, we'd like to occasionally
-emit all the lines we have encountered so far and remove them
-from the accumulated state in order not to blow up our application's
-memory consumption. Here's the utility to do this:
+With the above, we can already define the default lexer.
+This comes with two additional state transitions that can
+be given inline: After encountering a comma, we push an empty
+onto the stack and switch to the `Com` state. Likewise,
+after encountering a double quote, we *open* a new
+thing that needs to be closed (`copen`) and switch to
+the `Str` state:
 
 ```idris
-chunkCSV : CState b -> (CState b, Maybe Table)
-chunkCSV (CL k sx sy x)      = (CL k [<] sy x, maybeList sx)
-chunkCSV (CS k sx sy x sstr) = (CS k [<] sy x sstr, maybeList sx)
+csvDflt : (afterComma : Bool) -> DFA (Step1 q e CSz CSTCK)
+csvDflt afterComma =
+  dfa Err
+    [ chr ',' $ \x => push1 x.cells Com Null
+    , conv linebreak (const $ onNL afterComma)
+    , str "true" $ onCell (CBool True)
+    , str "false" $ onCell (CBool False)
+    , conv (opt '-' >> decimal) (onCell . CInt . integer)
+    , read (plus $ dot && not ',' && not '"') (onCell . CStr)
+    , copen '"' (const CSTCK Str)
+    ]
 ```
 
-Finally, we need to finish things once we reach the end of
-input. Again, we might fail with an exception in case
-we are in the middle of something unfinished. To keep
-things simple, we just invoke `step2` with a line break
-token:
+The string lexer pushes all encountered text regions and escape
+sequences onto the corresponding stack until a closing
+double quote is encountered, which leads to the accumulated
+string to be pushed onto the stack of cells (`onCell`).
 
 ```idris
-lines : CState b -> List Line
-lines (CL _ sx _ _)   = sx <>> []
-lines (CS _ sx _ _ _) = sx <>> []
+endStr : CSTCK q -> F1 q CST
+endStr x = T1.do
+  s <- getStr x.strs
+  onCell (CStr s) x
 
--- eoiCSV : b -> CState b -> ParseRes b e Table CSV
--- eoiCSV bs s = lines <$> step2 (I NL s bs)
+csvStr : DFA (Step1 q e CSz CSTCK)
+csvStr =
+  dfa Err
+    [ str #""""# $ push CSTCK strs Str "\""
+    , str #""n"# $ push CSTCK strs Str "\n"
+    , str #""r"# $ push CSTCK strs Str "\r"
+    , str #""t"# $ push CSTCK strs Str "\t"
+    , cclose '"' endStr
+    , read (plus $ dot && not '"') $ push CSTCK strs Str
+    ]
 ```
 
-With these utilities defined, we can assemble everything
-in a proper parser:
+Finally, we gather the state transformations for every parser state
+in an array of transformations:
 
 ```idris
--- init : CState b
--- init = CL 1 [<] [<] New
-
--- csv2 : Parser b Void CSV Table
--- csv2 = P init (const csvDFA) step2 chunkCSV eoiCSV
+csvSteps : Lex1 q e CSz CSTCK
+csvSteps =
+  lex1
+    [ E Ini (csvDflt False)
+    , E Val $ dfa Err [chr' ',' Com, conv linebreak (const $ onNL False)]
+    , E Str csvStr
+    , E Com (csvDflt True)
+    ]
 ```
 
-As you can see, the parser consists of the initial state,
-one or several DFAs and three state conversion functions.
-
-You might wonder about the `const csvDFA` part: As we will see
-in the next section, the automaton we use for creating the next
-token can change depending on the current parser state. This allows
-us to make our tokenizer context sensitive. In this more basic parser,
-we use only one automaton.
-
-### Quoted Strings and Escape Sequences
-
-We are now going to look at how to handle quoted string
-literals with escape sequences. First, we note that an
-escape sequence is always started with a backquote (`\`),
-so the occurrences of these break the whole string token
-into smaller parts. That's why we use a `SnocList` in our
-parser state for representing a partially parsed string
-literal. Since the tokens we expect within a quoted string
-literal are completely different from the ones encountered outside
-of quoted strings, it makes sense to handle these in a
-separate automaton:
+### Error Handling
 
 ```idris
--- strDFA : DFA (Tok e CSV)
--- strDFA =
---   dfa
---     [ ('"',    const Quote)
---     , (#"\""#, const $ Str "\"")
---     , (#"\\"#, const $ Str "\\")
---     , (#"\n"#, const $ Str "\n")
---     , (#"\r"#, const $ Str "\r")
---     , (#"\t"#, const $ Str "\t")
---     , (linebreak, const NL)
---     , (plus (dot && not '"' && not '\\'), txt Str)
---     ]
+csvErr : Arr32 CSz (CSTCK q -> ByteString -> F1 q (BoundedErr e))
+csvErr = arr32 CSz (unexpected []) [E Str $ unclosed "\"" []]
+
+csvEOI : CST -> CSTCK q -> F1 q (Either (BoundedErr e) Table)
+csvEOI st x =
+  case st == Str of
+    True  => arrFail CSTCK csvErr st x ""
+    False => T1.do
+      _   <- onNL (st == Com) x
+      tbl <- getList x.lines
+      pure (Right tbl)
+
+csv : P1 q (BoundedErr Void) CSz CSTCK Table
+csv = P Ini cinit csvSteps (snocChunk CSTCK lines) csvErr csvEOI
 ```
-
-You might wonder, why we include the line break token in
-this DFA. As you will see in a moment, this will allow us to
-generate more precise error messages in case of quoted string
-literals without a closing quote.
-
-We can make use of the more basic parser from the last section
-to implement the state transition function. The only new thing
-is that we can now append parts of a string literal to
-the corresponding token state as well as close that state
-once we arrive at the closing quote:
-
-```idris
--- stepCSV : Input b (CState b) CSV -> ParseRes b e (CState b) CSV
--- stepCSV i@(I t (CS n sl sc bs ss) b) =
---   case t of
---     Quote => cv n sl (sc :< CStr (snocPack ss))
---     Str x => Right $ CS n sl sc bs (ss :< x)
---     _     => step2 i
--- stepCSV i = step2 i
-```
-
-The functions for processing chunks and end of input need not
-be adjusted. However, we now want to use a proper context
-sensitive lexer. The DFA to use will therefore depend on the
-current parser state. While we are in the middle of a quoted
-string literal, we want to use `strDFA`, otherwise we'll use
-the default (`csvDFA`):
-
-```idris
--- lexCSV : CState b -> DFA (Tok e CSV)
--- lexCSV (CL {}) = csvDFA
--- lexCSV (CS {}) = strDFA
-
--- csv : Parser b Void CSV Table
--- csv = P (CL 1 [<] [<] New) lexCSV stepCSV chunkCSV eoiCSV
-```
-
-With all things properly tied up, we can now test our
-full-fledged CSV parser, for instance, with the following
-example input:
 
 ```idris
 csvStr3 : String
 csvStr3 =
   #"""
-   entry 1, "this is a \"test\""         , true  ,  12
-   entry 2, "below is an empty line"     , false ,   0
+  entry 1,"this is a ""test""",true,12
+  entry 2,"below is an empty line",false,0
 
-   entry 3, "this one has an empty cell" ,       , -20
-   entry 4, "finally, a backslash: \\"   ,true   ,   4
+  entry 3,"this one has an empty cell",,-20
+  entry 4,"finally, a linebreak: "r"n",true,4
+  entry 5,"next one is almost empty",true,18
+  ,,,
   """#
 ```
-
-### Error Handling
-
-From a user's point of view, one of the most important aspects
-when writing a parser is to come up with helpful error messages.
-I strongly advise you to have a closer look at the data
-types and their constructors in `Text.ILex.Error`. In general,
-an `InnerError` is paired with a file context (filename plus exact
-position or range where the error occurred) and then pretty printed
-whenever something goes wrong.
-
-`InnerError` is parameterized over the token type as well as a
-custom error type for those situations where the existing
-error constructors are not descriptive enough.
-In our examples, this is set to the uninhabited
-type `Void`, meaning that in our case, there will be no
-custom errors.
 
 Below are a couple of erroneous CSV strings. Feel free to
 run our parser against those and check out the error messages
@@ -924,13 +768,13 @@ we get:
 
 ```idris
 twoValues : String
-twoValues = "this is wrong, \"foo\" false"
+twoValues = "this is wrong,\"foo\"false"
 
 invalidTab : String
-invalidTab = "this is wrong, foo, false, \"Ups: \t\", bar"
+invalidTab = "this is wrong,foo,false,\"Ups: \t\",bar"
 
 unclosedQuote : String
-unclosedQuote = "this is wrong, foo, false, \"Ups , bar"
+unclosedQuote = "this is wrong,foo,false,\"Ups , bar"
 ```
 
 The error message from the last example is important: Instead
@@ -951,8 +795,8 @@ at the REPL.
 unclosedMultiline : String
 unclosedMultiline =
   """
-    foo, "this is a, 12
-    bar, test, 13
+  foo,"this is a,12
+  bar,test,13
   """
 ```
 
@@ -979,14 +823,14 @@ leads to the following type alias for our data stream plus a
 runner that will pretty print all errors to `stderr`:
 
 ```idris
--- 0 Prog : Type -> Type -> Type
--- Prog o r = AsyncPull Poll o [StreamError CSV Void, Errno] r
---
--- covering
--- runProg : Prog Void () -> IO ()
--- runProg prog =
---  let handled := handle [stderrLn . interpolate, stderrLn . interpolate] prog
---   in epollApp $ mpull handled
+0 Prog : Type -> Type -> Type
+Prog o r = AsyncPull Poll o [ParseError Void, Errno] r
+
+covering
+runProg : Prog Void () -> IO ()
+runProg prog =
+ let handled := handle [stderrLn . interpolate, stderrLn . interpolate] prog
+  in epollApp $ mpull handled
 ```
 
 If the above is foreign to you, please work through the tutorials
@@ -996,14 +840,12 @@ And here's an example how to stream a single, possibly huge, CSV file
 (this will print the total number of non-empty CSV-lines encountered):
 
 ```idris
--- streamCSV : String -> Prog Void ()
--- streamCSV pth =
---   lift1 (buf 0xffff) >>= \buf =>
---        readRawBytes buf pth
---     |> P.mapOutput (FileSrc pth,)
---     |> streamParse csv
---     |> C.count
---     |> printLnTo Stdout
+streamCSV : String -> Prog Void ()
+streamCSV pth =
+     readBytes pth
+  |> streamParse csv (FileSrc pth)
+  |> C.count
+  |> printLnTo Stdout
 ```
 
 Functions `readBytes`, `mapOutput`, and `printLnTo` are just standard
@@ -1023,12 +865,11 @@ strings of data:
   string with the error.
 
 ```idris
--- streamCSVFiles : Prog String () -> Buf -> Prog Void ()
--- streamCSVFiles pths buf =
---      flatMap pths (\p => readRawBytes buf p |> P.mapOutput (FileSrc p,))
---   |> streamParse csv
---   |> C.count
---   |> printLnTo Stdout
+streamCSVFiles : Prog String () -> Prog Void ()
+streamCSVFiles pths =
+     flatMap pths (\p => readBytes p |> streamParse csv (FileSrc p))
+  |> C.count
+  |> printLnTo Stdout
 ```
 
 Below is a `main` function so you can test our CSV parser against
@@ -1044,9 +885,9 @@ single characters (in single quotes like in Idris), date and time
 values and so on.
 
 ```idris
--- covering
--- main : IO ()
--- main = runProg $ lift1 (buf 0xffff) >>= streamCSVFiles (P.tail args)
+covering
+main : IO ()
+main = runProg $ streamCSVFiles (P.tail args)
 ```
 
 In order to compile this and check it against your own

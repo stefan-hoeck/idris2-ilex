@@ -87,7 +87,7 @@ lit1 =
         , copen '"' (const ST SStr)
         ]
     , E SStr $ dfa Err
-        [ (chars, read $ push ST strs SStr)
+        [ read chars $ push ST strs SStr
         , str #"\\"# $ push ST strs SStr #"\"#
         , str #"\""# $ push ST strs SStr #"""#
         , chr '"' closeStr

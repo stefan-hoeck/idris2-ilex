@@ -401,17 +401,25 @@ parameters {0 q : Type}
   ||| Converts the recognized token to a `String`, increases the
   ||| current column by its length and invokes the given state transformer.
   export %inline
-  read : (String -> s q -> F1 q (Index r)) -> Step1 q e r s
-  read f =
-    rd $ \st,bs => T1.do
-     let s     := toString bs
-     f s st >>= incCols (length s) st
+  read :
+       RExp True
+    -> (String -> s q -> F1 q (Index r))
+    -> (RExp True, Step1 q e r s)
+  read exp f =
+    ( exp
+    , rd $ \st,bs => T1.do
+        let s     := toString bs
+        f s st >>= incCols (length s) st
+    )
 
   ||| Increases the current column by the recognized byte string's length
   ||| before passing it on to the given state transformer.
   export %inline
-  conv : (ByteString -> s q -> F1 q (Index r)) -> Step1 q e r s
-  conv f = rd $ \st,bs => f bs st >>= incCols (size bs) st
+  conv :
+       RExp True
+    -> (ByteString -> s q -> F1 q (Index r))
+    -> (RExp True, Step1 q e r s)
+  conv exp f = (exp, rd $ \st,bs => f bs st >>= incCols (size bs) st)
 
 --------------------------------------------------------------------------------
 -- Error handling
@@ -496,6 +504,14 @@ parameters {0 s       : Type -> Type}
   export %inline
   nltok : (0 lt : 0 < r) => RExp True -> a -> (RExp True, Step1 q e r s)
   nltok xp v = (xp, rd $ \x,bs => lexPushNL bs.size Ini v x)
+
+export
+snocChunk :
+     (0 s : Type -> Type)
+  -> (s q -> Ref q (SnocList a))
+  -> s q
+  -> F1 q (Maybe $ List a)
+snocChunk s f x t = let ss # t := replace1 (f x) [<] t in maybeList ss # t
 
 export
 lchunk : LexST s a => s q -> F1 q (Maybe $ List $ Bounded a)

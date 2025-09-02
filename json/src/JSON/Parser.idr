@@ -221,8 +221,8 @@ valTok x ts =
     [ str "null"  (onVal JNull)
     , str "true"  (onVal $ JBool True)
     , str "false" (onVal $ JBool False)
-    , (opt '-' >> decimal, conv (onVal . JInteger . integer))
-    , (jsonDouble        , read (onVal . JDouble . cast))
+    , conv (opt '-' >> decimal) (onVal . JInteger . integer)
+    , read jsonDouble (onVal . JDouble . cast)
     , copen '{' (begin (`PO` [<]) ONew)
     , copen '[' (begin (`PA` [<]) ANew)
     , copen '"' (const ST Str)
@@ -245,7 +245,7 @@ strTok : DFA (Step1 q e JSz ST)
 strTok =
   dfa Err
     [ cclose '"' endStr
-    , (plus (dot && not '"' && not '\\'), read (push ST strs Str))
+    , read (plus $ dot && not '"' && not '\\') (push ST strs Str)
     , str #"\""# (push ST strs Str "\"")
     , str #"\n"# (push ST strs Str "\n")
     , str #"\f"# (push ST strs Str "\f")
@@ -254,7 +254,7 @@ strTok =
     , str #"\t"# (push ST strs Str "\t")
     , str #"\\"# (push ST strs Str "\\")
     , str #"\/"# (push ST strs Str "\/")
-    , (codepoint, conv (push ST strs Str . decode))
+    , conv codepoint (push ST strs Str . decode)
     ]
 
 --------------------------------------------------------------------------------
