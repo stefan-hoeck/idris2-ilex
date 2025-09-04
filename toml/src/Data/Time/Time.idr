@@ -152,7 +152,7 @@ Interpolation OffsetTime where
 public export
 record LocalDateTime where
   constructor LDT
-  date : Date
+  date : LocalDate
   time : LocalTime
 
 %runElab derive "LocalDateTime" [Show, Eq]
@@ -164,7 +164,7 @@ Interpolation LocalDateTime where
 public export
 record OffsetDateTime where
   constructor ODT
-  date : Date
+  date : LocalDate
   time : OffsetTime
 
 %runElab derive "OffsetDateTime" [Show, Eq]
@@ -179,7 +179,7 @@ Interpolation OffsetDateTime where
 
 public export
 data AnyTime : Type where
-  ATDate : Date -> AnyTime
+  ATLocalDate      : LocalDate -> AnyTime
   ATLocalTime      : LocalTime -> AnyTime
   ATLocalDateTime  : LocalDateTime -> AnyTime
   ATOffsetDateTime : OffsetDateTime -> AnyTime
@@ -188,7 +188,7 @@ data AnyTime : Type where
 
 export
 Interpolation AnyTime where
-  interpolate (ATDate x)           = interpolate x
+  interpolate (ATLocalDate x)       = interpolate x
   interpolate (ATLocalTime x)      = interpolate x
   interpolate (ATLocalDateTime x)  = interpolate x
   interpolate (ATOffsetDateTime x) = interpolate x

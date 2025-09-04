@@ -7,6 +7,7 @@ import Text.TOML.Lexer
 import Text.TOML.Types
 import Syntax.T1
 
+%hide Data.Linear.(.)
 %default total
 
 --------------------------------------------------------------------------------
@@ -86,16 +87,35 @@ beforeVal : DFA (Step1 q e TSz TSTCK)
 -- Values
 --------------------------------------------------------------------------------
 
-onVal : TomlValue -> Step1 q e TSz TSTCK
+onval : RExp True -> (ByteString -> TomlValue) -> (RExp True, Step1 q e TSz TSTCK)
+
+%inline
+onval' : RExp True -> TomlValue -> (RExp True, Step1 q e TSz TSTCK)
+onval' x = onval x . const
 
 val : DFA (Step1 q e TSz TSTCK)
 val =
   dfa Err
-    [ ("true",  onVal $ TBool True)
-    , ("false", onVal $ TBool False)
-    , (nan    , onVal $ TDbl NaN)
-    , (posInf , onVal $ TDbl $ Infty Plus)
-    , ("-inf" , onVal $ TDbl $ Infty Minus)
+    [ onval' "true"  (TBool True)
+    , onval' "false" (TBool False)
+
+    -- integers
+    , onval  decInt  (TInt . readDecInt)
+    , onval  binInt  (TInt . binarySep . drop 2)
+    , onval  octInt  (TInt . octalSep underscore . drop 2)
+    , onval  hexInt  (TInt . hexadecimalSep underscore . drop 2)
+
+    -- floats
+    , onval' nan     (TDbl NaN)
+    , onval' posInf  (TDbl $ Infty Plus)
+    , onval' "-inf"  (TDbl $ Infty Minus)
+    , onval float    (TDbl . readFloat)
+
+    -- Date and Time
+    , onval fullDate  (TTime . ATLocalDate . readLocalDate)
+    , onval localTime (TTime . ATLocalTime . readLocalTime)
+    , onval localDateTime (TTime . ATLocalDateTime . readLocalDateTime)
+    , onval offsetDateTime (TTime . ATOffsetDateTime . readOffsetDateTime)
     ]
 
 --------------------------------------------------------------------------------
@@ -105,7 +125,9 @@ val =
 tomlTrans : Lex1 q e TSz TSTCK
 tomlTrans =
   lex1
-    [ E Ini       $ keyDFA AfterKey
+    [ E Ini $     keyDFA AfterKey
     , E AfterKey  afterKey
     , E BeforeVal beforeVal
     ]
+
+-- 222 LOC

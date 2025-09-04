@@ -112,32 +112,32 @@ Interpolation (Day m) where
   interpolate (D d) = padLeft 2 '0' $ show d
 
 --------------------------------------------------------------------------------
---          Date
+--          LocalDate
 --------------------------------------------------------------------------------
 
 public export
-record Date where
+record LocalDate where
   constructor MkDate
   year  : Year
   month : Month
   day   : Day month
 
 public export
-Eq Date where
+Eq LocalDate where
   MkDate y1 m1 d1 == MkDate y2 m2 d2 =
     y1 == y2 && m1 == m2  && d1.day == d2.day
 
 public export
-Ord Date where
+Ord LocalDate where
   compare (MkDate y1 m1 d1) (MkDate y2 m2 d2) =
     if y1 /= y2 then compare y1 y2
     else if m1 /= m2 then compare m1 m2
     else compare d1.day d2.day
 
-%runElab derive "Date" [Show]
+%runElab derive "LocalDate" [Show]
 
 export
-Interpolation Date where
+Interpolation LocalDate where
   interpolate (MkDate y m d) = "\{y}-\{m}-\{d}"
 
 --------------------------------------------------------------------------------
