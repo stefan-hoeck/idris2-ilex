@@ -38,3 +38,5 @@ jobs:
         run: pack --no-prompt run ilex-profile
       - name: Build ilex-json
         run: pack typecheck ilex-json
+      - name: Test ilex-json
+        run: pack --no-prompt test ilex-json
