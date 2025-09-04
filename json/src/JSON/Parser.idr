@@ -124,13 +124,11 @@ public export
 0 JST : Type
 JST = Index JSz
 
-public export
 ANew, AVal, ACom, ONew, OVal, OCom, OLbl, OCol, Str : JST
 ANew = 1; AVal = 2; ACom = 3
 ONew = 4; OVal = 5; OCom = 6; OLbl = 7; OCol = 8
 Str  = 9
 
-public export
 data Part : Type where
   PA : Part -> SnocList JSON -> Part -- partial array
   PO : Part -> SnocList (String,JSON) -> Part -- partial object
@@ -139,7 +137,7 @@ data Part : Type where
   PV : SnocList JSON -> Part -- initial value for value streaming
   PF : JSON -> Part -- final value
 
-public export
+export
 record ST q where
   constructor S
   line : Ref q Nat
@@ -154,7 +152,6 @@ LC ST where
   col    = ST.col
   bounds = ST.bnds
 
-export
 ini : Part -> F1 q (ST q)
 ini prt t =
  let li  # t := ref1 Z t

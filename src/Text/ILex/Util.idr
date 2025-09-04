@@ -263,10 +263,6 @@ getStr ref = T1.do
   sv <- replace1 ref [<]
   pure $ snocPack sv
 
-export %inline
-state : RExp True -> Index r -> (RExp True, Step1 q e r s)
-state exp v = (exp, go $ \_,t => v # t)
-
 --------------------------------------------------------------------------------
 -- Handling positions
 --------------------------------------------------------------------------------
@@ -442,6 +438,12 @@ parameters {0 q : Type}
   export %inline
   conv' : RExp True -> (s q -> F1 q (Index r)) -> (RExp True, Step1 q e r s)
   conv' exp f = conv exp (const f)
+
+  ||| Like `conv` but for variable length tokens that only change the
+  ||| current state.
+  export %inline
+  state : RExp True -> Index r -> (RExp True, Step1 q e r s)
+  state exp v = (exp, rd $ \st,bs => incCols (size bs) st v)
 
 --------------------------------------------------------------------------------
 -- Error handling

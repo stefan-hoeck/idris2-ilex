@@ -227,6 +227,17 @@ public export %inline
 nl : RExp True
 nl = '\n'
 
+||| Accepts any character in the given range of unicode
+||| code points.
+|||
+||| Please note that even if the given range exceeds the given
+||| set of valid codepoints (0x000 - 0xD7FF || 0xE000 - 0x10FFFF),
+||| it will be intersected with the valid set during generation
+||| of the state machine.
+public export %inline
+range32 : Bits32 -> Bits32 -> RExp True
+range32 x y = Ch (range $ range x y)
+
 ||| Accepts any character in the given range
 public export %inline
 range : Char -> Char -> RExp True
