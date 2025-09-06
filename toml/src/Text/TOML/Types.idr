@@ -32,7 +32,7 @@ Interpolation TomlFloat where
 --------------------------------------------------------------------------------
 
 public export
-data TableType = None | Inline | Table
+data TableType = Inline | Table
 
 %runElab derive "TableType" [Show,Eq,Ord]
 
@@ -44,10 +44,6 @@ data ArrayType = Static | OfTables
 --------------------------------------------------------------------------------
 --          TomlValue and Table
 --------------------------------------------------------------------------------
-
-public export
-0 Key : Type
-Key = List1 String
 
 ||| Data type for trees of TOML data.
 public export
@@ -91,67 +87,23 @@ data KeyType = Plain | Quoted | Literal
 %runElab derive "KeyType" [Eq,Show]
 
 public export
-record KeyToken where
+record Key where
   constructor KT
   key    : String
   tpe    : KeyType
   bounds : Bounds
 
-%runElab derive "KeyToken" [Eq,Show]
+%runElab derive "Key" [Eq,Show]
 
 export
-Interpolation KeyToken where
+Interpolation Key where
   interpolate (KT k t _) = case t of
     Plain   => k
     Quoted  => show k
-    Literal => "'" ++ k ++ "'"
+    Literal => "'\{k}'"
 
-||| Type of TOML lexemes
-public export
-data TomlToken : Type where
-  ||| A path of dot-separated keys
-  TKey    : List1 KeyToken -> TomlToken
-
-  ||| A (literal) value
-  TVal    : TomlValue -> TomlToken
-
-  ||| A single or multi-character symbol like "[", "[[" or "."
-  TSym    : String -> TomlToken
-
-  ||| Whitespace containing at least one line break
-  NL      : TomlToken
-
-  ||| Whitespace without line breaks (tabs and spaces)
-  Space   : TomlToken
-
-  ||| A line comment
-  Comment : TomlToken
-
-%runElab derive "TomlToken" [Eq,Show]
-
-public export %inline
-key1 : KeyToken -> TomlToken
-key1 = TKey . singleton
-
-export
-interpolateKey : List KeyToken -> String
-interpolateKey = concat . intersperse "." . map interpolate
-
-export
-Interpolation TomlToken where
-  interpolate NL       = "<line break>"
-  interpolate Space    = "<space>"
-  interpolate Comment  = "<comment>"
-  interpolate (TKey s) = interpolateKey $ forget s
-  interpolate (TVal v) = case v of
-    TStr str => "string literal"
-    TBool x  => toLower $ show x
-    TInt i   => show i
-    TTime i  => interpolate i
-    TDbl dbl => interpolate dbl
-    TArr _ _ => "array"
-    TTbl _ x => "table"
-  interpolate (TSym c) = show c
+Interpolation (List Key) where
+  interpolate = fastConcat . intersperse "." . map interpolate
 
 --------------------------------------------------------------------------------
 --          Errors
@@ -159,27 +111,79 @@ Interpolation TomlToken where
 
 public export
 data TomlParseError : Type where
-  ValueExists       : List KeyToken -> TomlParseError
-  InlineTableExists : List KeyToken -> TomlParseError
-  TableExists       : List KeyToken -> TomlParseError
-  StaticArray       : List KeyToken -> TomlParseError
-  ExpectedKey       : TomlParseError
+  ValueExists       : List Key -> TomlParseError
+  InlineTableExists : List Key -> TomlParseError
+  TableExists       : List Key -> TomlParseError
+  StaticArray       : List Key -> TomlParseError
 
 %runElab derive "TomlParseError" [Eq,Show]
 
 export
 Interpolation TomlParseError where
-  interpolate ExpectedKey = "Expected a key"
   interpolate (ValueExists k) =
-    "Trying to overwrite existing value: \{interpolateKey k}"
+    "Trying to overwrite existing value: \{k}"
   interpolate (InlineTableExists k) =
-    "Trying to modify existing inline table: \{interpolateKey k}"
+    "Trying to modify existing inline table: \{k}"
   interpolate (TableExists k) =
-    "Trying to overwrite existing table: \{interpolateKey k}"
+    "Trying to overwrite existing table: \{k}"
   interpolate (StaticArray k) =
-    "Trying to modify a static array: \{interpolateKey k}"
+    "Trying to modify a static array: \{k}"
 
 ||| Error type when lexing and parsing TOML files
 public export
-0 TomlErr : Type
-TomlErr = InnerError TomlParseError
+0 TErr : Type
+TErr = BoundedErr TomlParseError
+
+--------------------------------------------------------------------------------
+--          Table Lookup
+--------------------------------------------------------------------------------
+
+public export
+data Path : Type where
+  Root : Path
+  Tbl  : (p : Path) -> (t : TomlTable) -> (k : Key) -> Path
+  New  : (p : Path) -> (k : Key) -> Path
+  Arr  : (p : Path) -> (sv : SnocList TomlValue) -> Path
+
+export
+unwind : TomlValue -> Path -> TomlTable
+
+unwindTbl : TomlTable -> Path -> TomlTable
+unwindTbl t Root        = t
+unwindTbl t (Tbl p x k) = unwindTbl (insert k.key (TTbl Table t) x) p
+unwindTbl t (New p k)   = unwindTbl (insert k.key (TTbl Table t) empty) p
+unwindTbl t (Arr p sv)  = unwind (TArr OfTables (sv:<TTbl Table t)) p
+
+unwind v (Tbl p t k) = unwindTbl (insert k.key v t) p
+unwind v (New p k)   = unwindTbl (insert k.key v empty) p
+unwind v (Arr p sv)  = unwind (TArr OfTables (sv:<v)) p
+unwind v Root        = empty
+
+keys : List Key -> Path -> List Key
+keys ks Root        = ks
+keys ks (Tbl p t k) = keys (k::ks) p
+keys ks (New p k)   = keys (k::ks) p
+keys ks (Arr p sv)  = keys ks p
+
+exists : Path -> TomlValue -> Either TErr a
+exists p v =
+ let ks := keys [] p
+     bs := foldMap bounds ks
+  in case v of
+       TArr Static sx => custom bs $ StaticArray ks
+       TTbl Inline y  => custom bs $ InlineTableExists ks
+       TTbl Table y   => custom bs $ TableExists ks
+       _              => custom bs $ ValueExists ks
+
+emptyPath : Path -> List Key -> Path
+emptyPath p []        = p
+emptyPath p (k :: ks) = emptyPath (New p k) ks
+
+export
+valuePath : Path -> List Key -> TomlTable -> Either TErr Path
+valuePath p []        t = exists p (TTbl Table t)
+valuePath p (k :: ks) t =
+  case lookup k.key t of
+    Nothing              => Right $ emptyPath (Tbl p t k) ks
+    Just (TTbl Table t2) => valuePath (Tbl p t k) ks t2
+    Just v               => exists p v

@@ -361,8 +361,12 @@ parameters {0 q : Type}
   spaces : (v : Index k) -> Step1 q e k s
   spaces v = rd $ \x,bs => incCols (size bs) x v
 
+  export %inline
+  lineComment : (v : Index k) -> Step1 q e k s
+  lineComment v = rd $ \x,bs => incCols (length $ toString bs) x v
+
   export
-  jsonSpaced : Index k -> TokenMap (Step1 q e k s) -> TokenMap (Step1 q e k s)
+  jsonSpaced : Index k -> Steps1 q e k s -> Steps1 q e k s
   jsonSpaced v xs =
     [ (plus (oneof [' ','\t']), spaces v)
     , ('\n' <|> '\r' <|> "\r\n", newline v)

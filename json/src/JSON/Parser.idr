@@ -201,7 +201,7 @@ closeVal x =
 --------------------------------------------------------------------------------
 
 %inline
-spaced : Index r -> TokenMap (Step1 q e r ST) -> DFA (Step1 q e r ST)
+spaced : Index r -> Steps1 q e r ST -> DFA1 q e r ST
 spaced x = dfa Err . jsonSpaced x
 
 export
@@ -212,7 +212,7 @@ jsonDouble =
    in opt '-' >> decimal >> opt frac >> opt exp
 
 %inline
-valTok : JST -> TokenMap (Step1 q e JSz ST) -> DFA (Step1 q e JSz ST)
+valTok : JST -> Steps1 q e JSz ST -> DFA1 q e JSz ST
 valTok x ts =
   spaced x $
     [ str "null"  (onVal JNull)
@@ -238,7 +238,7 @@ decode (BS 6 bv) =
 decode _         = "" -- impossible
 
 %inline
-strTok : DFA (Step1 q e JSz ST)
+strTok : DFA1 q e JSz ST
 strTok =
   dfa Err
     [ cclose '"' endStr
