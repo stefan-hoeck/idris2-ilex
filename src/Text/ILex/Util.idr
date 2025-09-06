@@ -29,6 +29,23 @@ binary (BS n bv) = go 0 n
         48 => go (res * 2) k
         _  => go (res * 2 + 1) k
 
+||| Converts a string of binary digits containing optional
+||| separators to an integer `0010_0011_1110_0011.
+|||
+||| Such integer literals are supported by Idris as well as TOML,
+||| for instance:
+export
+binarySep : ByteString -> Integer
+binarySep (BS n bv) = go 0 n
+  where
+    go : Integer -> (k : Nat) -> (x : Ix k n) => Integer
+    go res 0     = res
+    go res (S k) =
+      case ix bv k of
+        48 => go (res * 2) k
+        49 => go (res * 2 + 1) k
+        _  => go res k
+
 export %inline
 decimaldigit : Bits8 -> Integer
 decimaldigit x = cast x - 48
@@ -42,6 +59,23 @@ octal (BS n bv) = go 0 n
     go res 0     = res
     go res (S k) = go (res * 8 + decimaldigit (ix bv k)) k
 
+||| Converts a string of octal digits containing optional
+||| separators to an integer `077_334`.
+|||
+||| Such integer literals are supported by Idris as well as TOML,
+||| for instance:
+export
+octalSep : Bits8 -> ByteString -> Integer
+octalSep sep (BS n bv) = go 0 n
+  where
+    go : Integer -> (k : Nat) -> (x : Ix k n) => Integer
+    go res 0     = res
+    go res (S k) =
+     let b := ix bv k
+      in case prim__eq_Bits8 sep b of
+           0 => go (res * 8 + decimaldigit b) k
+           _ => go res k
+
 ||| Converts a string of decimal digits to an integer
 export
 decimal : ByteString -> Integer
@@ -50,6 +84,23 @@ decimal (BS n bv) = go 0 n
     go : Integer -> (k : Nat) -> (x : Ix k n) => Integer
     go res 0     = res
     go res (S k) = go (res * 10 + decimaldigit (ix bv k)) k
+
+||| Converts a string of decimal digits containing optional
+||| separators to an integer `177_934`.
+|||
+||| Such integer literals are supported by Idris as well as TOML,
+||| for instance:
+export
+decimalSep : Bits8 -> ByteString -> Integer
+decimalSep sep (BS n bv) = go 0 n
+  where
+    go : Integer -> (k : Nat) -> (x : Ix k n) => Integer
+    go res 0     = res
+    go res (S k) =
+     let b := ix bv k
+      in case prim__eq_Bits8 sep b of
+           0 => go (res * 10 + decimaldigit b) k
+           _ => go res k
 
 export
 hexdigit : Bits8 -> Integer
@@ -66,6 +117,23 @@ hexadecimal (BS n bv) = go 0 n
     go : Integer -> (k : Nat) -> (x : Ix k n) => Integer
     go res 0     = res
     go res (S k) = go (res * 16 + hexdigit (ix bv k)) k
+
+||| Converts a string of decimal digits containing optional
+||| separators to an integer `177_934`.
+|||
+||| Such integer literals are supported by Idris as well as TOML,
+||| for instance:
+export
+hexadecimalSep : Bits8 -> ByteString -> Integer
+hexadecimalSep sep (BS n bv) = go 0 n
+  where
+    go : Integer -> (k : Nat) -> (x : Ix k n) => Integer
+    go res 0     = res
+    go res (S k) =
+     let b := ix bv k
+      in case prim__eq_Bits8 sep b of
+           0 => go (res * 16 + hexdigit b) k
+           _ => go res k
 
 ||| Converts an integer literal with optional sign prefix
 ||| to an integer.
@@ -263,10 +331,6 @@ getStr ref = T1.do
   sv <- replace1 ref [<]
   pure $ snocPack sv
 
-export %inline
-state : RExp True -> Index r -> (RExp True, Step1 q e r s)
-state exp v = (exp, go $ \_,t => v # t)
-
 --------------------------------------------------------------------------------
 -- Handling positions
 --------------------------------------------------------------------------------
@@ -297,8 +361,12 @@ parameters {0 q : Type}
   spaces : (v : Index k) -> Step1 q e k s
   spaces v = rd $ \x,bs => incCols (size bs) x v
 
+  export %inline
+  lineComment : (v : Index k) -> Step1 q e k s
+  lineComment v = rd $ \x,bs => incCols (length $ toString bs) x v
+
   export
-  jsonSpaced : Index k -> TokenMap (Step1 q e k s) -> TokenMap (Step1 q e k s)
+  jsonSpaced : Index k -> Steps1 q e k s -> Steps1 q e k s
   jsonSpaced v xs =
     [ (plus (oneof [' ','\t']), spaces v)
     , ('\n' <|> '\r' <|> "\r\n", newline v)
@@ -442,6 +510,12 @@ parameters {0 q : Type}
   export %inline
   conv' : RExp True -> (s q -> F1 q (Index r)) -> (RExp True, Step1 q e r s)
   conv' exp f = conv exp (const f)
+
+  ||| Like `conv` but for variable length tokens that only change the
+  ||| current state.
+  export %inline
+  state : RExp True -> Index r -> (RExp True, Step1 q e r s)
+  state exp v = (exp, rd $ \st,bs => incCols (size bs) st v)
 
 --------------------------------------------------------------------------------
 -- Error handling

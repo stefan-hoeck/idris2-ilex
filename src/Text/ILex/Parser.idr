@@ -90,8 +90,16 @@ arr32 n dflt es =
       in fill xs p t
 
 public export
+0 Steps1 : (q,e : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type
+Steps1 q e r s = List (RExp True, Step1 q e r s)
+
+public export
 0 DFA1 : (q,e : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type
 DFA1 q e r s = DFA (Step1 q e r s)
+
+export %inline
+dfa1 : Steps1 q e r s -> DFA1 q e r s
+dfa1 = dfa Err
 
 public export
 0 Lex1 : (q,e : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type
