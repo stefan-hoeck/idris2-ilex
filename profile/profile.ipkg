@@ -2,7 +2,7 @@ package ilex-profile
 version = 0.1.0
 authors = "stefan-hoeck"
 langversion >= 0.7
-depends = ilex-examples
+depends = ilex-json
         , profiler
         , contrib
 
