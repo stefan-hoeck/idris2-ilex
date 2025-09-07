@@ -29,8 +29,8 @@ begin = P 0 0
 
 ||| Increase the current column by one.
 public export %inline
-incCol : Position -> Position
-incCol = {column $= S}
+incCol : Nat -> Position -> Position
+incCol n (P l c) = P l (n+c)
 
 ||| Increase the current line by one, resetting the
 ||| column to 0.
@@ -54,7 +54,7 @@ data Bounds : Type where
 
 export
 atPos : Position -> Bounds
-atPos p = BS p (incCol p)
+atPos p = BS p (incCol 1 p)
 
 export
 Semigroup Bounds where

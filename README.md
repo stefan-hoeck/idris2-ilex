@@ -105,7 +105,7 @@ tokens we can recognize in a (very basic) CSV
 file. Without further ado, here is our first CSV lexer:
 
 ```idris
-csv0 : L1 q Void CSV0
+csv0 : L1 q Void 1 CSV0
 csv0 =
   lexer
     [ ctok ',' Comma0
@@ -208,13 +208,13 @@ And here's the corresponding lexer:
 linebreak : RExp True
 linebreak = '\n' <|> "\n\r" <|> "\r\n" <|> '\r' <|> '\RS'
 
-csv1 : L1 q Void CSV1
+csv1 : L1 q Void 1 CSV1
 csv1 =
   lexer
     [ ctok ',' Comma1
     , nltok linebreak NL1
-    , stok "true" (Bool1 True)
-    , stok "false" (Bool1 False)
+    , ctok "true" (Bool1 True)
+    , ctok "false" (Bool1 False)
     , convTok (opt '-' >> decimal) (Int1 . integer)
     , readTok (plus (dot && not ',')) Txt1
     ]
@@ -286,13 +286,13 @@ With this, we can enhance our lexer:
 ```idris
 unquote : ByteString -> String
 
-csv1_2 : L1 q Void CSV1
+csv1_2 : L1 q Void 1 CSV1
 csv1_2 =
   lexer
     [ ctok ',' Comma1
     , nltok linebreak NL1
-    , stok "true" (Bool1 True)
-    , stok "false" (Bool1 False)
+    , ctok "true" (Bool1 True)
+    , ctok "false" (Bool1 False)
     , convTok (opt '-' >> decimal) (Int1 . integer)
     , readTok (plus (dot && not ',' && not '"')) Txt1
     , convTok quoted (Txt1 . unquote)
@@ -328,14 +328,14 @@ faster than the above, but I suggest to profile this properly if it
 is used in performance critical code.
 
 ```idris
-lexUQ : L1 q Void String
+lexUQ : L1 q Void 1 String
 lexUQ =
   lexer
-    [ stok #""""# "\""
-    , stok #""n"# "\n"
-    , stok #""r"# "\r"
-    , stok #""t"# "\t"
-    , stok #"""#  ""
+    [ ctok #""""# "\""
+    , ctok #""n"# "\n"
+    , ctok #""r"# "\r"
+    , ctok #""t"# "\t"
+    , ctok #"""#  ""
     , readTok (plus (dot && not '"' && not '\\')) id
     ]
 
@@ -376,48 +376,15 @@ we can use our parsers to stream huge amounts of data in constant
 memory (more on that below), so we need all the performance we
 can get.
 
-```idris
-record QSTCK q where
-  constructor Q
-  line : Ref q Nat
-  col  : Ref q Nat
-  bnds : Ref q (SnocList Bounds)
-  strs : Ref q (SnocList String)
-  toks : Ref q (SnocList $ Bounded CSV1)
-
-init : F1 q (QSTCK q)
-init = T1.do
-  l <- ref1 Z
-  c <- ref1 Z
-  b <- ref1 [<]
-  s <- ref1 [<]
-  v <- ref1 [<]
-  pure (Q l c b s v)
-```
-
 Parser stack `QSTCK q` is a wrapper around several mutable references
 that can be manipulated in state-thread `q`. Fields `line`, `col`,
 and `bounds` are required to implement interface `LC`, which facilitates
 handling the token bounds:
 
-```idris
-%inline
-LC QSTCK where
-  line   = QSTCK.line
-  col    = QSTCK.col
-  bounds = QSTCK.bnds
-```
-
 Field `toks` is where the recognized tokens will be stored. We need
 to implement interface `LexST` to make use of utilities such as
 `ctok` and have them generate token bounds and append bounded tokens
 automatically:
-
-```idris
-%inline
-LexST QSTCK CSV1 where
-  vals = QSTCK.toks
-```
 
 ### Parser State
 
@@ -459,17 +426,17 @@ was recognized. For the initial state, almost nothing changes
 compared to `csv1_2`:
 
 ```idris
-lexInit : DFA (Step1 q e QSz QSTCK)
-lexInit =
-  dfa Err
-    [ ctok ',' Comma1
-    , nltok linebreak NL1
-    , stok "true" (Bool1 True)
-    , stok "false" (Bool1 False)
-    , convTok (opt '-' >> decimal) (Int1 . integer)
-    , readTok (plus (dot && not ',' && not '"')) Txt1
-    , copen '"' (const QSTCK InStr)
-    ]
+-- lexInit : DFA (LexStep e CSV1 QSz q)
+-- lexInit =
+--   dfa Err
+--     [ ctok ',' Comma1
+--     , nltok linebreak NL1
+--     , stok "true" (Bool1 True)
+--     , stok "false" (Bool1 False)
+--     , convTok (opt '-' >> decimal) (Int1 . integer)
+--     , readTok (plus (dot && not ',' && not '"')) Txt1
+--     , copen '"' (const QSTCK InStr)
+--     ]
 ```
 
 *DFA* is an acronym for "discrete finite automaton", and utility `dfa`
@@ -493,20 +460,20 @@ and append the recognized, concatenated string to the list of tokens.
 Here are the necessary utilities and token map:
 
 ```idris
-closeStr : QSTCK q -> F1 q QST
-
-pushStr : String -> QSTCK q -> F1 q QST
-
-lexStr : DFA (Step1 q e QSz QSTCK)
-lexStr =
-  dfa Err
-    [ str #""""# $ pushStr "\""
-    , str #""n"# $ pushStr "\n"
-    , str #""r"# $ pushStr "\r"
-    , str #""t"# $ pushStr "\t"
-    , chr '"' closeStr
-    , read (plus $ dot && not '"') pushStr
-    ]
+-- closeStr : QSTCK q -> F1 q QST
+--
+-- pushStr : String -> QSTCK q -> F1 q QST
+--
+-- lexStr : DFA (Step1 q e QSz QSTCK)
+-- lexStr =
+--   dfa Err
+--     [ str #""""# $ pushStr "\""
+--     , str #""n"# $ pushStr "\n"
+--     , str #""r"# $ pushStr "\r"
+--     , str #""t"# $ pushStr "\t"
+--     , chr '"' closeStr
+--     , read (plus $ dot && not '"') pushStr
+--     ]
 ```
 
 Utilities `str` and `read` still take care of updating the position
@@ -516,7 +483,7 @@ us to specify the return value: the new parser state, which will
 still be `InStr`):
 
 ```idris
-pushStr s x = push1 x.strs InStr s
+-- pushStr s x = push1 x.strs InStr s
 ```
 
 Function `closeStr` is more involved: In this case, we need to manually
@@ -524,19 +491,19 @@ construct the token bounds, append the bounded token to the list of
 recognized tokens, and change the parser state back to `Ini`:
 
 ```idris
-closeStr x = T1.do
-  start <- popBounds x
-  end   <- currentPos x
-  s     <- getStr x.strs
-  push1 x.toks Ini (B (Txt1 s) $ start <+> BS end end)
+-- closeStr x = T1.do
+--   start <- popBounds x
+--   end   <- currentPos x
+--   s     <- getStr x.strs
+--   push1 x.toks Ini (B (Txt1 s) $ start <+> BS end end)
 ```
 
 We now wrap up the different lexers in an array of lexers, which
 describes the possible state transformations for every parser state.
 
 ```idris
-quotedTrans : Lex1 q e QSz QSTCK
-quotedTrans = lex1 [E Ini lexInit, E InStr lexStr]
+-- quotedTrans : Lex1 q e QSz QSTCK
+-- quotedTrans = lex1 [E Ini lexInit, E InStr lexStr]
 ```
 
 ### Error Handling
@@ -551,8 +518,8 @@ from the array and passed the parser stack and byte sequence
 parsed so far:
 
 ```idris
-quotedErr : Arr32 QSz (QSTCK q -> ByteString -> F1 q (BoundedErr e))
-quotedErr = arr32 QSz (unexpected []) [E InStr $ unclosedIfEOI "\"" []]
+-- quotedErr : Arr32 QSz (QSTCK q -> ByteString -> F1 q (BoundedErr e))
+-- quotedErr = arr32 QSz (unexpected []) [E InStr $ unclosedIfEOI "\"" []]
 ```
 
 We also need to describe what happens when we reach the end of input.
@@ -561,11 +528,11 @@ end in any state except within a quoted string) and either produce
 a result or fail with an error:
 
 ```idris
-quotedEOI : QST -> QSTCK q -> F1 q (Either (BoundedErr e) (List $ Bounded CSV1))
-quotedEOI st x =
-  case st == Ini of
-    False => arrFail QSTCK quotedErr st x ""
-    True  => getList x.toks >>= pure . Right
+-- quotedEOI : QST -> QSTCK q -> F1 q (Either (BoundedErr e) (List $ Bounded CSV1))
+-- quotedEOI st x =
+--   case st == Ini of
+--     False => arrFail QSTCK quotedErr st x ""
+--     True  => getList x.toks >>= pure . Right
 ```
 
 Finally, we wrap everything up in a record of type `P1` (a "linear parser").
@@ -573,8 +540,8 @@ We are going to have a look at the `lchunk` thing when we talk about
 streaming large amounts of data:
 
 ```idris
-csv1_3 : P1 q (BoundedErr Void) QSz QSTCK (List $ Bounded CSV1)
-csv1_3 = P Ini init quotedTrans lchunk quotedErr quotedEOI
+-- csv1_3 : P1 q (BoundedErr Void) QSz QSTCK (List $ Bounded CSV1)
+-- csv1_3 = P Ini init quotedTrans lchunk quotedErr quotedEOI
 ```
 
 ## Parsing CSV Files
@@ -588,25 +555,25 @@ to actually accumulate these tokens into a larger data structure. We therefore
 start with a definition of said data structure:
 
 ```idris
-data Cell : Type where
-  Null  : Cell
-  CStr  : String -> Cell
-  CBool : Bool -> Cell
-  CInt  : Integer -> Cell
-
-%runElab derive "Cell" [Show,Eq]
-
-record Line where
-  constructor L
-  nr    : Nat
-  cells : List Cell
-
-%runElab derive "Line" [Show,Eq]
-
-Interpolation Line where interpolate = show
-
-0 Table : Type
-Table = List Line
+-- data Cell : Type where
+--   Null  : Cell
+--   CStr  : String -> Cell
+--   CBool : Bool -> Cell
+--   CInt  : Integer -> Cell
+--
+-- %runElab derive "Cell" [Show,Eq]
+--
+-- record Line where
+--   constructor L
+--   nr    : Nat
+--   cells : List Cell
+--
+-- %runElab derive "Line" [Show,Eq]
+--
+-- Interpolation Line where interpolate = show
+--
+-- 0 Table : Type
+-- Table = List Line
 ```
 
 As you can see, a CSV table is just a list of lines, with a line
@@ -622,32 +589,32 @@ table. Typically, we call this the parser's *stack*, even though
 it consists of more than a single (snoc)list:
 
 ```idris
-public export
-record CSTCK (q : Type) where
-  constructor C
-  line  : Ref q Nat
-  col   : Ref q Nat
-  bnds  : Ref q (SnocList Bounds)
-  strs  : Ref q (SnocList String)
-  cells : Ref q (SnocList Cell)
-  lines : Ref q (SnocList Line)
-
-export %inline
-LC CSTCK where
-  line   = CSTCK.line
-  col    = CSTCK.col
-  bounds = CSTCK.bnds
-
-export
-cinit : F1 q (CSTCK q)
-cinit = T1.do
-  l  <- ref1 Z
-  c  <- ref1 Z
-  bs <- ref1 [<]
-  ss <- ref1 [<]
-  cs <- ref1 [<]
-  ls <- ref1 [<]
-  pure (C l c bs ss cs ls)
+-- public export
+-- record CSTCK (q : Type) where
+--   constructor C
+--   line  : Ref q Nat
+--   col   : Ref q Nat
+--   bnds  : Ref q (SnocList Bounds)
+--   strs  : Ref q (SnocList String)
+--   cells : Ref q (SnocList Cell)
+--   lines : Ref q (SnocList Line)
+--
+-- export %inline
+-- LC CSTCK where
+--   line   = CSTCK.line
+--   col    = CSTCK.col
+--   bounds = CSTCK.bnds
+--
+-- export
+-- cinit : F1 q (CSTCK q)
+-- cinit = T1.do
+--   l  <- ref1 Z
+--   c  <- ref1 Z
+--   bs <- ref1 [<]
+--   ss <- ref1 [<]
+--   cs <- ref1 [<]
+--   ls <- ref1 [<]
+--   pure (C l c bs ss cs ls)
 ```
 
 Next, we'll define the different parser states. We want to make
@@ -663,17 +630,17 @@ and we want to make sure that this error produces an error message
 explaining that we have encountered an unclosed quote.
 
 ```idris
-public export
-CSz : Bits32
-CSz = 5
-
-public export
-0 CST : Type
-CST = Index CSz
-
-export
-Val, Str, Com, NL : CST
-Val = 1; Str = 2; Com = 3; NL = 4
+-- public export
+-- CSz : Bits32
+-- CSz = 5
+--
+-- public export
+-- 0 CST : Type
+-- CST = Index CSz
+--
+-- export
+-- Val, Str, Com, NL : CST
+-- Val = 1; Str = 2; Com = 3; NL = 4
 ```
 
 ### State Transitions
@@ -688,8 +655,8 @@ First: After encountering a CSV cell, we push it onto the
 we just encountered a value:
 
 ```idris
-onCell : Cell -> CSTCK q -> F1 q CST
-onCell v x = push1 x.cells Val v
+-- onCell : Cell -> CSTCK q -> F1 q CST
+-- onCell v x = push1 x.cells Val v
 ```
 
 Second: After encountering a line break, we increase the line
@@ -702,13 +669,13 @@ break occurred right after a comma, we make sure to push a
 `Null` cell onto the stack of cells:
 
 ```idris
-onNL : (afterComma : Bool) -> CSTCK q -> F1 q CST
-onNL afterComma x = T1.do
-  incLine () x
-  when1 afterComma (push1 x.cells () Null)
-  cs@(_::_) <- getList x.cells | [] => pure Ini
-  ln <- read1 x.line
-  push1 x.lines Ini (L ln cs)
+-- onNL : (afterComma : Bool) -> CSTCK q -> F1 q CST
+-- onNL afterComma x = T1.do
+--   incLine () x
+--   when1 afterComma (push1 x.cells () Null)
+--   cs@(_::_) <- getList x.cells | [] => pure Ini
+--   ln <- read1 x.line
+--   push1 x.lines Ini (L ln cs)
 ```
 
 With the above, we can already define the default lexer.
@@ -720,17 +687,17 @@ thing that needs to be closed (`copen`) and switch to
 the `Str` state:
 
 ```idris
-csvDflt : (afterComma : Bool) -> DFA (Step1 q e CSz CSTCK)
-csvDflt afterComma =
-  dfa Err
-    [ chr ',' $ \x => push1 x.cells Com Null
-    , conv' linebreak (onNL afterComma)
-    , str "true" $ onCell (CBool True)
-    , str "false" $ onCell (CBool False)
-    , conv (opt '-' >> decimal) (onCell . CInt . integer)
-    , read (plus $ dot && not ',' && not '"') (onCell . CStr)
-    , copen '"' (const CSTCK Str)
-    ]
+-- csvDflt : (afterComma : Bool) -> DFA (Step1 q e CSz CSTCK)
+-- csvDflt afterComma =
+--   dfa Err
+--     [ chr ',' $ \x => push1 x.cells Com Null
+--     , conv' linebreak (onNL afterComma)
+--     , str "true" $ onCell (CBool True)
+--     , str "false" $ onCell (CBool False)
+--     , conv (opt '-' >> decimal) (onCell . CInt . integer)
+--     , read (plus $ dot && not ',' && not '"') (onCell . CStr)
+--     , copen '"' (const CSTCK Str)
+--     ]
 ```
 
 The string lexer pushes all encountered text regions and escape
@@ -739,22 +706,22 @@ double quote is encountered, which leads to the accumulated
 string to be pushed onto the stack of cells (`onCell`).
 
 ```idris
-endStr : CSTCK q -> F1 q CST
-endStr x = T1.do
-  s <- getStr x.strs
-  onCell (CStr s) x
-
-csvStr : DFA (Step1 q e CSz CSTCK)
-csvStr =
-  dfa Err
-    [ str #""""# $ push CSTCK strs Str "\""
-    , str #""n"# $ push CSTCK strs Str "\n"
-    , str #""r"# $ push CSTCK strs Str "\r"
-    , str #""t"# $ push CSTCK strs Str "\t"
-    , cclose '"' endStr
-    , read (plus $ dot && not '"') $ push CSTCK strs Str
-    , state linebreak NL
-    ]
+-- endStr : CSTCK q -> F1 q CST
+-- endStr x = T1.do
+--   s <- getStr x.strs
+--   onCell (CStr s) x
+--
+-- csvStr : DFA (Step1 q e CSz CSTCK)
+-- csvStr =
+--   dfa Err
+--     [ str #""""# $ push CSTCK strs Str "\""
+--     , str #""n"# $ push CSTCK strs Str "\n"
+--     , str #""r"# $ push CSTCK strs Str "\r"
+--     , str #""t"# $ push CSTCK strs Str "\t"
+--     , cclose '"' endStr
+--     , read (plus $ dot && not '"') $ push CSTCK strs Str
+--     , state linebreak NL
+--     ]
 ```
 
 Please note the special handling of a line break inside a quoted string:
@@ -768,14 +735,14 @@ don't have to provide an automaton of state transformations to it:
 it will automatically be given the empty automaton that always fails):
 
 ```idris
-csvSteps : Lex1 q e CSz CSTCK
-csvSteps =
-  lex1
-    [ E Ini (csvDflt False)
-    , E Val $ dfa Err [chr' ',' Com, conv' linebreak (onNL False)]
-    , E Str csvStr
-    , E Com (csvDflt True)
-    ]
+-- csvSteps : Lex1 q e CSz CSTCK
+-- csvSteps =
+--   lex1
+--     [ E Ini (csvDflt False)
+--     , E Val $ dfa Err [chr' ',' Com, conv' linebreak (onNL False)]
+--     , E Str csvStr
+--     , E Com (csvDflt True)
+--     ]
 ```
 
 ### Finalizing the Parser
@@ -784,29 +751,29 @@ The only thing missing is error handling and the final assembling of
 the parser. States `Str`, `Val`, and `NL` throw custom errors:
 
 ```idris
-csvErr : Arr32 CSz (CSTCK q -> ByteString -> F1 q (BoundedErr e))
-csvErr =
-  arr32 CSz (unexpected [])
-    [ E Str $ unclosedIfEOI "\"" []
-    , E Val $ unexpected [","]
-    , E NL  $ unclosed "\""
-    ]
-
-csvEOI : CST -> CSTCK q -> F1 q (Either (BoundedErr e) Table)
-csvEOI st x =
-  case st == Str || st == NL of
-    True  => arrFail CSTCK csvErr st x ""
-    False => T1.do
-      _   <- onNL (st == Com) x
-      tbl <- getList x.lines
-      pure (Right tbl)
+-- csvErr : Arr32 CSz (CSTCK q -> ByteString -> F1 q (BoundedErr e))
+-- csvErr =
+--   arr32 CSz (unexpected [])
+--     [ E Str $ unclosedIfEOI "\"" []
+--     , E Val $ unexpected [","]
+--     , E NL  $ unclosed "\""
+--     ]
+--
+-- csvEOI : CST -> CSTCK q -> F1 q (Either (BoundedErr e) Table)
+-- csvEOI st x =
+--   case st == Str || st == NL of
+--     True  => arrFail CSTCK csvErr st x ""
+--     False => T1.do
+--       _   <- onNL (st == Com) x
+--       tbl <- getList x.lines
+--       pure (Right tbl)
 ```
 
 And here's the final CSV parser:
 
 ```idris
-csv : P1 q (BoundedErr Void) CSz CSTCK Table
-csv = P Ini cinit csvSteps (snocChunk CSTCK lines) csvErr csvEOI
+-- csv : P1 q (BoundedErr Void) CSz CSTCK Table
+-- csv = P Ini cinit csvSteps (snocChunk CSTCK lines) csvErr csvEOI
 ```
 
 A quick note about the `snocChunk CSTCK lines` part: Since the parsers
@@ -823,17 +790,17 @@ With all this said and done, here's a small CSV string that can be
 used to test our parser:
 
 ```idris
-csvStr3 : String
-csvStr3 =
-  #"""
-  entry 1,"this is a ""test""",true,12
-  entry 2,"below is an empty line",false,0
-
-  entry 3,"this one has an empty cell",,-20
-  entry 4,"finally, a linebreak: "r"n",true,4
-  entry 5,"next one is almost empty",true,18
-  ,,,
-  """#
+-- csvStr3 : String
+-- csvStr3 =
+--   #"""
+--   entry 1,"this is a ""test""",true,12
+--   entry 2,"below is an empty line",false,0
+--
+--   entry 3,"this one has an empty cell",,-20
+--   entry 4,"finally, a linebreak: "r"n",true,4
+--   entry 5,"next one is almost empty",true,18
+--   ,,,
+--   """#
 ```
 
 Below are a couple of erroneous CSV strings. Feel free to
@@ -841,14 +808,14 @@ run our parser against those and check out the error messages
 we get:
 
 ```idris
-twoValues : String
-twoValues = "this is wrong,\"foo\"false"
-
-invalidTab : String
-invalidTab = "this is wrong,foo,false,\"Ups: \t\",bar"
-
-unclosedQuote : String
-unclosedQuote = "this is wrong,foo,false,\"Ups , bar"
+-- twoValues : String
+-- twoValues = "this is wrong,\"foo\"false"
+--
+-- invalidTab : String
+-- invalidTab = "this is wrong,foo,false,\"Ups: \t\",bar"
+--
+-- unclosedQuote : String
+-- unclosedQuote = "this is wrong,foo,false,\"Ups , bar"
 ```
 
 The error message from the last example is important: Instead
@@ -867,12 +834,12 @@ the definition of `csvStr` and re-check the parser's behavior
 at the REPL.
 
 ```idris
-unclosedMultiline : String
-unclosedMultiline =
-  """
-  foo,"this is a,12
-  bar,test,13
-  """
+-- unclosedMultiline : String
+-- unclosedMultiline =
+--   """
+--   foo,"this is a,12
+--   bar,test,13
+--   """
 ```
 
 ## Streaming Files
@@ -898,14 +865,14 @@ leads to the following type alias for our data stream plus a
 runner that will pretty print all errors to `stderr`:
 
 ```idris
-0 Prog : Type -> Type -> Type
-Prog o r = AsyncPull Poll o [ParseError Void, Errno] r
-
-covering
-runProg : Prog Void () -> IO ()
-runProg prog =
- let handled := handle [stderrLn . interpolate, stderrLn . interpolate] prog
-  in epollApp $ mpull handled
+-- 0 Prog : Type -> Type -> Type
+-- Prog o r = AsyncPull Poll o [ParseError Void, Errno] r
+--
+-- covering
+-- runProg : Prog Void () -> IO ()
+-- runProg prog =
+--  let handled := handle [stderrLn . interpolate, stderrLn . interpolate] prog
+--   in epollApp $ mpull handled
 ```
 
 If the above is foreign to you, please work through the tutorials
@@ -915,12 +882,12 @@ And here's an example how to stream a single, possibly huge, CSV file
 (this will print the total number of non-empty CSV-lines encountered):
 
 ```idris
-streamCSV : String -> Prog Void ()
-streamCSV pth =
-     readBytes pth
-  |> streamParse csv (FileSrc pth)
-  |> C.count
-  |> printLnTo Stdout
+-- streamCSV : String -> Prog Void ()
+-- streamCSV pth =
+--      readBytes pth
+--   |> streamParse csv (FileSrc pth)
+--   |> C.count
+--   |> printLnTo Stdout
 ```
 
 Functions `readBytes`, `C.count`, and `printLnTo` are just standard
@@ -937,11 +904,11 @@ column) where the error occurred but not a highlighted excerpt of the
 string with the error.
 
 ```idris
-streamCSVFiles : Prog String () -> Prog Void ()
-streamCSVFiles pths =
-     flatMap pths (\p => readBytes p |> streamParse csv (FileSrc p))
-  |> C.count
-  |> printLnTo Stdout
+-- streamCSVFiles : Prog String () -> Prog Void ()
+-- streamCSVFiles pths =
+--      flatMap pths (\p => readBytes p |> streamParse csv (FileSrc p))
+--   |> C.count
+--   |> printLnTo Stdout
 ```
 
 Below is a `main` function so you can test our CSV parser against
@@ -957,9 +924,9 @@ single characters (in single quotes like in Idris), date and time
 values and so on.
 
 ```idris
-covering
-main : IO ()
-main = runProg $ streamCSVFiles (P.tail args)
+-- covering
+-- main : IO ()
+-- main = runProg $ streamCSVFiles (P.tail args)
 ```
 
 In order to compile this and check it against your own

@@ -57,7 +57,6 @@ public export
 data Step1 : (q,e : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type where
   Go  : ((1 sk : R1 q (s q)) -> R1 q (Index r)) -> Step1 q e r s
   Rd  : ((1 sk : BSI q s) -> R1 q (Index r)) -> Step1 q e r s
-  Prs : ((1 sk : BSI q s) -> R1 q (Either e (Index r))) -> Step1 q e r s
   Err : Step1 q e r s
 
 export
@@ -140,9 +139,6 @@ lastStep p v st stck bs t =
     Go f  => let r # t := f (stck # t) in p.eoi r stck t
     Rd f  => let r # t := f (B stck bs t) in p.eoi r stck t
     Err   => fail p st stck bs t
-    Prs f =>
-     let Right r # t := f (B stck bs t) | Left x # t => Left x # t
-      in p.eoi r stck t
 
 public export
 0 Parser1 : (e : Type) -> (r : Bits32) -> (s : Type -> Type) -> (a : Type) -> Type

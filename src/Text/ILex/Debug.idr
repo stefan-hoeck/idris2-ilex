@@ -159,7 +159,6 @@ export
 Pretty (Step1 q e r s) where
   prettyPrec p (Go f)  = line "<Go>"
   prettyPrec p (Rd f)  = line "<Rd>"
-  prettyPrec p (Prs f) = line "<Prs>"
   prettyPrec p Err     = line "<Err>"
 
 export
