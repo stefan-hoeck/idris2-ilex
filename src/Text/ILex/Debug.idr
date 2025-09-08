@@ -156,7 +156,7 @@ Pretty a => Pretty (DFA a) where
     vsep $ prettyByteStep <$> zipWithIndex (toList next)
 
 export
-Pretty (Step q e r s) where
+Pretty (Step q r s) where
   prettyPrec p (Go f) = line "<Go>"
   prettyPrec p (Rd f) = line "<Rd>"
   prettyPrec p Err    = line "<Err>"

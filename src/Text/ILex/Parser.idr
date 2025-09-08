@@ -57,22 +57,14 @@ interface HasBytes (0 s : Type -> Type) where
   bytes : s q -> Ref q ByteString
 
 public export
-data Step : (q,e : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type where
-  Go  : ((1 sk : R1 q (s q)) -> R1 q (Index r)) -> Step q e r s
-  Rd  : ((1 sk : R1 q (s q)) -> R1 q (Index r)) -> Step q e r s
-  Err : Step q e r s
+data Step : (q : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type where
+  Go  : ((1 sk : R1 q (s q)) -> R1 q (Index r)) -> Step q r s
+  Rd  : ((1 sk : R1 q (s q)) -> R1 q (Index r)) -> Step q r s
+  Err : Step q r s
 
 public export
-0 Steps : (q,e : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type
-Steps q e r s = TokenMap (Step q e r s)
-
-public export
-0 BStep : (q,e : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type
-BStep q e = Step q (BoundedErr e)
-
-public export
-0 BSteps : (q,e : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type
-BSteps q e r s = TokenMap (BStep q e r s)
+0 Steps : (q : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type
+Steps q r s = TokenMap (Step q r s)
 
 export
 record Arr32 (n : Bits32) (a : Type) where
@@ -104,12 +96,12 @@ arr32 n dflt es =
       in fill xs p t
 
 public export
-0 DFA1 : (q,e : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type
-DFA1 q e r s = DFA (Step q e r s)
+0 DFA1 : (q : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type
+DFA1 q r s = DFA (Step q r s)
 
 public export
-0 Lex1 : (q,e : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type
-Lex1 q e r s = Arr32 r (DFA1 q e r s)
+0 Lex1 : (q : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type
+Lex1 q r s = Arr32 r (DFA1 q r s)
 
 ||| A parser is a system of automata, where each
 ||| lexicographic token determines the next automaton
@@ -119,7 +111,7 @@ record P1 (q,e : Type) (r : Bits32) (s : Type -> Type) (a : Type) where
   constructor P
   init  : Index r
   stck  : F1 q (s q)
-  lex   : Lex1 q e r s
+  lex   : Lex1 q r s
   chunk : s q -> F1 q (Maybe a)
   err   : Arr32 r (s q -> F1 q e)
   eoi   : Index r -> s q -> F1 q (Either e a)
@@ -144,7 +136,7 @@ fail = arrFail s . err
 export
 lastStep :
      P1 q e r s a
-  -> Step q e r s
+  -> Step q r s
   -> Index r
   -> s q
   -> F1 q (Either e a)
@@ -165,5 +157,5 @@ public export
 Parser1 e r s a = {0 q : _} -> P1 q e r s a
 
 export %inline
-lex1 : {r : _} -> List (Entry r (DFA1 q e r s)) -> Lex1 q e r s
+lex1 : {r : _} -> List (Entry r (DFA1 q r s)) -> Lex1 q r s
 lex1 es = arr32 r (dfa Err []) es
