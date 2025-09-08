@@ -6,6 +6,7 @@ import Data.Buffer
 import Data.Buffer.Core
 import Data.Buffer.Indexed
 import Data.ByteString
+import Data.Linear.Ref1
 import Data.Maybe0
 import Data.Nat.BSExtra
 
@@ -22,26 +23,32 @@ offsetToIx : (o : Nat) -> Ix s (o+s)
 offsetToIx 0     = IZ
 offsetToIx (S k) = rewrite plusSuccRightSucc k s in IS (offsetToIx k)
 
-export
-toBS :
+export %inline
+writeBS :
      IBuffer n
   -> (from        : Ix m n)
   -> (0    till   : Nat)
   -> {auto ix     : Ix till n}
   -> {auto 0  lte : LTE (ixToNat from) (ixToNat ix)}
-  -> ByteString
-toBS buf from till =
-  let bv := fromIBuffer buf
-   in BS _ $ substringFromTill (ixToNat from) (ixToNat ix) {lt2 = ixLTE ix} bv
+  -> Ref q ByteString
+  -> F1' q
+writeBS buf from till ref t =
+ let bv := fromIBuffer buf
+     bs := BS _ $ substringFromTill (ixToNat from) (ixToNat ix) {lt2 = ixLTE ix} bv
+  in write1 ref bs t
 
 export
-toBSP :
+writeBSP :
      ByteString
   -> IBuffer n
   -> (from        : Ix m n)
   -> (0    till   : Nat)
   -> {auto ix     : Ix till n}
   -> {auto 0  lte : LTE (ixToNat from) (ixToNat ix)}
-  -> ByteString
-toBSP (BS 0 _) buf from till = toBS buf from till
-toBSP prev     buf from till = prev <+> toBS buf from till
+  -> Ref q ByteString
+  -> F1' q
+writeBSP (BS 0 _) buf from till ref t = writeBS buf from till ref t
+writeBSP prev     buf from till ref t =
+ let bv := fromIBuffer buf
+     bs := BS _ $ substringFromTill (ixToNat from) (ixToNat ix) {lt2 = ixLTE ix} bv
+  in write1 ref (prev <+> bs) t

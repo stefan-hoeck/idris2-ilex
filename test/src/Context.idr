@@ -66,13 +66,13 @@ lit1 =
         ]
     ]
 
-litErr : Arr32 2 (SK q -> ByteString -> F1 q (BoundedErr Void))
+litErr : Arr32 2 (SK q -> F1 q (BoundedErr Void))
 litErr = errs [E SStr $ unclosedIfEOI "\"" []]
 
 leoi : Index 2 -> SK q -> F1 q (Either (BoundedErr Void) $ List (Bounded Lit))
 leoi sk s =
   case sk == SLit of
-    False => arrFail SK litErr sk s ""
+    False => arrFail SK litErr sk s
     True  => replace1 s.stck [<] >>= pure . Right . (<>> [])
 
 export

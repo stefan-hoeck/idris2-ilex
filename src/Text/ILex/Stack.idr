@@ -32,13 +32,6 @@ public export
 interface HasError (0 s : Type -> Type) (0 e : Type) | s where
   error     : s q -> Ref q (Maybe $ BoundedErr e)
 
-||| An interface for mutable parser stacks `s` that allows
-||| the parse loop to register the byte string corresponding to
-||| the currently parsed token.
-public export
-interface HasBytes (0 s : Type -> Type) where
-  bytes     : s q -> Ref q ByteString
-
 ||| An interface for mutable parser stacks `s` that facilitates
 ||| parsing string tokens containing escape sequences.
 public export
@@ -122,10 +115,9 @@ export %inline
 go : (s q => F1 q (Index r)) -> Step q e r s
 go f = Go $ \(x # t) => f t
 
--- TODO: Work with bytes
 export %inline
-rd : (s q => ByteString -> F1 q (Index r)) -> Step q e r s
-rd f = Rd $ \(B x bs t) => f bs t
+rd : HasBytes s => (s q => ByteString -> F1 q (Index r)) -> Step q e r s
+rd f = Rd $ \(x # t) => let bs # t := read1 (bytes x) t in f bs t
 
 export %inline
 writeAs : Ref q a -> a -> r -> F1 q r
@@ -239,11 +231,11 @@ parameters {auto pos : HasPosition s}
   newline v = go $ incline 1 >> pure v
 
   export %inline
-  spaces : (v : Index r) -> Step q e r s
+  spaces : HasBytes s => (v : Index r) -> Step q e r s
   spaces v = rd $ \bs => inccol (size bs) >> pure v
 
   export %inline
-  jsonSpaced : Index r -> Steps q e r s -> Steps q e r s
+  jsonSpaced : HasBytes s => Index r -> Steps q e r s -> Steps q e r s
   jsonSpaced v xs =
     [ (plus (oneof [' ','\t']), spaces v)
     , ('\n' <|> '\r' <|> "\r\n", newline v)
@@ -297,6 +289,7 @@ parameters (x          : RExp True)
 
 parameters (x        : RExp True)
            {auto pos : HasPosition s}
+           {auto pos : HasBytes s}
 
   ||| Converts the recognized token to a `String`, increases the
   ||| current column by its length and invokes the given state transformer.
@@ -317,17 +310,15 @@ parameters (x        : RExp True)
 
 parameters {auto he  : HasError s e}
            {auto pos : HasPosition s}
+           {auto pos : HasBytes s}
 
   export
-  unexpected :
-       List String
-    -> s q
-    -> ByteString
-    -> F1 q (BoundedErr e)
-  unexpected strs sk bs =
+  unexpected : List String -> s q -> F1 q (BoundedErr e)
+  unexpected strs sk =
     read1 (error sk) >>= \case
       Just x  => pure x
       Nothing => T1.do
+       bs <- read1 (bytes sk)
        let str := toString bs
        ps <- getPosition
        let bnds := BS ps (incCol (max 1 $ length str) ps)
@@ -336,32 +327,23 @@ parameters {auto he  : HasError s e}
          _ => pure (B (Expected strs str) bnds)
 
   export
-  unclosed :
-       String
-    -> s q
-    -> ByteString
-    -> F1 q (BoundedErr e)
-  unclosed str sk _ = T1.do
+  unclosed : String -> s q -> F1 q (BoundedErr e)
+  unclosed str sk = T1.do
     bnds <- popAndGetBounds (length str)
     pure $ B (Unclosed str) bnds
 
   export
-  unclosedIfEOI :
-       String
-    -> List String
-    -> s q
-    -> ByteString
-    -> F1 q (BoundedErr e)
-  unclosedIfEOI s ss sk bs =
-    case size bs of
-      0 => unclosed s sk bs
-      _ => unexpected ss sk bs
+  unclosedIfEOI : String -> List String -> s q -> F1 q (BoundedErr e)
+  unclosedIfEOI s ss sk =
+    read1 (bytes sk) >>= \case
+      BS 0 _ => unclosed s sk
+      _      => unexpected ss sk
 
   export %inline
   errs :
        {n : _}
-    -> List (Entry n $ s q -> ByteString -> F1 q (BoundedErr e))
-    -> Arr32 n (s q -> ByteString -> F1 q (BoundedErr e))
+    -> List (Entry n $ s q -> F1 q (BoundedErr e))
+    -> Arr32 n (s q -> F1 q (BoundedErr e))
   errs = arr32 n (unexpected [])
 
 --------------------------------------------------------------------------------
@@ -403,16 +385,16 @@ parameters (x          : RExp True)
   ctok v = (x, go $ lexPush n v)
 
   export %inline
-  readTok : (String -> a) -> (RExp True, Step q e r s)
+  readTok : HasBytes s => (String -> a) -> (RExp True, Step q e r s)
   readTok f =
     (x, rd $ \bs => let s := toString bs in lexPush (length s) (f s))
 
   export %inline
-  convTok : (ByteString -> a) -> (RExp True, Step q e r s)
+  convTok : HasBytes s => (ByteString -> a) -> (RExp True, Step q e r s)
   convTok f = (x, rd $ \bs => lexPush bs.size (f bs))
 
   export %inline
-  nltok : a -> (RExp True, Step q e r s)
+  nltok : HasBytes s => a -> (RExp True, Step q e r s)
   nltok v = (x, rd $ \bs => lexPushNL bs.size v)
 
 export
@@ -427,13 +409,14 @@ lexEOI :
   -> {auto pos : HasPosition s}
   -> {auto stk : HasStack s a}
   -> {auto err : HasError s e}
+  -> {auto bts : HasBytes s}
   -> Index r
   -> s q
   -> F1 q (Either (BoundedErr e) $ List a)
 lexEOI i sk =
   if i == Ini
      then getList (stack sk) >>= pure . Right
-     else unexpected [] sk "" >>= pure . Left
+     else unexpected [] sk >>= pure . Left
 
 public export
 0 L1 : (q,e : Type) -> Bits32 -> (a : Type) -> Type

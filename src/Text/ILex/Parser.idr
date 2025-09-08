@@ -1,9 +1,10 @@
 module Text.ILex.Parser
 
 import Derive.Prelude
+import Data.Buffer
 import public Data.Prim.Bits32
 import public Data.ByteString
-import public Data.Linear.Token
+import public Data.Linear.Ref1
 import public Text.ILex.Bounds
 import public Text.ILex.Error
 import public Text.ILex.RExp
@@ -48,17 +49,17 @@ public export
 Done : {n : _} -> (0 prf : (n-1) < n) => Index n
 Done = I (n-1)
 
+||| An interface for mutable parser stacks `s` that allows
+||| the parse loop to register the byte string corresponding to
+||| the currently parsed token.
 public export
-record BSI (q : Type) (s : Type -> Type) where
-  constructor B
-  stack1 : s q
-  bytes1 : ByteString
-  1 tok1 : T1 q
+interface HasBytes (0 s : Type -> Type) where
+  bytes : s q -> Ref q ByteString
 
 public export
 data Step : (q,e : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type where
   Go  : ((1 sk : R1 q (s q)) -> R1 q (Index r)) -> Step q e r s
-  Rd  : ((1 sk : BSI q s) -> R1 q (Index r)) -> Step q e r s
+  Rd  : ((1 sk : R1 q (s q)) -> R1 q (Index r)) -> Step q e r s
   Err : Step q e r s
 
 public export
@@ -120,24 +121,24 @@ record P1 (q,e : Type) (r : Bits32) (s : Type -> Type) (a : Type) where
   stck  : F1 q (s q)
   lex   : Lex1 q e r s
   chunk : s q -> F1 q (Maybe a)
-  err   : Arr32 r (s q -> ByteString -> F1 q e)
+  err   : Arr32 r (s q -> F1 q e)
   eoi   : Index r -> s q -> F1 q (Either e a)
+  {auto hasb : HasBytes s}
 
 export
 arrFail :
      (0 s : Type -> Type)
-  -> Arr32 r (s q -> ByteString -> F1 q e)
+  -> Arr32 r (s q -> F1 q e)
   -> Index r
   -> s q
-  -> ByteString
   -> F1 q (Either e x)
-arrFail s arr ix st bs t =
+arrFail s arr ix st t =
  let eo      := arr `at` ix
-     err # t := eo st bs t
+     err # t := eo st t
   in Left err # t
 
 export %inline
-fail : P1 q e r s a -> Index r -> s q -> ByteString -> F1 q (Either e x)
+fail : P1 q e r s a -> Index r -> s q -> F1 q (Either e x)
 fail = arrFail s . err
 
 export
@@ -146,13 +147,18 @@ lastStep :
   -> Step q e r s
   -> Index r
   -> s q
-  -> ByteString
   -> F1 q (Either e a)
-lastStep p v st stck bs t =
+lastStep p v st stck t =
   case v of
-    Go f  => let r # t := f (stck # t) in p.eoi r stck t
-    Rd f  => let r # t := f (B stck bs t) in p.eoi r stck t
-    Err   => fail p st stck bs t
+    Go f =>
+     let r # t := f (stck # t)
+         _ # t := write1 (bytes @{p.hasb} stck) "" t
+      in p.eoi r stck t
+    Rd f =>
+     let r # t := f (stck # t)
+         _ # t := write1 (bytes @{p.hasb} stck) "" t
+      in p.eoi r stck t
+    Err    => fail p st stck t
 
 public export
 0 Parser1 : (e : Type) -> (r : Bits32) -> (s : Type -> Type) -> (a : Type) -> Type
