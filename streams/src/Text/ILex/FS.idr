@@ -15,7 +15,7 @@ parameters (p : P1 q e r s a)
   appLast :
        Index r
     -> s q
-    -> Step1 q e r s
+    -> Step q e r s
     -> ByteString
     -> F1 q (Either e a)
   appLast st sk _ (BS 0 _) t = p.eoi st sk t

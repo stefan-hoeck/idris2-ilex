@@ -43,7 +43,7 @@ data Cat : Type where
 
 %runElab derive "Cat" [Show,Eq]
 
-cat : L1 q Void Cat
+cat : L1 q Void 1 Cat
 cat =
   lexer
     [ readTok U.unassigned Cn

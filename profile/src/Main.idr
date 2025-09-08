@@ -4,7 +4,7 @@ import JSON.Parser
 import Data.Buffer
 import Data.ByteString
 import Data.List
-import Examples.JSON
+import JSON.Parser
 import Language.JSON
 import Profile
 import Text.ILex

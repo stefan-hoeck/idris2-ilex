@@ -4,6 +4,8 @@ import Derive.Prelude
 import public Data.Prim.Bits32
 import public Data.ByteString
 import public Data.Linear.Token
+import public Text.ILex.Bounds
+import public Text.ILex.Error
 import public Text.ILex.RExp
 import public Text.ILex.Lexer
 
@@ -54,11 +56,22 @@ record BSI (q : Type) (s : Type -> Type) where
   1 tok1 : T1 q
 
 public export
-data Step1 : (q,e : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type where
-  Go  : ((1 sk : R1 q (s q)) -> R1 q (Index r)) -> Step1 q e r s
-  Rd  : ((1 sk : BSI q s) -> R1 q (Index r)) -> Step1 q e r s
-  Prs : ((1 sk : BSI q s) -> R1 q (Either e (Index r))) -> Step1 q e r s
-  Err : Step1 q e r s
+data Step : (q,e : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type where
+  Go  : ((1 sk : R1 q (s q)) -> R1 q (Index r)) -> Step q e r s
+  Rd  : ((1 sk : BSI q s) -> R1 q (Index r)) -> Step q e r s
+  Err : Step q e r s
+
+public export
+0 Steps : (q,e : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type
+Steps q e r s = TokenMap (Step q e r s)
+
+public export
+0 BStep : (q,e : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type
+BStep q e = Step q (BoundedErr e)
+
+public export
+0 BSteps : (q,e : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type
+BSteps q e r s = TokenMap (BStep q e r s)
 
 export
 record Arr32 (n : Bits32) (a : Type) where
@@ -91,7 +104,7 @@ arr32 n dflt es =
 
 public export
 0 DFA1 : (q,e : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type
-DFA1 q e r s = DFA (Step1 q e r s)
+DFA1 q e r s = DFA (Step q e r s)
 
 public export
 0 Lex1 : (q,e : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type
@@ -130,7 +143,7 @@ fail = arrFail s . err
 export
 lastStep :
      P1 q e r s a
-  -> Step1 q e r s
+  -> Step q e r s
   -> Index r
   -> s q
   -> ByteString
@@ -140,9 +153,6 @@ lastStep p v st stck bs t =
     Go f  => let r # t := f (stck # t) in p.eoi r stck t
     Rd f  => let r # t := f (B stck bs t) in p.eoi r stck t
     Err   => fail p st stck bs t
-    Prs f =>
-     let Right r # t := f (B stck bs t) | Left x # t => Left x # t
-      in p.eoi r stck t
 
 public export
 0 Parser1 : (e : Type) -> (r : Bits32) -> (s : Type -> Type) -> (a : Type) -> Type

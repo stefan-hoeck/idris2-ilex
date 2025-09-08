@@ -26,7 +26,7 @@ Interpolation ABC where interpolate = show
 export
 Pretty ABC where prettyPrec _ v = line (show v)
 
-abc : L1 q Void ABC
+abc : L1 q Void 1 ABC
 abc =
   lexer $ jsonSpaced Ini
     [ readTok ('A' >> repeat  4 'a') (const A)

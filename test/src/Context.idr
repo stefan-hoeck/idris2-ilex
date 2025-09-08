@@ -29,83 +29,55 @@ data Lit : Type where
 export
 Interpolation Lit where interpolate = show
 
-||| A record of mutable variables that can be used for
-||| basic lexing tasks
-public export
-record ST q where
-  constructor S
-  line     : Ref q Nat
-  col      : Ref q Nat
-  bnds     : Ref q (SnocList Bounds)
-  strs     : Ref q (SnocList String)
-  vals     : Ref q (SnocList $ Bounded Lit)
-
-export %inline
-LC ST where
-  line   = ST.line
-  col    = ST.col
-  bounds = ST.bnds
-
-export %inline
-LexST ST Lit where
-  vals = ST.vals
-
-export
-init : F1 q (ST q)
-init = T1.do
-  l <- ref1 Z
-  c <- ref1 Z
-  b <- ref1 [<]
-  s <- ref1 [<]
-  v <- ref1 [<]
-  pure (S l c b s v)
-
 export
 SLit, SStr : Index 2
 SLit = 0
 SStr = 1
 
+0 SK : Type -> Type
+SK = Stack Void (SnocList $ Bounded Lit) 2
+
 --------------------------------------------------------------------------------
 -- Transformations
 --------------------------------------------------------------------------------
 
-closeStr : ST q -> F1 q (Index 2)
-closeStr x = T1.do
-  po <- popBounds x
-  pe <- currentPos x
-  s  <- getStr x.strs
-  push1 (ST.vals x) SLit (B (SL s) $ po <+> atPos pe)
+closeStr : (x : SK q) => F1 q (Index 2)
+closeStr = T1.do
+  bs <- closeBounds
+  s  <- getStr
+  push1 x.stck (B (SL s) bs)
+  pure SLit
 
 chars : RExp True
 chars = plus $ dot && not '"' && not '\\'
 
-lit1 : Lex1 q e 2 ST
+lit1 : Lex1 q e 2 SK
 lit1 =
   lex1
     [ E SLit $ dfa Err $ jsonSpaced SLit
         [ readTok decimal (Context.Num . cast)
-        , copen '"' (const ST SStr)
+        , copen '"' (pure SStr)
         ]
     , E SStr $ dfa Err
-        [ read chars $ push ST strs SStr
-        , str #"\\"# $ push ST strs SStr #"\"#
-        , str #"\""# $ push ST strs SStr #"""#
-        , chr '"' closeStr
+        [ read chars $ pushStr SStr
+        , cexpr #"\\"# $ pushStr SStr #"\"#
+        , cexpr #"\""# $ pushStr SStr #"""#
+        , cexpr '"' closeStr
         ]
     ]
 
-litErr : Arr32 2 (ST q -> ByteString -> F1 q (BoundedErr e))
+litErr : Arr32 2 (SK q -> ByteString -> F1 q (BoundedErr Void))
 litErr = errs [E SStr $ unclosedIfEOI "\"" []]
 
-leoi : Index 2 -> ST q -> F1 q (Either (BoundedErr e) $ List (Bounded Lit))
+leoi : Index 2 -> SK q -> F1 q (Either (BoundedErr Void) $ List (Bounded Lit))
 leoi sk s =
   case sk == SLit of
-    False => arrFail ST litErr sk s ""
-    True  => replace1 s.vals [<] >>= pure . Right . (<>> [])
+    False => arrFail SK litErr sk s ""
+    True  => replace1 s.stck [<] >>= pure . Right . (<>> [])
 
 export
-lit : P1 q (BoundedErr Void) 2 ST (List $ Bounded Lit)
-lit = P SLit init lit1 (\x => (Nothing #)) litErr leoi
+lit : P1 q (BoundedErr Void) 2 SK (List $ Bounded Lit)
+lit = P SLit (init [<]) lit1 (\x => (Nothing #)) litErr leoi
 
 space : Nat -> Gen String
 space n =  string (linear 0 5) (element [' ', '\t', '\r', '\t'])

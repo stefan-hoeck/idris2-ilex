@@ -16,9 +16,9 @@ record LexState (q,e : Type) (r : Bits32) (s : Type -> Type) where
   {0 sts  : Nat}
   state   : Index r
   stack   : s q
-  dfa     : Stepper sts (Step1 q e r s)
-  cur     : ByteStep sts (Step1 q e r s)
-  tok     : Step1 q e r s
+  dfa     : Stepper sts (Step q e r s)
+  cur     : ByteStep sts (Step q e r s)
+  tok     : Step q e r s
   prev    : ByteString
 
 export
@@ -63,10 +63,10 @@ parameters {0 s     : Type -> Type}
 
   psucc :
        (st          : Index r)
-    -> (dfa         : Stepper k (Step1 q e r s))  -- current finite automaton
-    -> (cur         : ByteStep k (Step1 q e r s)) -- current automaton state
+    -> (dfa         : Stepper k (Step q e r s))   -- current finite automaton
+    -> (cur         : ByteStep k (Step q e r s))  -- current automaton state
     -> (prev        : ByteString)
-    -> (last        : Step1 q e r s)              -- last encountered terminal state
+    -> (last        : Step q e r s)               -- last encountered terminal state
     -> (from        : Ix m n)                     -- start of current token
     -> (pos         : Nat)                        -- reverse position in the byte array
     -> {auto x      : Ix pos n}                   -- position in the byte array
@@ -94,9 +94,6 @@ parameters {0 s     : Type -> Type}
            Rd  f =>
             let s2 # t := f (B stck (toBS buf x k) t)
              in ploop s2 k t
-           Prs f => case f (B stck (toBS buf x k) t) of
-             Right s2 # t => ploop s2 k t
-             Left  x  # t => Left x # t
            Err => fail parser st stck (toBS buf x k) t
          Move nxt f => psucc st dfa (dfa `at` nxt) empty f   x k t
          Keep       => psucc st dfa cur            empty Err x k t
@@ -116,9 +113,6 @@ parameters {0 s     : Type -> Type}
            Rd  f =>
             let s2 # t := f (B stck (toBSP prev buf from k) t)
              in ploop s2 k t
-           Prs f => case f (B stck (toBSP prev buf from k) t) of
-             Right s2 # t => ploop s2 k t
-             Left  x  # t => Left x # t
            Err => fail parser st stck (toBSP prev buf from k) t
          Move nxt f => psucc st dfa (dfa `at` nxt) prev f from k t
          Bottom     => case v of
@@ -128,9 +122,6 @@ parameters {0 s     : Type -> Type}
            Rd  f =>
             let s2 # t := f (B stck (toBSP prev buf from (S k)) t)
              in ploop s2 (S k) t
-           Prs f => case f (B stck (toBSP prev buf from (S k)) t) of
-             Right s2 # t => ploop s2 (S k) t
-             Left  x  # t => Left x # t
            Err => fail parser st stck (toBSP prev buf from k) t
 
 pparseFrom p lst@(LST st sk dfa cur tok prev) pos buf t =
@@ -147,9 +138,6 @@ pparseFrom p lst@(LST st sk dfa cur tok prev) pos buf t =
              Rd  f =>
               let s2 # t := f (B sk (toBSP prev buf x k) t)
                in ploop sk p buf s2 k t
-             Prs f => case f (B sk (toBSP prev buf x k) t) of
-               Right s2 # t => ploop sk p buf s2 k t
-               Left  x  # t => Left x # t
              Err => fail p st sk (toBSP prev buf x k) t
            Move nxt f => psucc sk p buf st dfa (dfa `at` nxt) prev f x k t
            Bottom     => case tok of
@@ -159,7 +147,4 @@ pparseFrom p lst@(LST st sk dfa cur tok prev) pos buf t =
              Rd  f =>
               let s2 # t := f (B sk prev t)
                in ploop sk p buf s2 (S k) t
-             Prs f => case f (B sk prev t) of
-               Right s2 # t => ploop sk p buf s2 (S k) t
-               Left  x  # t => Left x # t
              Err => fail p st sk prev t

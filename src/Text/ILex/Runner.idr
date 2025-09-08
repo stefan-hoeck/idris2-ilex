@@ -76,9 +76,9 @@ parameters {0 s     : Type -> Type}
 
   succ :
        (st          : Index r)
-    -> (dfa         : Stepper k (Step1 q e r s))
-    -> (cur         : ByteStep k (Step1 q e r s))
-    -> (last        : Step1 q e r s)
+    -> (dfa         : Stepper k (Step q e r s))
+    -> (cur         : ByteStep k (Step q e r s))
+    -> (last        : Step q e r s)
     -> (from        : Ix m n)
     -> (pos         : Nat)
     -> {auto x      : Ix pos n}
@@ -98,9 +98,6 @@ parameters {0 s     : Type -> Type}
            Rd  f =>
             let s2 # t := f (B stck (toBS buf x k) t)
              in loop s2 k t
-           Prs f => case f (B stck (toBS buf x k) t) of
-             Right s2 # t => loop s2 k t
-             Left  x  # t => Left x # t
            Err => fail parser st stck (toBS buf x k) t
          Move nxt f => succ st dfa (dfa `at` nxt) f   x k t
          Keep       => succ st dfa cur            Err x k t
@@ -119,9 +116,6 @@ parameters {0 s     : Type -> Type}
            Rd  f =>
             let s2 # t := f (B stck (toBS buf from k) t)
              in loop s2 k t
-           Prs f => case f (B stck (toBS buf from k) t) of
-             Right s2 # t => loop s2 k t
-             Left  x  # t => Left x # t
            Err => fail parser st stck (toBS buf from k) t
          Move nxt f => succ st dfa (dfa `at` nxt) f from k t
          Bottom     => case v of
@@ -131,9 +125,6 @@ parameters {0 s     : Type -> Type}
            Rd  f =>
             let s2 # t := f (B stck (toBS buf from (S k)) t)
              in loop s2 (S k) t
-           Prs f => case f (B stck (toBS buf from (S k)) t) of
-             Right s2 # t => loop s2 (S k) t
-             Left  x  # t => Left x # t
            Err => fail parser st stck (toBS buf from k) t
 
 runFrom p pos buf = run1 (go p)

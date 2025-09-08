@@ -32,4 +32,5 @@ modules = Text.ILex
         , Text.ILex.RExp
         , Text.ILex.RExp.Unicode
         , Text.ILex.Runner
+        , Text.ILex.Stack
         , Text.ILex.Util
