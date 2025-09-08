@@ -185,7 +185,7 @@ parameters {auto sk : SK q}
 --------------------------------------------------------------------------------
 
 %inline
-spaced : HasPosition s => Index r -> BSteps q e r s -> DFA (BStep q e r s)
+spaced : Index r -> BSteps q e r SK -> DFA (BStep q e r SK)
 spaced x = dfa Err . jsonSpaced x
 
 export
@@ -261,7 +261,7 @@ jsonTrans =
     , E Str strTok
     ]
 
-jsonErr : Arr32 JSz (SK q -> ByteString -> F1 q (BoundedErr Void))
+jsonErr : Arr32 JSz (SK q -> F1 q (BoundedErr Void))
 jsonErr =
   arr32 JSz (unexpected [])
     [ E ANew $ unclosedIfEOI "[" []
@@ -278,7 +278,7 @@ jsonErr =
 jsonEOI : JST -> SK q -> F1 q (Either (BoundedErr Void) JSON)
 jsonEOI sk s t =
   case sk == Done of
-    False => arrFail SK jsonErr sk s "" t
+    False => arrFail SK jsonErr sk s t
     True  => case read1 s.stck t of
       PF v # t => Right v # t
       _    # t => Right JNull # t

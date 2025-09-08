@@ -73,6 +73,7 @@ parameters {0 s     : Type -> Type}
            (stck    : s q)
            (parser  : P1 q e r s a)
            (buf     : IBuffer n)
+           (bytes   : Ref q ByteString)
 
   succ :
        (st          : Index r)
@@ -86,50 +87,64 @@ parameters {0 s     : Type -> Type}
     -> F1 q (Either e a)
 
   loop : (st : Index r) -> (pos : Nat) -> (x : Ix pos n) => F1 q (Either e a)
-  loop st 0     t = parser.eoi st stck t
+  loop st 0     t =
+   let _ # t := write1 bytes "" t
+    in parser.eoi st stck t
   loop st (S k) t =
    let L _ dfa := parser.lex `at` st
        cur     := dfa `at` 0
     in case cur `atByte` (buf `ix` k) of
          Done v      => case v of
-           Go  f =>
+           Go f =>
             let s2 # t := f (stck # t)
              in loop s2 k t
-           Rd  f =>
-            let s2 # t := f (B stck (toBS buf x k) t)
+           Rd f =>
+            let _  # t := writeBS buf x k bytes t
+                s2 # t := f (stck # t)
              in loop s2 k t
-           Err => fail parser st stck (toBS buf x k) t
+           Err =>
+            let _  # t := writeBS buf x k bytes t
+             in fail parser st stck t
          Move nxt f => succ st dfa (dfa `at` nxt) f   x k t
          Keep       => succ st dfa cur            Err x k t
-         Bottom     => fail parser st stck (toBS buf x k) t
+         Bottom     =>
+          let _  # t := writeBS buf x k bytes t
+           in fail parser st stck t
 
   succ st dfa cur v from 0     t =
-    lastStep parser v st stck (toBS buf from 0) t
+   let _ # t := writeBS buf from 0 bytes t
+    in lastStep parser v st stck t
   succ st dfa cur v from (S k) t =
    let byte := buf `ix` k
     in case cur `atByte` byte of
          Keep       => succ st dfa cur v from k t
          Done v     => case v of
-           Go  f =>
+           Go f =>
             let s2 # t := f (stck # t)
              in loop s2 k t
-           Rd  f =>
-            let s2 # t := f (B stck (toBS buf from k) t)
+           Rd f =>
+            let _  # t := writeBS buf from k bytes t
+                s2 # t := f (stck # t)
              in loop s2 k t
-           Err => fail parser st stck (toBS buf from k) t
+           Err =>
+            let _  # t := writeBS buf from k bytes t
+             in fail parser st stck t
          Move nxt f => succ st dfa (dfa `at` nxt) f from k t
          Bottom     => case v of
-           Go  f =>
+           Go f =>
             let s2 # t := f (stck # t)
              in loop s2 (S k) t
-           Rd  f =>
-            let s2 # t := f (B stck (toBS buf from (S k)) t)
+           Rd f =>
+            let _  # t := writeBS buf from (S k) bytes t
+                s2 # t := f (stck # t)
              in loop s2 (S k) t
-           Err => fail parser st stck (toBS buf from k) t
+           Err =>
+            let _  # t := writeBS buf from k bytes t
+             in fail parser st stck t
 
 runFrom p pos buf = run1 (go p)
   where
     go : P1 q e r s a -> F1 q (Either e a)
     go p t =
       let x # t := stck p t
-       in loop x p buf p.init pos t
+       in loop x p buf (bytes @{p.hasb} x) p.init pos t

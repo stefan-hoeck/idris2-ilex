@@ -19,14 +19,13 @@ record LexState (q,e : Type) (r : Bits32) (s : Type -> Type) where
   dfa     : Stepper sts (Step q e r s)
   cur     : ByteStep sts (Step q e r s)
   tok     : Step q e r s
-  prev    : ByteString
 
 export
 init : P1 q e r s a -> F1 q (LexState q e r s)
 init p t =
  let stck # t := p.stck t
      L _ dfa  := p.lex `at` p.init
-  in LST p.init stck dfa (dfa `at` 0) Err empty # t
+  in LST p.init stck dfa (dfa `at` 0) Err # t
 
 ||| Result of a partial lexing step: In such a step, we lex
 ||| till the end of a chunk of bytes, allowing for a remainder of
@@ -60,6 +59,7 @@ parameters {0 s     : Type -> Type}
            (stck    : s q)
            (parser  : P1 q e r s a)
            (buf     : IBuffer n)
+           (bytes   : Ref q ByteString)
 
   psucc :
        (st          : Index r)
@@ -82,69 +82,87 @@ parameters {0 s     : Type -> Type}
   ploop st 0     t =
    let mv  # t := P1.chunk parser stck t
        L _ dfa := parser.lex `at` st
-    in Right (LST st stck dfa (dfa `at` 0) Err empty, mv) # t
+       _   # t := write1 bytes empty t
+    in Right (LST st stck dfa (dfa `at` 0) Err, mv) # t
   ploop st (S k) t =
    let L _ dfa := parser.lex `at` st
        cur     := dfa `at` 0
     in case cur `atByte` (buf `ix` k) of
          Done v      => case v of
-           Go  f =>
+           Go f =>
             let s2 # t := f (stck # t)
              in ploop s2 k t
-           Rd  f =>
-            let s2 # t := f (B stck (toBS buf x k) t)
+           Rd f =>
+            let _  # t := writeBS buf x k bytes t
+                s2 # t := f (stck # t)
              in ploop s2 k t
-           Err => fail parser st stck (toBS buf x k) t
+           Err =>
+            let _  # t := writeBS buf x k bytes t
+             in fail parser st stck t
          Move nxt f => psucc st dfa (dfa `at` nxt) empty f   x k t
          Keep       => psucc st dfa cur            empty Err x k t
-         Bottom     => fail parser st stck (toBS buf x k) t
+         Bottom     =>
+          let _  # t := writeBS buf x k bytes t
+           in fail parser st stck t
 
   psucc st dfa cur prev v from 0 t =
    let m # t := P1.chunk parser stck t
-    in Right (LST st stck dfa cur v $ toBSP prev buf from 0, m) # t
+       _ # t := writeBSP prev buf from 0 bytes t
+    in Right (LST st stck dfa cur v, m) # t
   psucc st dfa cur prev v from (S k) t =
    let byte := buf `ix` k
     in case cur `atByte` byte of
          Keep       => psucc st dfa cur prev v from k t
          Done v     => case v of
-           Go  f =>
+           Go f =>
             let s2 # t := f (stck # t)
              in ploop s2 k t
-           Rd  f =>
-            let s2 # t := f (B stck (toBSP prev buf from k) t)
+           Rd f =>
+            let _  # t := writeBSP prev buf from k bytes t
+                s2 # t := f (stck # t)
              in ploop s2 k t
-           Err => fail parser st stck (toBSP prev buf from k) t
+           Err =>
+            let _  # t := writeBSP prev buf from k bytes t
+             in fail parser st stck t
          Move nxt f => psucc st dfa (dfa `at` nxt) prev f from k t
          Bottom     => case v of
-           Go  f =>
+           Go f =>
             let s2 # t := f (stck # t)
              in ploop s2 (S k) t
-           Rd  f =>
-            let s2 # t := f (B stck (toBSP prev buf from (S k)) t)
+           Rd f =>
+            let _  # t := writeBSP prev buf from (S k) bytes t
+                s2 # t := f (stck # t)
              in ploop s2 (S k) t
-           Err => fail parser st stck (toBSP prev buf from k) t
+           Err =>
+            let _  # t := writeBSP prev buf from k bytes t
+             in fail parser st stck t
 
-pparseFrom p lst@(LST st sk dfa cur tok prev) pos buf t =
+pparseFrom p lst@(LST st sk dfa cur tok) pos buf t =
   case pos of
     0   => Right (lst, Nothing) # t
     S k =>
-     let byte := buf `ix` k
+     let byte     := buf `ix` k
+         bytes    := bytes @{p.hasb} sk
+         prev # t := read1 bytes t
       in case cur `atByte` byte of
-           Keep     => psucc sk p buf st dfa cur prev tok x k t
+           Keep     => psucc sk p buf bytes st dfa cur prev tok x k t
            Done v   => case v of
-             Go  f =>
+             Go f =>
               let s2 # t := f (sk # t)
-               in ploop sk p buf s2 k t
-             Rd  f =>
-              let s2 # t := f (B sk (toBSP prev buf x k) t)
-               in ploop sk p buf s2 k t
-             Err => fail p st sk (toBSP prev buf x k) t
-           Move nxt f => psucc sk p buf st dfa (dfa `at` nxt) prev f x k t
+               in ploop sk p buf bytes s2 k t
+             Rd f =>
+              let _  # t := writeBSP prev buf x k bytes t
+                  s2 # t := f (sk # t)
+               in ploop sk p buf bytes s2 k t
+             Err =>
+              let _  # t := writeBSP prev buf x k bytes t
+               in fail p st sk t
+           Move nxt f => psucc sk p buf bytes st dfa (dfa `at` nxt) prev f x k t
            Bottom     => case tok of
-             Go  f =>
+             Go f =>
               let s2 # t := f (sk # t)
-               in ploop sk p buf s2 (S k) t
-             Rd  f =>
-              let s2 # t := f (B sk prev t)
-               in ploop sk p buf s2 (S k) t
-             Err => fail p st sk prev t
+               in ploop sk p buf bytes s2 (S k) t
+             Rd f =>
+              let s2 # t := f (sk # t)
+               in ploop sk p buf bytes s2 (S k) t
+             Err => fail p st sk t

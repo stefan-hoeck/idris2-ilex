@@ -505,7 +505,7 @@ from the array and passed the parser stack and byte sequence
 parsed so far:
 
 ```idris
-quotedErr : Arr32 QSz (QSTCK q -> ByteString -> F1 q (BoundedErr Void))
+quotedErr : Arr32 QSz (QSTCK q -> F1 q (BoundedErr Void))
 quotedErr = arr32 QSz (unexpected []) [E InStr $ unclosedIfEOI "\"" []]
 ```
 
@@ -518,7 +518,7 @@ a result or fail with an error:
 quotedEOI : QST -> QSTCK q -> F1 q (Either (BoundedErr Void) (List $ Bounded CSV1))
 quotedEOI st x =
   case st == Ini of
-    False => arrFail QSTCK quotedErr st x ""
+    False => arrFail QSTCK quotedErr st x
     True  => getList x.stck >>= pure . Right
 ```
 
@@ -586,6 +586,7 @@ record CSTCK (q : Type) where
   err   : Ref q (Maybe $ BoundedErr Void)
   cells : Ref q (SnocList Cell)
   lines : Ref q (SnocList Line)
+  bytes : Ref q ByteString
 
 export %inline
 HasPosition CSTCK where
@@ -605,6 +606,10 @@ export %inline
 HasStack CSTCK Line where
   stack = lines
 
+export %inline
+HasBytes CSTCK where
+  bytes = CSTCK.bytes
+
 export
 cinit : F1 q (CSTCK q)
 cinit = T1.do
@@ -615,7 +620,8 @@ cinit = T1.do
   er <- ref1 Nothing
   cs <- ref1 [<]
   ls <- ref1 [<]
-  pure (C l c bs ss er cs ls)
+  by <- ref1 ""
+  pure (C l c bs ss er cs ls by)
 ```
 
 Next, we'll define the different parser states. We want to make
@@ -748,7 +754,7 @@ The only thing missing is error handling and the final assembling of
 the parser. States `Str`, `Val`, and `NL` throw custom errors:
 
 ```idris
-csvErr : Arr32 CSz (CSTCK q -> ByteString -> F1 q (BoundedErr Void))
+csvErr : Arr32 CSz (CSTCK q -> F1 q (BoundedErr Void))
 csvErr =
   arr32 CSz (unexpected [])
     [ E Str $ unclosedIfEOI "\"" []
@@ -759,7 +765,7 @@ csvErr =
 csvEOI : CST -> CSTCK q -> F1 q (Either (BoundedErr Void) Table)
 csvEOI st x =
   case st == Str || st == NL of
-    True  => arrFail CSTCK csvErr st x ""
+    True  => arrFail CSTCK csvErr st x
     False => T1.do
       _   <- onNL (st == Com)
       tbl <- getList x.lines

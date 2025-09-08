@@ -157,9 +157,9 @@ Pretty a => Pretty (DFA a) where
 
 export
 Pretty (Step q e r s) where
-  prettyPrec p (Go f)  = line "<Go>"
-  prettyPrec p (Rd f)  = line "<Rd>"
-  prettyPrec p Err     = line "<Err>"
+  prettyPrec p (Go f) = line "<Go>"
+  prettyPrec p (Rd f) = line "<Rd>"
+  prettyPrec p Err    = line "<Err>"
 
 export
 prettyLexer : Pretty a => DFA a -> IO ()
