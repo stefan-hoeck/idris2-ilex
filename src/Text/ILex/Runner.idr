@@ -77,9 +77,9 @@ parameters {0 s     : Type -> Type}
 
   succ :
        (st          : Index r)
-    -> (dfa         : Stepper k (Step q e r s))
-    -> (cur         : ByteStep k (Step q e r s))
-    -> (last        : Step q e r s)
+    -> (dfa         : Stepper k (Step q r s))
+    -> (cur         : ByteStep k (Step q r s))
+    -> (last        : Step q r s)
     -> (from        : Ix m n)
     -> (pos         : Nat)
     -> {auto x      : Ix pos n}

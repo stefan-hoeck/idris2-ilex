@@ -112,11 +112,11 @@ HasStringLits (Stack e a r) where
 --------------------------------------------------------------------------------
 
 export %inline
-go : (s q => F1 q (Index r)) -> Step q e r s
+go : (s q => F1 q (Index r)) -> Step q r s
 go f = Go $ \(x # t) => f t
 
 export %inline
-rd : HasBytes s => (s q => ByteString -> F1 q (Index r)) -> Step q e r s
+rd : HasBytes s => (s q => ByteString -> F1 q (Index r)) -> Step q r s
 rd f = Rd $ \(x # t) => let bs # t := read1 (bytes x) t in f bs t
 
 export %inline
@@ -227,15 +227,15 @@ parameters {auto sk  : s q}
 parameters {auto pos : HasPosition s}
 
   export %inline
-  newline : (v : Index r) -> Step q e r s
+  newline : (v : Index r) -> Step q r s
   newline v = go $ incline 1 >> pure v
 
   export %inline
-  spaces : HasBytes s => (v : Index r) -> Step q e r s
+  spaces : HasBytes s => (v : Index r) -> Step q r s
   spaces v = rd $ \bs => inccol (size bs) >> pure v
 
   export %inline
-  jsonSpaced : HasBytes s => Index r -> Steps q e r s -> Steps q e r s
+  jsonSpaced : HasBytes s => Index r -> Steps q r s -> Steps q r s
   jsonSpaced v xs =
     [ (plus (oneof [' ','\t']), spaces v)
     , ('\n' <|> '\r' <|> "\r\n", newline v)
@@ -262,7 +262,7 @@ parameters (x          : RExp True)
   |||
   ||| The current column is increased by one *after* invoking `f`.
   export %inline
-  cexpr : (s q => F1 q (Index r)) -> (RExp True, Step q e r s)
+  cexpr : (s q => F1 q (Index r)) -> (RExp True, Step q r s)
   cexpr f = (x, go $ inccol n >> f)
 
   ||| Recognizes the given character and uses it to update the parser state
@@ -271,7 +271,7 @@ parameters (x          : RExp True)
   ||| The current column is increased by one, and a new entry is pushed onto
   ||| the stack of bounds.
   export %inline
-  copen : (s q => F1 q (Index r)) -> (RExp True, Step q e r s)
+  copen : (s q => F1 q (Index r)) -> (RExp True, Step q r s)
   copen f = (x, go $ pushPosition >> inccol n >> f)
 
   ||| Recognizes the given character and uses it to update the parser state
@@ -280,7 +280,7 @@ parameters (x          : RExp True)
   ||| The current column is increased by one, and on `Bounds` entry
   ||| is popped from the stack.
   export %inline
-  cclose : (s q => F1 q (Index r)) -> (RExp True, Step q e r s)
+  cclose : (s q => F1 q (Index r)) -> (RExp True, Step q r s)
   cclose f = (x, go $ inccol n >> popPosition >> f)
 
 --------------------------------------------------------------------------------
@@ -294,14 +294,14 @@ parameters (x        : RExp True)
   ||| Converts the recognized token to a `String`, increases the
   ||| current column by its length and invokes the given state transformer.
   export %inline
-  read : (s q => String -> F1 q (Index r)) -> (RExp True, Step q e r s)
+  read : (s q => String -> F1 q (Index r)) -> (RExp True, Step q r s)
   read f =
     (x, rd $ \bs => let s := toString bs in inccol (length s) >> f s)
 
   ||| Converts the recognized token to a `String`, increases the
   ||| current column by its length and invokes the given state transformer.
   export %inline
-  conv : (s q => ByteString -> F1 q (Index r)) -> (RExp True, Step q e r s)
+  conv : (s q => ByteString -> F1 q (Index r)) -> (RExp True, Step q r s)
   conv f = (x, rd $ \bs => inccol (size bs) >> f bs)
 
 --------------------------------------------------------------------------------
@@ -381,20 +381,20 @@ parameters (x          : RExp True)
   |||
   ||| The current column is increased by one *after* invoking `f`.
   export %inline
-  ctok : {n : _} -> (0 prf : ConstSize n x) => a -> (RExp True, Step q e r s)
+  ctok : {n : _} -> (0 prf : ConstSize n x) => a -> (RExp True, Step q r s)
   ctok v = (x, go $ lexPush n v)
 
   export %inline
-  readTok : HasBytes s => (String -> a) -> (RExp True, Step q e r s)
+  readTok : HasBytes s => (String -> a) -> (RExp True, Step q r s)
   readTok f =
     (x, rd $ \bs => let s := toString bs in lexPush (length s) (f s))
 
   export %inline
-  convTok : HasBytes s => (ByteString -> a) -> (RExp True, Step q e r s)
+  convTok : HasBytes s => (ByteString -> a) -> (RExp True, Step q r s)
   convTok f = (x, rd $ \bs => lexPush bs.size (f bs))
 
   export %inline
-  nltok : HasBytes s => a -> (RExp True, Step q e r s)
+  nltok : HasBytes s => a -> (RExp True, Step q r s)
   nltok v = (x, rd $ \bs => lexPushNL bs.size v)
 
 export
@@ -436,6 +436,6 @@ export
 lexer :
      {r : _}
   -> {auto 0 lt : 0 < r}
-  -> BSteps q e r (Stack e (SnocList $ Bounded a) r)
+  -> Steps q r (Stack e (SnocList $ Bounded a) r)
   -> L1 q e r a
 lexer m = P Ini (init [<]) (lex1 [E Ini $ dfa Err m]) snocChunk (errs []) lexEOI

@@ -51,7 +51,7 @@ closeStr = T1.do
 chars : RExp True
 chars = plus $ dot && not '"' && not '\\'
 
-lit1 : Lex1 q e 2 SK
+lit1 : Lex1 q 2 SK
 lit1 =
   lex1
     [ E SLit $ dfa Err $ jsonSpaced SLit

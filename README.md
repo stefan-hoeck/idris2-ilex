@@ -425,7 +425,7 @@ was recognized. For the initial state, almost nothing changes
 compared to `csv1_2`:
 
 ```idris
-lexInit : DFA (BStep q Void 2 QSTCK)
+lexInit : DFA (Step q 2 QSTCK)
 lexInit =
   dfa Err
     [ ctok ',' Comma1
@@ -461,7 +461,7 @@ Here are the necessary utilities and token map:
 ```idris
 closeStr : (x : QSTCK q) => F1 q QST
 
-lexStr : DFA (BStep q Void QSz QSTCK)
+lexStr : DFA (Step q QSz QSTCK)
 lexStr =
   dfa Err
     [ cexpr #""""# $ pushStr InStr "\""
@@ -489,7 +489,7 @@ We now wrap up the different lexers in an array of lexers, which
 describes the possible state transformations for every parser state.
 
 ```idris
-quotedTrans : Lex1 q (BoundedErr Void) QSz QSTCK
+quotedTrans : Lex1 q QSz QSTCK
 quotedTrans = lex1 [E Ini lexInit, E InStr lexStr]
 ```
 
@@ -695,7 +695,7 @@ thing that needs to be closed (`copen`) and switch to
 the `Str` state:
 
 ```idris
-csvDflt : (afterComma : Bool) -> DFA (BStep q Void CSz CSTCK)
+csvDflt : (afterComma : Bool) -> DFA (Step q CSz CSTCK)
 csvDflt afterComma =
   dfa Err
     [ cexpr ',' $ push1 (cells %search) Null >> pure Com
@@ -714,7 +714,7 @@ double quote is encountered, which leads to the accumulated
 string to be pushed onto the stack of cells (`onCell`).
 
 ```idris
-csvStr : DFA (BStep q Void CSz CSTCK)
+csvStr : DFA (Step q CSz CSTCK)
 csvStr =
   dfa Err
     [ cexpr #""""# $ pushStr Str "\""
@@ -738,7 +738,7 @@ don't have to provide an automaton of state transformations to it:
 it will automatically be given the empty automaton that always fails):
 
 ```idris
-csvSteps : Lex1 q (BoundedErr Void) CSz CSTCK
+csvSteps : Lex1 q CSz CSTCK
 csvSteps =
   lex1
     [ E Ini (csvDflt False)

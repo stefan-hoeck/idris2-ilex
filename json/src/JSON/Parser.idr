@@ -185,7 +185,7 @@ parameters {auto sk : SK q}
 --------------------------------------------------------------------------------
 
 %inline
-spaced : Index r -> BSteps q e r SK -> DFA (BStep q e r SK)
+spaced : Index r -> Steps q r SK -> DFA (Step q r SK)
 spaced x = dfa Err . jsonSpaced x
 
 export
@@ -196,7 +196,7 @@ jsonDouble =
    in opt '-' >> decimal >> opt frac >> opt exp
 
 %inline
-valTok : JST -> BSteps q Void JSz SK -> DFA (BStep q Void JSz SK)
+valTok : JST -> Steps q JSz SK -> DFA (Step q JSz SK)
 valTok x ts =
   spaced x $
     [ cexpr "null"  (onVal JNull)
@@ -222,7 +222,7 @@ decode (BS 6 bv) =
 decode _         = "" -- impossible
 
 %inline
-strTok : DFA (BStep q Void JSz SK)
+strTok : DFA (Step q JSz SK)
 strTok =
   dfa Err
     [ cclose '"' endStr
@@ -242,7 +242,7 @@ strTok =
 -- Parsers
 --------------------------------------------------------------------------------
 
-jsonTrans : Lex1 q (BoundedErr Void) JSz SK
+jsonTrans : Lex1 q JSz SK
 jsonTrans =
   lex1
     [ E Ini (valTok Ini [])
