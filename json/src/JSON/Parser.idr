@@ -140,42 +140,42 @@ data Part : Type where
   PF : JSON -> Part -- final value
 
 public export
-0 ST : Type -> Type
-ST = Stack Void Part JSz
+0 SK : Type -> Type
+SK = Stack Void Part JSz
 
 --------------------------------------------------------------------------------
 -- Transformations
 --------------------------------------------------------------------------------
 
-parameters {auto sk : ST q}
+parameters {auto sk : SK q}
 
   %inline
   part : Part -> JSON -> F1 q JST
-  part (PA p sy)   v = writeAs sk.stack (PA p (sy :< v)) AVal
-  part (PL p sy l) v = writeAs sk.stack (PO p (sy :< (l,v))) OVal
-  part (PV sy)     v = writeAs sk.stack (PV (sy :< v)) Ini
-  part _           v = writeAs sk.stack (PF v) Done
+  part (PA p sy)   v = writeAs sk.stck (PA p (sy :< v)) AVal
+  part (PL p sy l) v = writeAs sk.stck (PO p (sy :< (l,v))) OVal
+  part (PV sy)     v = writeAs sk.stck (PV (sy :< v)) Ini
+  part _           v = writeAs sk.stck (PF v) Done
 
   %inline
   onVal : JSON -> F1 q JST
-  onVal v = read1 sk.stack >>= \p => part p v
+  onVal v = read1 sk.stck >>= \p => part p v
 
   %inline
   endStr : F1 q JST
   endStr = T1.do
    s <- getStr
-   read1 sk.stack >>= \case
-     PO a b => writeAs sk.stack (PL a b s) OLbl
+   read1 sk.stck >>= \case
+     PO a b => writeAs sk.stck (PL a b s) OLbl
      p      => part p (JString s)
 
   %inline
   begin : (Part -> Part) -> JST -> F1 q JST
-  begin f st = read1 sk.stack >>= \p => writeAs sk.stack (f p) st
+  begin f st = read1 sk.stck >>= \p => writeAs sk.stck (f p) st
 
   %inline
   closeVal : F1 q JST
   closeVal =
-    read1 sk.stack >>= \case
+    read1 sk.stck >>= \case
       PO p sp => part p (JObject $ sp <>> [])
       PA p sp => part p (JArray $ sp <>> [])
       _       => pure Done
@@ -185,7 +185,7 @@ parameters {auto sk : ST q}
 --------------------------------------------------------------------------------
 
 %inline
-spaced : Index r -> PSteps e a r q -> DFA (PStep e a r q)
+spaced : HasPosition s => Index r -> BSteps q e r s -> DFA (BStep q e r s)
 spaced x = dfa Err . jsonSpaced x
 
 export
@@ -196,7 +196,7 @@ jsonDouble =
    in opt '-' >> decimal >> opt frac >> opt exp
 
 %inline
-valTok : JST -> PSteps Void Part JSz q -> DFA (PStep Void Part JSz q)
+valTok : JST -> BSteps q Void JSz SK -> DFA (BStep q Void JSz SK)
 valTok x ts =
   spaced x $
     [ cexpr "null"  (onVal JNull)
@@ -222,7 +222,7 @@ decode (BS 6 bv) =
 decode _         = "" -- impossible
 
 %inline
-strTok : DFA (PStep Void Part JSz q)
+strTok : DFA (BStep q Void JSz SK)
 strTok =
   dfa Err
     [ cclose '"' endStr
@@ -242,7 +242,7 @@ strTok =
 -- Parsers
 --------------------------------------------------------------------------------
 
-jsonTrans : Lex1 q (BoundedErr Void) JSz ST
+jsonTrans : Lex1 q (BoundedErr Void) JSz SK
 jsonTrans =
   lex1
     [ E Ini (valTok Ini [])
@@ -261,7 +261,7 @@ jsonTrans =
     , E Str strTok
     ]
 
-jsonErr : Arr32 JSz (ST q -> ByteString -> F1 q (BoundedErr Void))
+jsonErr : Arr32 JSz (SK q -> ByteString -> F1 q (BoundedErr Void))
 jsonErr =
   arr32 JSz (unexpected [])
     [ E ANew $ unclosedIfEOI "[" []
@@ -275,16 +275,16 @@ jsonErr =
     , E Str  $ unclosedIfEOI "\"" []
     ]
 
-jsonEOI : JST -> ST q -> F1 q (Either (BoundedErr Void) JSON)
+jsonEOI : JST -> SK q -> F1 q (Either (BoundedErr Void) JSON)
 jsonEOI sk s t =
   case sk == Done of
-    False => arrFail ST jsonErr sk s "" t
-    True  => case read1 s.stack t of
+    False => arrFail SK jsonErr sk s "" t
+    True  => case read1 s.stck t of
       PF v # t => Right v # t
       _    # t => Right JNull # t
 
 export
-json : P1 q (BoundedErr Void) JSz ST JSON
+json : P1 q (BoundedErr Void) JSz SK JSON
 json = P Ini (init PI) jsonTrans (\x => (Nothing #)) jsonErr jsonEOI
 
 export %inline
@@ -304,16 +304,16 @@ extract (PO p sv)        = let (p2,m) := extract p in (PO p2 sv, m)
 extract (PL p sv l)      = let (p2,m) := extract p in (PL p2 sv l, m)
 extract p                = (p, Nothing)
 
-arrChunk : ST q -> F1 q (Maybe $ List JSON)
+arrChunk : SK q -> F1 q (Maybe $ List JSON)
 arrChunk sk = T1.do
-  p <- read1 sk.stack
+  p <- read1 sk.stck
   let (p2,res) := extract p
-  writeAs sk.stack p2 res
+  writeAs sk.stck p2 res
 
-arrEOI : JST -> ST q -> F1 q (Either (BoundedErr Void) (List JSON))
+arrEOI : JST -> SK q -> F1 q (Either (BoundedErr Void) (List JSON))
 arrEOI st sk t =
   case st == Ini of
-    True  => case read1 sk.stack t of
+    True  => case read1 sk.stck t of
       PV sv # t => Right (sv <>> []) # t
       _     # t => Right [] # t
     False => case jsonEOI st sk t of
@@ -324,7 +324,7 @@ arrEOI st sk t =
 ||| A parser that is capable of streaming a single large
 ||| array of JSON values.
 export
-jsonArray : P1 q (BoundedErr Void) JSz ST (List JSON)
+jsonArray : P1 q (BoundedErr Void) JSz SK (List JSON)
 jsonArray = P Ini (init PI) jsonTrans arrChunk jsonErr arrEOI
 
 ||| Parser that is capable of streaming large amounts of
@@ -333,5 +333,5 @@ jsonArray = P Ini (init PI) jsonTrans arrChunk jsonErr arrEOI
 ||| Values need not be separated by whitespace but the longest
 ||| possible value will always be consumed.
 export
-jsonValues : P1 q (BoundedErr Void) JSz ST (List JSON)
+jsonValues : P1 q (BoundedErr Void) JSz SK (List JSON)
 jsonValues = P Ini (init $ PV [<]) jsonTrans arrChunk jsonErr arrEOI

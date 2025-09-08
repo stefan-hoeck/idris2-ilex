@@ -16,9 +16,9 @@ record LexState (q,e : Type) (r : Bits32) (s : Type -> Type) where
   {0 sts  : Nat}
   state   : Index r
   stack   : s q
-  dfa     : Stepper sts (Step1 q e r s)
-  cur     : ByteStep sts (Step1 q e r s)
-  tok     : Step1 q e r s
+  dfa     : Stepper sts (Step q e r s)
+  cur     : ByteStep sts (Step q e r s)
+  tok     : Step q e r s
   prev    : ByteString
 
 export
@@ -63,10 +63,10 @@ parameters {0 s     : Type -> Type}
 
   psucc :
        (st          : Index r)
-    -> (dfa         : Stepper k (Step1 q e r s))  -- current finite automaton
-    -> (cur         : ByteStep k (Step1 q e r s)) -- current automaton state
+    -> (dfa         : Stepper k (Step q e r s))   -- current finite automaton
+    -> (cur         : ByteStep k (Step q e r s))  -- current automaton state
     -> (prev        : ByteString)
-    -> (last        : Step1 q e r s)              -- last encountered terminal state
+    -> (last        : Step q e r s)               -- last encountered terminal state
     -> (from        : Ix m n)                     -- start of current token
     -> (pos         : Nat)                        -- reverse position in the byte array
     -> {auto x      : Ix pos n}                   -- position in the byte array

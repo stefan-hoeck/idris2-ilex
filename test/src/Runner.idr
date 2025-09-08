@@ -20,13 +20,13 @@ data AorB : Type where
 export
 Interpolation AorB where interpolate = show
 
-aOrB : L1 q Void AorB
+aOrB : L1 q Void 1 AorB
 aOrB =
   lexer $ jsonSpaced 0
     [ convTok ('A' >> plus 'a') (const MA)
     , ctok 'A' A
     , convTok (plus ('B' <|> 'b')) (const B)
-    , stok "Ccc" C
+    , ctok "Ccc" C
     ]
 
 space : Nat -> Gen String
