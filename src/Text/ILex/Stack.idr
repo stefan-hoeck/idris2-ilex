@@ -435,7 +435,8 @@ Lexer e r a = {0 q : Type} -> L1 q e r a
 export
 lexer :
      {r : _}
-  -> {auto 0 lt : 0 < r}
+  -> {auto 0 lt  : 0 < r}
   -> Steps q r (Stack e (SnocList $ Bounded a) r)
   -> L1 q e r a
-lexer m = P Ini (init [<]) (lex1 [E Ini $ dfa Err m]) snocChunk (errs []) lexEOI
+lexer m =
+  P Ini (init [<]) (lex1 [E Ini $ dfa m]) snocChunk (errs []) lexEOI

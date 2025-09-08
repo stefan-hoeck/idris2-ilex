@@ -425,9 +425,9 @@ was recognized. For the initial state, almost nothing changes
 compared to `csv1_2`:
 
 ```idris
-lexInit : DFA (Step q 2 QSTCK)
+lexInit : DFA q 2 QSTCK
 lexInit =
-  dfa Err
+  dfa
     [ ctok ',' Comma1
     , nltok linebreak NL1
     , ctok "true" (Bool1 True)
@@ -461,9 +461,9 @@ Here are the necessary utilities and token map:
 ```idris
 closeStr : (x : QSTCK q) => F1 q QST
 
-lexStr : DFA (Step q QSz QSTCK)
+lexStr : DFA q QSz QSTCK
 lexStr =
-  dfa Err
+  dfa
     [ cexpr #""""# $ pushStr InStr "\""
     , cexpr #""n"# $ pushStr InStr "\n"
     , cexpr #""r"# $ pushStr InStr "\r"
@@ -695,9 +695,9 @@ thing that needs to be closed (`copen`) and switch to
 the `Str` state:
 
 ```idris
-csvDflt : (afterComma : Bool) -> DFA (Step q CSz CSTCK)
+csvDflt : (afterComma : Bool) -> DFA q CSz CSTCK
 csvDflt afterComma =
-  dfa Err
+  dfa
     [ cexpr ',' $ push1 (cells %search) Null >> pure Com
     , conv linebreak (\_ => onNL afterComma)
     , cexpr "true" $ onCell (CBool True)
@@ -714,9 +714,9 @@ double quote is encountered, which leads to the accumulated
 string to be pushed onto the stack of cells (`onCell`).
 
 ```idris
-csvStr : DFA (Step q CSz CSTCK)
+csvStr : DFA q CSz CSTCK
 csvStr =
-  dfa Err
+  dfa
     [ cexpr #""""# $ pushStr Str "\""
     , cexpr #""n"# $ pushStr Str "\n"
     , cexpr #""r"# $ pushStr Str "\r"
@@ -742,7 +742,7 @@ csvSteps : Lex1 q CSz CSTCK
 csvSteps =
   lex1
     [ E Ini (csvDflt False)
-    , E Val $ dfa Err [cexpr ',' (pure Com), conv linebreak (const $ onNL False)]
+    , E Val $ dfa [cexpr ',' (pure Com), conv linebreak (const $ onNL False)]
     , E Str csvStr
     , E Com (csvDflt True)
     ]

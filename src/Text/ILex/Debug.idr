@@ -134,7 +134,7 @@ Pretty a => Pretty (Tok e a) where
   prettyPrec _ (Txt   f) = line "<Txt>"
   prettyPrec _ (Bytes f) = line "<Bytes>"
 
-prettyByteStep : Pretty a => {d : _} -> (Nat, ByteStep n a) -> Doc d
+prettyByteStep : {d : _} -> (Nat, ByteStep n q r s) -> Doc d
 prettyByteStep (x,bs) =
   vsep
     [ line (show x)
@@ -142,25 +142,21 @@ prettyByteStep (x,bs) =
     ]
 
   where
-    trans : (Nat, Transition n a) -> Maybe (Doc d)
+    trans : (Nat, Transition n q r s) -> Maybe (Doc d)
     trans (byte,t) =
       case t of
-        Keep     => Just (prettyByte byte <+> colon <++> line "stay")
-        Done y   => Just (prettyByte byte <+> colon <++> pretty y <++> line "(done)")
-        Move y z => Just (prettyByte byte <+> colon <++> pretty z <++> line "(-> \{show y})")
-        Bottom   => Nothing
+        Keep       => Just (prettyByte byte <+> colon <++> line "stay")
+        Done y     => Just (prettyByte byte <+> colon <++> line "done")
+        DoneBS y   => Just (prettyByte byte <+> colon <++> line "done with bytes")
+        Move y z   => Just (prettyByte byte <+> colon <++> line "move ({show y})")
+        MoveE y    => Just (prettyByte byte <+> colon <++> line "move non-terminal (\{show y})")
+        Bottom     => Nothing
 
 export
-Pretty a => Pretty (DFA a) where
+Pretty (DFA q r s) where
   prettyPrec p (L _ next) =
     vsep $ prettyByteStep <$> zipWithIndex (toList next)
 
 export
-Pretty (Step q r s) where
-  prettyPrec p (Go f) = line "<Go>"
-  prettyPrec p (Rd f) = line "<Rd>"
-  prettyPrec p Err    = line "<Err>"
-
-export
-prettyLexer : Pretty a => DFA a -> IO ()
+prettyLexer : DFA q r s -> IO ()
 prettyLexer dfa = putPretty dfa
