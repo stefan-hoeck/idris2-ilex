@@ -13,11 +13,13 @@ parameters (p : P1 q e r s a)
   ||| Tries to read the last token of an input stream and
   ||| append it to the already accumulated list of tokens.
   export
-  appLast : Index r -> s q -> Step q r s -> F1 q (Either e a)
-  appLast st sk v =
+  appLast : Index r -> s q -> Maybe (Step1 q r s) -> F1 q (Either e a)
+  appLast st sk tok =
     read1 (bytes @{p.hasb} sk) >>= \case
       BS 0 _ => p.eoi st sk
-      _      => lastStep p v st sk
+      _      => case tok of
+        Just f  => lastStep p f st sk
+        Nothing => fail p st sk
 
 export
 streamParse :

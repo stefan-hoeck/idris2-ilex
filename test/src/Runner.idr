@@ -22,7 +22,7 @@ Interpolation AorB where interpolate = show
 
 aOrB : L1 q Void 1 AorB
 aOrB =
-  lexer $ jsonSpaced 0
+  lexer $ jsonSpaced Ini
     [ convTok ('A' >> plus 'a') (const MA)
     , ctok 'A' A
     , convTok (plus ('B' <|> 'b')) (const B)

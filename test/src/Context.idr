@@ -54,11 +54,11 @@ chars = plus $ dot && not '"' && not '\\'
 lit1 : Lex1 q 2 SK
 lit1 =
   lex1
-    [ E SLit $ dfa Err $ jsonSpaced SLit
+    [ E SLit $ dfa $ jsonSpaced SLit
         [ readTok decimal (Context.Num . cast)
         , copen '"' (pure SStr)
         ]
-    , E SStr $ dfa Err
+    , E SStr $ dfa
         [ read chars $ pushStr SStr
         , cexpr #"\\"# $ pushStr SStr #"\"#
         , cexpr #"\""# $ pushStr SStr #"""#
