@@ -1,0 +1,10 @@
+package ilex-toml-test
+version = 0.1.0
+authors = "stefan-hoeck"
+
+depends = ilex-toml
+        , hedgehog
+
+main = Main
+executable = "ilex-toml-test"
+sourcedir = "src"

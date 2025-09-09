@@ -69,6 +69,10 @@ export
 literalString : RExp True
 literalString = '\'' >> star literalChar >> '\''
 
+export %inline
+unlit : ByteString -> String
+unlit = toString . drop 1 . dropEnd 1
+
 ||| basic-unescaped = wschar / %x21 / %x23-5B / %x5D-7E / non-ascii
 export
 basicUnescaped : RExp True
