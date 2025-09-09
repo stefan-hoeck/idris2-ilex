@@ -130,7 +130,6 @@ ANew = 1; AVal = 2; ACom = 3
 ONew = 4; OVal = 5; OCom = 6; OLbl = 7; OCol = 8
 Str  = 9; Done = 10
 
-public export
 data Part : Type where
   PA : Part -> SnocList JSON -> Part -- partial array
   PO : Part -> SnocList (String,JSON) -> Part -- partial object
@@ -206,7 +205,7 @@ valTok x ts =
     , read jsonDouble (onVal . JDouble . cast)
     , copen '{' (begin (`PO` [<]) ONew)
     , copen '[' (begin (`PA` [<]) ANew)
-    , copen '"' (pure Str)
+    , copen' '"' Str
     ] ++ ts
 
 codepoint : RExp True
@@ -250,12 +249,12 @@ jsonTrans =
 
     , E ANew (valTok ANew [cclose ']' closeVal])
     , E ACom (valTok ACom [])
-    , E AVal $ spaced AVal [cexpr ',' (pure ACom), cclose ']' closeVal]
+    , E AVal $ spaced AVal [cexpr' ',' ACom, cclose ']' closeVal]
 
-    , E ONew $ spaced ONew [cclose '}' closeVal, copen '"' (pure Str)]
-    , E OVal $ spaced OVal [cclose '}' closeVal, cexpr ',' (pure OCom)]
-    , E OCom $ spaced OCom [copen '"' (pure Str)]
-    , E OLbl $ spaced OLbl [cexpr ':' (pure OCol)]
+    , E ONew $ spaced ONew [cclose '}' closeVal, copen' '"' Str]
+    , E OVal $ spaced OVal [cclose '}' closeVal, cexpr' ',' OCom]
+    , E OCom $ spaced OCom [copen' '"' Str]
+    , E OLbl $ spaced OLbl [cexpr' ':' OCol]
     , E OCol (valTok OCol [])
 
     , E Str strTok

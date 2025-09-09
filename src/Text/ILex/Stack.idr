@@ -265,7 +265,13 @@ parameters (x          : RExp True)
   cexpr : (s q => F1 q (Index r)) -> (RExp True, Step q r s)
   cexpr f = (x, go $ inccol n >> f)
 
-  ||| Recognizes the given character and uses it to update the parser state
+  ||| Convenience alias for `cexpr . pure`.
+  export %inline
+  cexpr' : Index r -> (RExp True, Step q r s)
+  cexpr' v = cexpr $ pure v
+
+  ||| Recognizes the given character(s)
+  ||| and uses it to update the parser state
   ||| as specified by `f`.
   |||
   ||| The current column is increased by one, and a new entry is pushed onto
@@ -273,6 +279,11 @@ parameters (x          : RExp True)
   export %inline
   copen : (s q => F1 q (Index r)) -> (RExp True, Step q r s)
   copen f = (x, go $ pushPosition >> inccol n >> f)
+
+  ||| Convenience alias for `copen . pure`.
+  export %inline
+  copen' : Index r -> (RExp True, Step q r s)
+  copen' v = copen $ pure v
 
   ||| Recognizes the given character and uses it to update the parser state
   ||| as specified by `f`.
@@ -303,6 +314,17 @@ parameters (x        : RExp True)
   export %inline
   conv : (s q => ByteString -> F1 q (Index r)) -> (RExp True, Step q r s)
   conv f = (x, rd $ \bs => inccol (size bs) >> f bs)
+
+  ||| Convenience alias for `conv . pure`.
+  export %inline
+  conv' : Index r -> (RExp True, Step q r s)
+  conv' v =
+    ( x
+    , Rd $ \(sk # t) =>
+       let bs # t := read1 (bytes sk) t
+           _  # t := inccol (size bs) t
+        in v # t
+    )
 
 --------------------------------------------------------------------------------
 -- Error handling
