@@ -235,6 +235,10 @@ parameters {auto pos : HasPosition s}
   spaces v = rd $ \bs => inccol (size bs) >> pure v
 
   export %inline
+  lineComment : HasBytes s => (v : Index r) -> Step q r s
+  lineComment v = rd $ \bs => inccol (length $ toString bs) >> pure v
+
+  export %inline
   jsonSpaced : HasBytes s => Index r -> Steps q r s -> Steps q r s
   jsonSpaced v xs =
     [ (plus (oneof [' ','\t']), spaces v)

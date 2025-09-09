@@ -36,11 +36,6 @@ data TableType = Inline | Table
 
 %runElab derive "TableType" [Show,Eq,Ord]
 
-public export
-data ArrayType = Static | OfTables
-
-%runElab derive "ArrayType" [Show,Eq,Ord]
-
 --------------------------------------------------------------------------------
 --          TomlValue and Table
 --------------------------------------------------------------------------------
@@ -64,7 +59,10 @@ data TomlValue : Type where
   TDbl  : TomlFloat  -> TomlValue
 
   ||| An array of values
-  TArr  : ArrayType -> SnocList TomlValue -> TomlValue
+  TArr  : SnocList TomlValue -> TomlValue
+
+  ||| An array of tables
+  TTbls : SnocList (SortedMap String TomlValue) -> TomlValue
 
   ||| A table of key-value pairs
   TTbl  : TableType -> SortedMap String TomlValue -> TomlValue
@@ -93,6 +91,7 @@ record Key where
   tpe    : KeyType
   bounds : Bounds
 
+%name Key k,k2,k3
 %runElab derive "Key" [Eq,Show]
 
 export
@@ -138,52 +137,69 @@ TErr = BoundedErr TomlParseError
 --          Table Lookup
 --------------------------------------------------------------------------------
 
+%name TomlTable t,t1,t2
+
 public export
-data Path : Type where
-  Root : Path
-  Tbl  : (p : Path) -> (t : TomlTable) -> (k : Key) -> Path
-  New  : (p : Path) -> (k : Key) -> Path
-  Arr  : (p : Path) -> (sv : SnocList TomlValue) -> Path
+data View : Type where
+  Root : View
+  Tbl  : View -> TomlTable -> Key -> View
+  Arr  : View -> SnocList TomlTable -> View
 
-export
-unwind : TomlValue -> Path -> TomlTable
-
-unwindTbl : TomlTable -> Path -> TomlTable
-unwindTbl t Root        = t
-unwindTbl t (Tbl p x k) = unwindTbl (insert k.key (TTbl Table t) x) p
-unwindTbl t (New p k)   = unwindTbl (insert k.key (TTbl Table t) empty) p
-unwindTbl t (Arr p sv)  = unwind (TArr OfTables (sv:<TTbl Table t)) p
-
-unwind v (Tbl p t k) = unwindTbl (insert k.key v t) p
-unwind v (New p k)   = unwindTbl (insert k.key v empty) p
-unwind v (Arr p sv)  = unwind (TArr OfTables (sv:<v)) p
-unwind v Root        = empty
-
-keys : List Key -> Path -> List Key
+keys : List Key -> View -> List Key
 keys ks Root        = ks
-keys ks (Tbl p t k) = keys (k::ks) p
-keys ks (New p k)   = keys (k::ks) p
-keys ks (Arr p sv)  = keys ks p
+keys ks (Tbl v _ k) = keys (k::ks) v
+keys ks (Arr v _)   = keys ks v
 
-exists : Path -> TomlValue -> Either TErr a
-exists p v =
- let ks := keys [] p
+exists : List Key -> View -> TomlValue -> Either TErr a
+exists add view val =
+ let ks := keys add view
      bs := foldMap bounds ks
-  in case v of
-       TArr Static sx => custom bs $ StaticArray ks
-       TTbl Inline y  => custom bs $ InlineTableExists ks
-       TTbl Table y   => custom bs $ TableExists ks
-       _              => custom bs $ ValueExists ks
+  in case val of
+       TArr sx       => custom bs $ StaticArray ks
+       TTbl Inline y => custom bs $ InlineTableExists ks
+       TTbl Table y  => custom bs $ TableExists ks
+       _             => custom bs $ ValueExists ks
 
-emptyPath : Path -> List Key -> Path
-emptyPath p []        = p
-emptyPath p (k :: ks) = emptyPath (New p k) ks
+vexists : View -> Either TErr a
+
+new : View -> List Key -> (View,Bool,TomlTable)
+new v []        = (v,True,empty)
+new v (k :: ks) = new (Tbl v empty k) ks
+
+view : Bool -> View -> TomlTable -> List Key -> Either TErr (View,Bool,TomlTable)
+view inline v t []      = Right (v,False,t)
+view inline v t (k::ks) =
+  case lookup k.key t of
+    Nothing               => Right $ new (Tbl v t k) ks
+    Just (TTbls $ st:<t2) => view inline (Arr (Tbl v t k) st) t2 ks
+    Just x@(TTbl tt t2) => case (tt,inline) of
+      (Table,False) => view inline (Tbl v t k) t2 ks
+      (Inline,True) => view inline (Tbl v t k) t2 ks
+      _             => exists [k] v x
+    Just val              => exists [k] v val
+
+public export
+data Stck : Type where
+  STbl : TomlTable -> SnocList Key -> Stck
+  SArr : TomlTable -> SnocList Key -> Stck
+  STop : View -> TomlTable -> SnocList Key -> Stck
+  VArr : Stck -> SnocList TomlValue -> Stck
+  VTbl : Stck -> TomlTable -> SnocList Key -> Stck
+
+close : Stck -> Either TErr Stck
+close (STbl t sk) =
+  case view False Root t (sk <>> []) of
+    Right (v@(Tbl {}), True, t) => Right (STop v t [<])
+    Right (v,_)                 => vexists v
+    Left  x                     => Left x
+close (SArr t sk) =
+  case view False Root t (sk <>> []) of
+    Right (v@(Tbl {}), True, t) => Right (STop (SArr v [<empty]) [<])
+    Right (v,_)                 => vexists v
+    Left  x                     => Left x
+close (STop x y sk) = ?fooo_2
+close (VArr x sx)   = ?fooo_3
+close (VTbl x y sk) = ?fooo_4
 
 export
-valuePath : Path -> List Key -> TomlTable -> Either TErr Path
-valuePath p []        t = exists p (TTbl Table t)
-valuePath p (k :: ks) t =
-  case lookup k.key t of
-    Nothing              => Right $ emptyPath (Tbl p t k) ks
-    Just (TTbl Table t2) => valuePath (Tbl p t k) ks t2
-    Just v               => exists p v
+init : Stck

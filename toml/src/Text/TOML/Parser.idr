@@ -9,43 +9,6 @@ import Syntax.T1
 
 %hide Data.Linear.(.)
 %default total
-
---------------------------------------------------------------------------------
--- Parser Stack
---------------------------------------------------------------------------------
-
-data Part : Type where
-  Top    : TomlTable -> Part
-  Tbl    : Path -> TomlTable -> Part
-  Key    : (p : Part) -> Path -> Part
-  Arr    : (p : Part) -> SnocList TomlValue -> Part
-
-export
-record TSTCK q where
-  constructor T
-  line   : Ref q Nat
-  col    : Ref q Nat
-  bounds : Ref q (SnocList Bounds)
-  part   : Ref q Part
-  keys   : Ref q (SnocList Key)
-  strs   : Ref q (SnocList String)
-
-export %inline
-LC TSTCK where
-  line   = TSTCK.line
-  col    = TSTCK.col
-  bounds = TSTCK.bounds
-
-init : F1 q (TSTCK q)
-init = T1.do
-  l <- ref1 Z
-  c <- ref1 Z
-  b <- ref1 [<]
-  p <- ref1 (Top empty)
-  k <- ref1 [<]
-  s <- ref1 [<]
-  pure (T l c b p k s)
-
 --------------------------------------------------------------------------------
 -- States
 --------------------------------------------------------------------------------
@@ -58,32 +21,27 @@ public export
 TST : Type
 TST = Index TSz
 
-AfterKey, AfterSep, QKey, ANew, AVal, ACom, AfterVal : TST
-AfterKey = 1; AfterSep = 2; BeforeKey = 3
-QKey     = 4
-ANew     = 5; AVal = 6; ACom = 7
-AfterVal = 8
+-- Keys and utilities:
+-- EKey, ESep, EVal : Expects a toplevel key / separator / value
+-- EOL              : Expects end of line stuff (comment, whitespace)
+-- Err              : Error state
+EKey, ESep, EVal, EOL, Err : TST
+EKey = 1; ESep = 2; EVal = 3; EOL = 4; Err = 5
 
-table : TomlTable -> Part -> Part
-table t (Top _)    = Top t
-table t (Tbl p _)  = Tbl p t
-table t p          = p
+-- Arrays:
+-- ANew, AVal, ACom : New array / array after value / array after comma
+ANew, AVal, ACom : TST
+ANew = 6; AVal = 7; ACom = 8
 
-value : TomlValue -> Part -> (Part,TST)
-value v (Key p x)    = (table (unwind v x) p, AfterVal)
-value v (Arr p sx)   = (Arr p (sx:<v), AVal)
-value v p            = (p, Ini)
-
-key : List Key -> Part -> Either TErr Part
-key ks p@(Top t)   = Key p <$> valuePath Root ks t
-key ks p@(Tbl _ t) = Key p <$> valuePath Root ks t
-key _  p           = Right p
+public export
+0 TSTCK : Type -> Type
+TSTCK = Stack TomlParseError TStack TSz
 
 --------------------------------------------------------------------------------
 -- Spaces
 --------------------------------------------------------------------------------
 
-tomlIgnore : TST -> Steps1 q e TSz TSTCK
+tomlIgnore : TST -> Steps q TSz TSTCK
 tomlIgnore res =
   [ (plus wschar, spaces res)
   , (comment, lineComment res)
@@ -94,61 +52,53 @@ tomlIgnore res =
 -- Keys
 --------------------------------------------------------------------------------
 
-keyString : KeyType -> ByteString -> (String,Nat)
-keyString Plain bs = (toString bs, size bs)
-keyString _     bs = let s := unlit bs in (s, length s + 2)
+err : BoundedErr TomlParseError -> (sk : TSTCK q) => F1 q TST
+err x = writeAs sk.err (Just x) Err
 
-onkey : KeyType -> TSTCK q -> ByteString -> F1 q TST
-onkey tpe sk bs = T1.do
-  ps <- currentPos sk
-  let (s,n) := keyString tpe bs
-  push1 sk.keys () (KT s tpe $ BS ps ({column $= (+n)} ps))
-  incCols n sk AfterKey
-
-keySteps : TST -> Steps1 q TErr TSz TSTCK
-keySteps =
-  [ (unquotedKey, rd $ onkey Plain)
-  , (literalString, rd $ onkey Literal)
-  , copen '"' (const TSTCK QKey)
-  ]
-
-exprSteps : Steps1 q TErr TSz TSTCK
--- exprSteps =
-
-
+-- keyString : KeyType -> ByteString -> (String,Nat)
+-- keyString Plain bs = (toString bs, size bs)
+-- keyString _     bs = let s := unlit bs in (s, length s + 2)
 --
--- setKey : TSTCK q -> ByteString -> F1 q (Either TErr TST)
--- setKey sk bs = T1.do
---   ks <- getList sk.keys
---   p  <- read1 sk.part
---   let Right p2 := key ks p | Left err => pure (Left err)
---   write1 sk.part p2
---   incCols bs.size sk (Right AfterSep)
+-- onkey : KeyType -> (sk : TSTCK q) => ByteString -> F1 q TST
+-- onkey tpe bs = T1.do
+--   p  <- getPosition
+--   s1 <- read1 sk.stck
+--   let (s,n) := keyString tpe bs
+--       k     := KT s tpe (BS p $ incCol n p)
+--       Right s2 := follow s1 k | Left x => err x
+--   inccol n
+--   writeAs sk.stck s2 ISep
 --
--- afterKey : DFA (Step1 q TErr TSz TSTCK)
--- afterKey = dfa Err [state dotSep Ini, (keyvalSep, prs setKey)]
+-- keySteps : Steps q TSz TSTCK
+-- keySteps =
+--   [ (unquotedKey, rd $ onkey Plain)
+--   , (literalString, rd $ onkey Literal)
+--   , copen' '"' QKey
+--   ]
+--
+-- afterKey : DFA q TSz TSTCK
 --
 -- --------------------------------------------------------------------------------
 -- -- Values
 -- --------------------------------------------------------------------------------
 --
--- onval : TomlValue -> TSTCK q -> F1 q (Either TErr TST)
--- onval v sk = T1.do
---   p <- read1 sk.part
---   let (p2,res) := value v p
---   writeAs sk.part p2 (Right res)
+-- onval : (sk : TSTCK q) => TomlValue -> F1 q TST
+-- onval v = T1.do
+--   p <- read1 sk.stck
+--   Right p2 <- pure (addVal v p) | Left x => err x
+--   writeAs sk.stck p2 EOL
 --
 -- %inline
--- val : a -> (ByteString -> TomlValue) -> (a, Step1 q TErr TSz TSTCK)
--- val x f = (x, Prs $ \(B sk bs t) => onval (f bs) sk t)
+-- val : a -> (ByteString -> TomlValue) -> (a, Step q TSz TSTCK)
+-- val x f = (x, rd $ \bs => onval (f bs))
 --
 -- %inline
--- val' : a -> TomlValue -> (a, Step1 q TErr TSz TSTCK)
+-- val' : a -> TomlValue -> (a, Step q TSz TSTCK)
 -- val' x = val x . const
 --
--- valDFA : DFA (Step1 q TErr TSz TSTCK)
+-- valDFA : DFA q TSz TSTCK
 -- valDFA =
---   dfa Err
+--   dfa
 --     [ val' "true"  (TBool True)
 --     , val' "false" (TBool False)
 --
@@ -170,18 +120,44 @@ exprSteps : Steps1 q TErr TSz TSTCK
 --     , val localDateTime (TTime . ATLocalDateTime . readLocalDateTime)
 --     , val offsetDateTime (TTime . ATOffsetDateTime . readOffsetDateTime)
 --     ]
---
--- --------------------------------------------------------------------------------
--- -- State Transitions
--- --------------------------------------------------------------------------------
---
--- tomlTrans : Lex1 q TErr TSz TSTCK
+
+--------------------------------------------------------------------------------
+-- State Transitions
+--------------------------------------------------------------------------------
+
+tomlTrans : Lex1 q TSz TSTCK
 -- tomlTrans =
 --   lex1
---     [ E Ini      keyDFA
---     , E AfterKey afterKey
---     , E AfterSep valDFA
---     , E AfterVal (tomlIgnore AfterVal [])
+--     [ E Ini  $ dfa (tomlIgnore Ini ++ keySteps) -- ++ tableOrArray
+--     , E ISep $ dfa [conv' dotSep IKey, conv' keyvalSep IVal]
+--     , E IKey $ dfa keySteps
+--     , E IVal valDFA
+--     , E EOL  $ dfa (tomlIgnore EOL)
 --     ]
+
+tomlErr : Arr32 TSz (TSTCK q -> F1 q TErr)
+-- tomlErr =
+--   arr32 TSz (unexpected [])
+--     [ E ANew $ unclosedIfEOI "[" []
+--     , E AVal $ unclosedIfEOI "[" [",", "]"]
+--     , E ACom $ unclosedIfEOI "[" []
+--     , E QKey $ unclosedIfEOI "\"" []
+--     ]
+
+tomlEOI : TST -> TSTCK q -> F1 q (Either TErr TomlTable)
+-- tomlEOI st sk =
+--   case st == Ini || st == EOL of
+--     False => arrFail TSTCK tomlErr st sk
+--     True  => read1 sk.stck >>= pure . Right . toRoot
+
+export
+toml : P1 q TErr TSz TSTCK TomlTable
+toml = P Ini (init $ Root empty) tomlTrans (\x => (Nothing #)) tomlErr tomlEOI
+
+test : String -> IO ()
+test s =
+  case parseString toml Virtual s of
+    Right v => printLn v
+    Left  x => putStrLn "\{x}"
 
 -- 222 LOC
