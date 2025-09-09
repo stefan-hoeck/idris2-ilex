@@ -124,7 +124,6 @@ public export
 0 JST : Type
 JST = Index JSz
 
-public export
 ANew, AVal, ACom, ONew, OVal, OCom, OLbl, OCol, Str, Done : JST
 ANew = 1; AVal = 2; ACom = 3
 ONew = 4; OVal = 5; OCom = 6; OLbl = 7; OCol = 8

@@ -29,6 +29,12 @@ path = "json"
 ipkg = "ilex-json.ipkg"
 test = "test/test.ipkg"
 
+[custom.all.ilex-toml]
+type = "local"
+path = "toml"
+ipkg = "ilex-toml.ipkg"
+test = "test/test.ipkg"
+
 [custom.all.array]
 type   = "github"
 url    = "https://github.com/stefan-hoeck/idris2-array"
