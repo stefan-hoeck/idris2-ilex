@@ -148,34 +148,34 @@ SK = Stack Void Part JSz
 parameters {auto sk : SK q}
 
   %inline
-  part : Part -> JSON -> F1 q JST
-  part (PA p sy)   v = writeAs sk.stck (PA p (sy :< v)) AVal
-  part (PL p sy l) v = writeAs sk.stck (PO p (sy :< (l,v))) OVal
-  part (PV sy)     v = writeAs sk.stck (PV (sy :< v)) Ini
-  part _           v = writeAs sk.stck (PF v) Done
+  part : JSON -> Part -> F1 q JST
+  part v (PA p sy)   = putStackAs (PA p (sy :< v)) AVal
+  part v (PL p sy l) = putStackAs (PO p (sy :< (l,v))) OVal
+  part v (PV sy)     = putStackAs (PV (sy :< v)) Ini
+  part v _           = putStackAs (PF v) Done
 
   %inline
   onVal : JSON -> F1 q JST
-  onVal v = read1 sk.stck >>= \p => part p v
+  onVal v = getStack >>= part v
 
   %inline
   endStr : F1 q JST
   endStr = T1.do
    s <- getStr
-   read1 sk.stck >>= \case
-     PO a b => writeAs sk.stck (PL a b s) OLbl
-     p      => part p (JString s)
+   getStack >>= \case
+     PO a b => putStackAs (PL a b s) OLbl
+     p      => part (JString s) p
 
   %inline
   begin : (Part -> Part) -> JST -> F1 q JST
-  begin f st = read1 sk.stck >>= \p => writeAs sk.stck (f p) st
+  begin f st = getStack >>= \p => putStackAs (f p) st
 
   %inline
   closeVal : F1 q JST
   closeVal =
-    read1 sk.stck >>= \case
-      PO p sp => part p (JObject $ sp <>> [])
-      PA p sp => part p (JArray $ sp <>> [])
+    getStack >>= \case
+      PO p sp => part (JObject $ sp <>> []) p
+      PA p sp => part (JArray $ sp <>> []) p
       _       => pure Done
 
 --------------------------------------------------------------------------------
@@ -219,12 +219,14 @@ decode (BS 6 bv) =
    hexdigit (bv `at` 5)
 decode _         = "" -- impossible
 
-%inline
+jchar : RExp True
+jchar = range32 0x20 0x10ffff && not '"' && not '\\'
+
 strTok : DFA q JSz SK
 strTok =
   dfa
     [ cclose '"' endStr
-    , read (plus $ dot && not '"' && not '\\') (pushStr Str)
+    , read (plus jchar) (pushStr Str)
     , cexpr #"\""# (pushStr Str "\"")
     , cexpr #"\n"# (pushStr Str "\n")
     , cexpr #"\f"# (pushStr Str "\f")
@@ -277,7 +279,7 @@ jsonEOI : JST -> SK q -> F1 q (Either (BoundedErr Void) JSON)
 jsonEOI sk s t =
   case sk == Done of
     False => arrFail SK jsonErr sk s t
-    True  => case read1 s.stck t of
+    True  => case getStack t of
       PF v # t => Right v # t
       _    # t => Right JNull # t
 
@@ -304,14 +306,14 @@ extract p                = (p, Nothing)
 
 arrChunk : SK q -> F1 q (Maybe $ List JSON)
 arrChunk sk = T1.do
-  p <- read1 sk.stck
+  p <- getStack
   let (p2,res) := extract p
-  writeAs sk.stck p2 res
+  putStackAs p2 res
 
 arrEOI : JST -> SK q -> F1 q (Either (BoundedErr Void) (List JSON))
 arrEOI st sk t =
   case st == Ini of
-    True  => case read1 sk.stck t of
+    True  => case getStack t of
       PV sv # t => Right (sv <>> []) # t
       _     # t => Right [] # t
     False => case jsonEOI st sk t of

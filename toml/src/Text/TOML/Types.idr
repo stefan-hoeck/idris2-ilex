@@ -28,17 +28,13 @@ Interpolation TomlFloat where
   interpolate (Float dbl) = show dbl
 
 --------------------------------------------------------------------------------
---          Table Type
+--          TomlValue and Table
 --------------------------------------------------------------------------------
 
 public export
-data TableType = Inline | Table
+data TableType = Inline | Table | Def
 
 %runElab derive "TableType" [Show,Eq,Ord]
-
---------------------------------------------------------------------------------
---          TomlValue and Table
---------------------------------------------------------------------------------
 
 ||| Data type for trees of TOML data.
 public export
@@ -67,6 +63,7 @@ data TomlValue : Type where
   ||| A table of key-value pairs
   TTbl  : TableType -> SortedMap String TomlValue -> TomlValue
 
+%name TomlValue v,v1,v2
 %runElab derive "TomlValue" [Eq,Show]
 
 ||| Currently, a TOML table is a list of pairs. This might be later
@@ -74,6 +71,8 @@ data TomlValue : Type where
 public export
 0 TomlTable : Type
 TomlTable = SortedMap String TomlValue
+
+%name TomlTable t,t1,t2
 
 --------------------------------------------------------------------------------
 --          Tokens
@@ -114,6 +113,7 @@ data TomlParseError : Type where
   InlineTableExists : List Key -> TomlParseError
   TableExists       : List Key -> TomlParseError
   StaticArray       : List Key -> TomlParseError
+  TableArray        : List Key -> TomlParseError
 
 %runElab derive "TomlParseError" [Eq,Show]
 
@@ -127,6 +127,8 @@ Interpolation TomlParseError where
     "Trying to overwrite existing table: \{k}"
   interpolate (StaticArray k) =
     "Trying to modify a static array: \{k}"
+  interpolate (TableArray k) =
+    "Trying to overwrite an array of tables: \{k}"
 
 ||| Error type when lexing and parsing TOML files
 public export
@@ -137,69 +139,76 @@ TErr = BoundedErr TomlParseError
 --          Table Lookup
 --------------------------------------------------------------------------------
 
-%name TomlTable t,t1,t2
-
 public export
-data View : Type where
-  Root : View
-  Tbl  : View -> TomlTable -> Key -> View
-  Arr  : View -> SnocList TomlTable -> View
+data TView : Type where
+  Root : TView
+  Tbl  : TView -> TomlTable -> Key -> TView
+  New  : TView -> TomlTable -> Key -> TView
+  Arr  : TView -> TomlTable -> Key -> SnocList TomlTable -> TomlTable -> TView
 
-keys : List Key -> View -> List Key
-keys ks Root        = ks
-keys ks (Tbl v _ k) = keys (k::ks) v
-keys ks (Arr v _)   = keys ks v
+compatible : TableType -> TableType -> Bool
+compatible Inline Inline = True
+compatible Inline _      = False
+compatible _      Inline = False
+compatible _      _      = True
 
-exists : List Key -> View -> TomlValue -> Either TErr a
+export
+reduceT : TableType -> TomlTable -> TView -> TomlTable
+reduceT tt t1 Root              = t1
+reduceT tt t1 (Tbl v t2 k)      = reduceT tt (insert k.key (TTbl tt t1) t2) v
+reduceT tt t1 (New v t2 k)      = reduceT tt (insert k.key (TTbl tt t1) t2) v
+reduceT tt t1 (Arr v t2 k st _) = reduceT tt (insert k.key (TTbls (st:<t1)) t2) v
+
+keys : List Key -> TView -> List Key
+keys ks Root            = ks
+keys ks (Tbl v _ k)     = keys (k::ks) v
+keys ks (New v _ k)     = keys (k::ks) v
+keys ks (Arr v _ k _ _) = keys (k::ks) v
+
+export
+exists : List Key -> TView -> TomlValue -> TErr
 exists add view val =
  let ks := keys add view
      bs := foldMap bounds ks
   in case val of
-       TArr sx       => custom bs $ StaticArray ks
-       TTbl Inline y => custom bs $ InlineTableExists ks
-       TTbl Table y  => custom bs $ TableExists ks
-       _             => custom bs $ ValueExists ks
+       TArr _        => B (Custom $ StaticArray ks) bs
+       TTbls {}      => B (Custom $ TableArray ks) bs
+       TTbl Inline _ => B (Custom $ InlineTableExists ks) bs
+       TTbl Table _  => B (Custom $ TableExists ks) bs
+       _             => B (Custom $ ValueExists ks) bs
 
-vexists : View -> Either TErr a
-
-new : View -> List Key -> (View,Bool,TomlTable)
-new v []        = (v,True,empty)
-new v (k :: ks) = new (Tbl v empty k) ks
-
-view : Bool -> View -> TomlTable -> List Key -> Either TErr (View,Bool,TomlTable)
-view inline v t []      = Right (v,False,t)
-view inline v t (k::ks) =
-  case lookup k.key t of
-    Nothing               => Right $ new (Tbl v t k) ks
-    Just (TTbls $ st:<t2) => view inline (Arr (Tbl v t k) st) t2 ks
-    Just x@(TTbl tt t2) => case (tt,inline) of
-      (Table,False) => view inline (Tbl v t k) t2 ks
-      (Inline,True) => view inline (Tbl v t k) t2 ks
-      _             => exists [k] v x
-    Just val              => exists [k] v val
-
-public export
-data Stck : Type where
-  STbl : TomlTable -> SnocList Key -> Stck
-  SArr : TomlTable -> SnocList Key -> Stck
-  STop : View -> TomlTable -> SnocList Key -> Stck
-  VArr : Stck -> SnocList TomlValue -> Stck
-  VTbl : Stck -> TomlTable -> SnocList Key -> Stck
-
-close : Stck -> Either TErr Stck
-close (STbl t sk) =
-  case view False Root t (sk <>> []) of
-    Right (v@(Tbl {}), True, t) => Right (STop v t [<])
-    Right (v,_)                 => vexists v
-    Left  x                     => Left x
-close (SArr t sk) =
-  case view False Root t (sk <>> []) of
-    Right (v@(Tbl {}), True, t) => Right (STop (SArr v [<empty]) [<])
-    Right (v,_)                 => vexists v
-    Left  x                     => Left x
-close (STop x y sk) = ?fooo_2
-close (VArr x sx)   = ?fooo_3
-close (VTbl x y sk) = ?fooo_4
+new : TView -> List Key -> TView
+new v []        = v
+new v (k :: ks) = new (New v empty k) ks
 
 export
-init : Stck
+view : TableType -> TView -> TomlTable -> List Key -> Either TErr TView
+view _  v t []      = Right v
+view tt v t (k::ks) =
+  case lookup k.key t of
+    Nothing               => Right $ new (New v t k) ks
+    Just (TTbls $ st:<t2) => view tt (Arr v t k st t2) t2 ks
+    Just x@(TTbl tt2 t2) => case compatible tt tt2 of
+      True  => view tt (Tbl v t k) t2 ks
+      False => Left $ exists [k] v x
+    Just val              => Left $ exists [k] v val
+
+public export
+data TStack : Type where
+  STbl : TomlTable -> SnocList Key -> TStack
+  SArr : TomlTable -> SnocList Key -> TStack
+  STop : TView -> SnocList Key -> TomlTable -> TStack
+  VArr : TStack -> SnocList TomlValue -> TStack
+  VTbl : TStack -> SnocList Key -> TomlTable -> TStack
+
+export
+toRoot : TStack -> TomlTable
+toRoot (STbl t sk)   = t
+toRoot (SArr t sk)   = t
+toRoot (STop v sk t) = reduceT Table t v
+toRoot (VArr x sv)   = toRoot x
+toRoot (VTbl x sk y) = toRoot x
+
+export
+empty : TStack
+empty = STop Root [<] empty

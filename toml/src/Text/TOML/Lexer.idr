@@ -24,11 +24,6 @@ export
 wschar : RExp True
 wschar = ' ' || '\t'
 
-||| ws = *wschar
-export
-ws : RExp False
-ws = star wschar
-
 ||| newline =  %x0A     ; LF
 ||| newline =/ %x0D.0A  ; CRLF
 export
@@ -78,16 +73,6 @@ export
 basicUnescaped : RExp True
 basicUnescaped =
   wschar || '!' || range32 0x23 0x5b || range32 0x5d 0x7e || nonAscii
-
-||| dot-sep   = ws %x2E ws  ; . Period
-export
-dotSep : RExp True
-dotSep = ws >> '.' >> ws
-
-||| keyval-sep = ws %x3D ws ; =
-export
-keyvalSep : RExp True
-keyvalSep = ws >> '=' >> ws
 
 --------------------------------------------------------------------------------
 -- Numbers
@@ -357,8 +342,6 @@ readOffsetDateTime bs =
 --
 -- array-sep = %x2C  ; , Comma
 --
--- ws-comment-newline = *( wschar / [ comment ] newline )
---
 -- ;; Table
 --
 -- table = std-table / array-table
@@ -367,8 +350,6 @@ readOffsetDateTime bs =
 --
 -- std-table = std-table-open key std-table-close
 --
--- std-table-open  = %x5B ws     ; [ Left square bracket
--- std-table-close = ws %x5D     ; ] Right square bracket
 --
 -- ;; Inline Table
 --
@@ -380,10 +361,3 @@ readOffsetDateTime bs =
 --
 -- inline-table-keyvals =  ws-comment-newline keyval ws-comment-newline inline-table-sep inline-table-keyvals
 -- inline-table-keyvals =/ ws-comment-newline keyval ws-comment-newline [ inline-table-sep ]
---
--- ;; Array Table
---
--- array-table = array-table-open key array-table-close
---
--- array-table-open  = %x5B.5B ws  ; [[ Double left square bracket
--- array-table-close = ws %x5D.5D  ; ]] Double right square bracket

@@ -42,7 +42,7 @@ interface HasStringLits (0 s : Type -> Type) where
 ||| parsing string tokens containing escape sequences.
 public export
 interface HasStack (0 s : Type -> Type) (0 a : Type) | s where
-  stack     : s q -> Ref q (SnocList a)
+  stack     : s q -> Ref q a
 
 --------------------------------------------------------------------------------
 -- General Purpose Stack
@@ -96,7 +96,7 @@ HasError (Stack e a r) e where
   error = err
 
 export %inline
-HasStack (Stack e (SnocList a) r) a where
+HasStack (Stack e a r) a where
   stack = stck
 
 export %inline
@@ -148,6 +148,22 @@ getList : Ref q (SnocList a) -> F1 q (List a)
 getList ref = T1.do
   sv <- replace1 ref [<]
   pure (sv <>> [])
+
+export %inline
+getStack : HasStack s a => (sk : s q) => F1 q a
+getStack = read1 (stack sk)
+
+export %inline
+putStack : HasStack s a => (sk : s q) => a -> F1' q
+putStack = write1 (stack sk)
+
+export %inline
+putStackAs : HasStack s a => (sk : s q) => a -> v -> F1 q v
+putStackAs = writeAs (stack sk)
+
+export %inline
+failWith : HasError s e => (sk : s q) => BoundedErr e -> v -> F1 q v
+failWith = writeAs (error sk) . Just
 
 --------------------------------------------------------------------------------
 -- String Literals
@@ -379,7 +395,7 @@ parameters {auto he  : HasError s e}
 parameters {0 r      : Bits32}
            {auto sk  : s q}
            {auto pos : HasPosition s}
-           {auto stk : HasStack s (Bounded a)}
+           {auto stk : HasStack s (SnocList $ Bounded a)}
            {auto 0 p : 0 < r}
 
   export %inline
@@ -399,7 +415,7 @@ parameters {0 r      : Bits32}
 
 parameters (x          : RExp True)
            {auto pos   : HasPosition s}
-           {auto stk   : HasStack s (Bounded a)}
+           {auto stk   : HasStack s (SnocList $ Bounded a)}
            {auto 0 lt  : 0 < r}
 
   ||| Recognizes the given character and uses it to update the parser state
@@ -424,7 +440,7 @@ parameters (x          : RExp True)
   nltok v = (x, rd $ \bs => lexPushNL bs.size v)
 
 export
-snocChunk : HasStack s a => s q -> F1 q (Maybe $ List a)
+snocChunk : HasStack s (SnocList a) => s q -> F1 q (Maybe $ List a)
 snocChunk sk = T1.do
   ss <- replace1 (stack sk) [<]
   pure (maybeList ss)
@@ -433,7 +449,7 @@ export
 lexEOI :
      {auto 0 lt : 0 < r}
   -> {auto pos : HasPosition s}
-  -> {auto stk : HasStack s a}
+  -> {auto stk : HasStack s (SnocList a)}
   -> {auto err : HasError s e}
   -> {auto bts : HasBytes s}
   -> Index r
