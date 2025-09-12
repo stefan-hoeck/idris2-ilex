@@ -50,7 +50,6 @@ interface HasStack (0 s : Type -> Type) (0 a : Type) | s where
 -- General Purpose Stack
 --------------------------------------------------------------------------------
 
-||| A convenient general purpose implementation of a mutable stack.
 public export
 record Stack (e,a : Type) (r : Bits32) (q : Type) where
   [search q]
@@ -114,22 +113,23 @@ HasStringLits (Stack e a r) where
 -- General Utilities
 --------------------------------------------------------------------------------
 
-||| Pairs a regular expression with an effectful parser state transition.
 export %inline
-go : a -> (s q => F1 q (Index r)) -> (a, Step q r s)
-go x f = (x, Go $ \(x # t) => f t)
+go : (s q => F1 q (Index r)) -> Step q r s
+go f = Go $ \(x # t) => f t
 
-||| Pairs a regular expression with an effectful parser state transition
-||| that takes the current token bytes as input
 export %inline
 goBS : HasBytes s => a -> (s q => ByteString -> F1 q (Index r)) -> (a,Step q r s)
 goBS x f = (x, Rd $ \(x # t) => let bs # t := read1 (bytes x) t in f bs t)
 
-||| Pairs a regular expression with an effectful parser state transition
-||| that takes the current token string as input
 export %inline
 goStr : HasBytes s => a -> (s q => String -> F1 q (Index r)) -> (a,Step q r s)
-goStr x f = goBS x (f . toString)
+goStr x f =
+  ( x
+  , Rd $ \(x # t) =>
+     let bs # t := read1 (bytes x) t
+         s      := toString bs
+      in f s t
+  )
 
 ||| Writes a mutable reference and returns the given result.
 export %inline
@@ -263,7 +263,7 @@ parameters {auto sk  : s q}
   ||| mutable state implementing `HasPosition` after
   ||| increasing the column by `n` characters.
   export %inline
-  tokenBounds : (n : Nat) -> F1 q Bounds
+  tokenBounds : Nat -> F1 q Bounds
   tokenBounds n = T1.do
     sp <- getPosition
     inccol n
@@ -286,6 +286,12 @@ parameters {auto sk  : s q}
   popPosition : F1' q
   popPosition = pop1 (positions sk)
 
+  popAndGetBounds : Nat -> F1 q Bounds
+  popAndGetBounds n =
+    read1 (positions sk) >>= \case
+      sb:<b => writeAs (positions sk) sb (BS b $ incCol n b)
+      [<]   => pure Empty
+
   ||| Returns the bounds from start to end of some "enclosed" or
   ||| quoted region of text such as an expression in parantheses
   ||| or some text in quotes.
@@ -297,25 +303,19 @@ parameters {auto sk  : s q}
       sb:<b => writeAs (positions sk) sb (BS b pe)
       [<]   => pure Empty
 
-  popAndGetBounds : Nat -> F1 q Bounds
-  popAndGetBounds n =
-    read1 (positions sk) >>= \case
-      sb:<ps => writeAs (positions sk) sb (BS ps $ incCol n ps)
-      [<]    => pure Empty
-
 parameters {auto pos : HasPosition s}
 
   ||| Recognizes the given expression and invokes `incline` before
   ||| returning the given result.
   export %inline
   newline : RExp True -> (v : s q => F1 q (Index r)) -> (RExp True, Step q r s)
-  newline x f = go x $ f <* incline 1
+  newline x f = (x, go $ f <* incline 1)
 
   ||| Recognizes the given expression and invokes `incline` before
   ||| returning the given result.
   export %inline
   newline' : RExp True -> (v : Index r) -> (RExp True, Step q r s)
-  newline' x v = go x $ incline 1 >> pure v
+  newline' x v = (x, go $ incline 1 >> pure v)
 
 --------------------------------------------------------------------------------
 -- Constant-Size Terminals
@@ -339,22 +339,22 @@ parameters (x          : RExp True)
   ||| The current column is increased by `n` *before* invoking `f`.
   export %inline
   cexpr : (s q => F1 q (Index r)) -> (RExp True, Step q r s)
-  cexpr f = go x $ f <* inccol n
+  cexpr f = (x, go $ inccol n >> f)
 
   ||| Convenience alias for `cexpr . pure`.
   export %inline
   cexpr' : Index r -> (RExp True, Step q r s)
-  cexpr' v = go x $ inccol n >> pure v
+  cexpr' v = cexpr $ pure v
 
   ||| Recognizes the given character(s)
   ||| and uses it to update the parser state
   ||| as specified by `f`.
   |||
-  ||| The current column is increased by `n`, and a new entry is pushed onto
+  ||| The current column is increased by one, and a new entry is pushed onto
   ||| the stack of bounds.
   export %inline
   copen : (s q => F1 q (Index r)) -> (RExp True, Step q r s)
-  copen f = go x $ pushPosition >> inccol n >> f
+  copen f = (x, go $ pushPosition >> inccol n >> f)
 
   ||| Convenience alias for `copen . pure`.
   export %inline
@@ -368,16 +368,7 @@ parameters (x          : RExp True)
   ||| is popped from the stack.
   export %inline
   cclose : (s q => F1 q (Index r)) -> (RExp True, Step q r s)
-  cclose f = go x $ inccol n >> popPosition >> f
-
-  ||| Recognizes the given character(s) and uses it to update the parser state
-  ||| as specified by `f`.
-  |||
-  ||| The current column is increased by one, and on `Bounds` entry
-  ||| is popped from the stack.
-  export %inline
-  ccloseWithBounds : (s q => Bounds -> F1 q (Index r)) -> (RExp True, Step q r s)
-  ccloseWithBounds f = go x $ inccol {q} n >> closeBounds >>= f
+  cclose f = (x, go $ inccol n >> popPosition >> f)
 
   ||| Recognizes the given character(s) and uses it to
   ||| finalize and assemble a string literal.
@@ -390,6 +381,15 @@ parameters (x          : RExp True)
     -> (s q => String -> F1 q (Index r))
     -> (RExp True, Step q r s)
   ccloseStr f = cclose $ getStr >>= f
+
+  ||| Recognizes the given character(s) and uses it to update the parser state
+  ||| as specified by `f`.
+  |||
+  ||| The current column is increased by one, and on `Bounds` entry
+  ||| is popped from the stack.
+  export %inline
+  ccloseWithBounds : (s q => Bounds -> F1 q (Index r)) -> (RExp True, Step q r s)
+  ccloseWithBounds f = (x, go $ inccol {q} n >> closeBounds >>= f)
 
   ||| Recognizes the given character(s) and uses it to
   ||| finalize and assemble a string literal.
@@ -412,7 +412,7 @@ parameters (x        : RExp True)
            {auto pos : HasBytes s}
 
   ||| Converts the recognized token to a `String`, increases the
-  ||| current column by its length after invoking the given state transformer.
+  ||| current column by its length and invokes the given state transformer.
   export %inline
   read : (s q => String -> F1 q (Index r)) -> (RExp True, Step q r s)
   read f = goStr x $ \s => f s <* inccol (length s)
@@ -421,10 +421,16 @@ parameters (x        : RExp True)
   ||| current column by its length after invoking the given state transformer.
   export %inline
   read' : Index r -> (RExp True, Step q r s)
-  read' v = goStr x $ \s => inccol (length s) >> pure v
+  read' v =
+    ( x
+    , Rd $ \(sk # t) =>
+      let bs # t := read1 (bytes sk) t
+          _  # t := inccol (length $ toString bs) t
+       in v # t
+    )
 
-  ||| Increases the current column by the byte string's
-  ||| length after invoking the given state transformer.
+  ||| Converts the recognized token to a `String`, increases the
+  ||| current column by its length and invokes the given state transformer.
   export %inline
   conv : (s q => ByteString -> F1 q (Index r)) -> (RExp True, Step q r s)
   conv f = goBS x $ \bs => f bs <* inccol (size bs)
@@ -432,7 +438,13 @@ parameters (x        : RExp True)
   ||| Convenience alias for `conv . pure`.
   export %inline
   conv' : Index r -> (RExp True, Step q r s)
-  conv' v = goBS x $ \bs => inccol (size bs) >> pure v
+  conv' v =
+    ( x
+    , Rd $ \(sk # t) =>
+       let bs # t := read1 (bytes sk) t
+           _  # t := inccol (size bs) t
+        in v # t
+    )
 
 export %inline
 jsonSpaced : HasPosition s => HasBytes s => Index r -> Steps q r s -> Steps q r s
@@ -519,7 +531,7 @@ parameters (x          : RExp True)
   ||| The current column is increased by one *after* invoking `f`.
   export %inline
   ctok : {n : _} -> (0 prf : ConstSize n x) => a -> (RExp True, Step q r s)
-  ctok v = go x $ lexPush n v
+  ctok v = (x, go $ lexPush n v)
 
   export %inline
   readTok : HasBytes s => (String -> a) -> (RExp True, Step q r s)
@@ -576,3 +588,4 @@ lexer :
   -> L1 q e r a
 lexer m =
   P Ini (init [<]) (lex1 [E Ini $ dfa m]) snocChunk (errs []) lexEOI
+
