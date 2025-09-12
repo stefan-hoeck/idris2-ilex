@@ -159,9 +159,8 @@ parameters {auto sk : SK q}
   onVal v = getStack >>= part v
 
   %inline
-  endStr : F1 q JST
-  endStr = T1.do
-   s <- getStr
+  endStr : String -> F1 q JST
+  endStr s = T1.do
    getStack >>= \case
      PO a b => putStackAs (PL a b s) OLbl
      p      => part (JString s) p
@@ -222,10 +221,11 @@ decode _         = "" -- impossible
 jchar : RExp True
 jchar = range32 0x20 0x10ffff && not '"' && not '\\'
 
+%inline
 strTok : DFA q JSz SK
 strTok =
   dfa
-    [ cclose '"' endStr
+    [ ccloseStr '"' endStr
     , read (plus jchar) (pushStr Str)
     , cexpr #"\""# (pushStr Str "\"")
     , cexpr #"\n"# (pushStr Str "\n")

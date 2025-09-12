@@ -43,7 +43,7 @@ empty = STop VR [<] empty
 
 public export
 TSz : Bits32
-TSz = 16
+TSz = 18
 
 public export
 TST : Type
@@ -65,8 +65,8 @@ ANew = 8; AVal = 9; ACom = 10; TVal = 11; TCom = 12
 
 -- Strings
 -- QKey, QStr
-QKey, QStr, MStr : TST
-QKey = 13; QStr = 14; MStr = 15
+QKey, LKey, QStr, LStr, MStr : TST
+QKey = 13; LKey = 14; QStr = 15; MStr = 16; LStr = 17
 
 
 public export
@@ -97,20 +97,20 @@ addInlineVal t sk tv =
 
 parameters {auto sk : TSTCK q}
 
-  addkey : Key -> F1 q TST
-  addkey k =
-    getStack >>= \case
+  addkey : KeyType -> Bounded String -> F1 q TST
+  addkey kt (B s bs) =
+   let k := KT s kt bs
+    in getStack >>= \case
       STbl x ks   => putStackAs (STbl x $ ks:<k) TSep
       SArr x ks   => putStackAs (SArr x $ ks:<k) ASep
       STop x ks t => putStackAs (STop x (ks:<k) t) ESep
       VTbl x ks t => putStackAs (VTbl x (ks:<k) t) ESep
       VArr x sv   => putStackAs (VArr x sv) Err
 
-  onkey : KeyType -> ByteString -> F1 q TST
-  onkey tpe bs = T1.do
-    p  <- getPosition
-    let (s,n)  := keyString tpe bs
-    addkey (KT s tpe (BS p $ incCol n p))
+  onkey : String -> F1 q TST
+  onkey s = T1.do
+    bs <- tokenBounds (length s)
+    addkey Plain (B s bs)
 
   escape : TST -> ByteString -> F1 q TST
   escape res bs =
@@ -118,12 +118,6 @@ parameters {auto sk : TSTCK q}
     in case has unicode hex && not (has surrogate hex) of
          True  => inccol (size bs) >> pushBits32 res hex
          False => unexpected [] sk >>= flip failWith Err
-
-  qkey : F1 q TST
-  qkey = T1.do
-    bs <- closeBounds
-    s  <- getStr
-    addkey (KT s Quoted bs)
 
   end : TST -> Either TErr TStack -> F1 q TST
   end x (Left y)  = failWith y Err
@@ -164,15 +158,12 @@ parameters {auto sk : TSTCK q}
       VTbl x sk t => onval (TTbl t) x
       s           => end Err (Right s)
 
-  qstr : F1 q TST
-  qstr = T1.do
-    popPosition
-    s  <- getStr
-    getStack >>= onval (TStr s)
+  qstr : String -> F1 q TST
+  qstr s = getStack >>= onval (TStr s)
 
 %inline
 val : a -> (ByteString -> TomlValue) -> (a, Step q TSz TSTCK)
-val x f = (x, rd $ \bs => getStack >>= onval (f bs))
+val x f = goBS x $ \bs => getStack >>= onval (f bs)
 
 %inline
 val' : a -> TomlValue -> (a, Step q TSz TSTCK)
@@ -183,17 +174,17 @@ val' x = val x . const
 --------------------------------------------------------------------------------
 
 tomlSpaced : TST -> Steps q TSz TSTCK -> DFA q TSz TSTCK
-tomlSpaced res ss = dfa $ (plus wschar, spaces res) :: ss
+tomlSpaced res ss = dfa $ conv' (plus wschar) res :: ss
 
 tomlIgnore : TST -> Steps q TSz TSTCK -> DFA q TSz TSTCK
 tomlIgnore res ss =
-  tomlSpaced res $ [(comment, lineComment res), (newline, newline Ini)] ++ ss
+  tomlSpaced res $ [read' comment res, newline' newline Ini] ++ ss
 
 keySteps : Steps q TSz TSTCK
 keySteps =
-  [ (unquotedKey, rd $ onkey Plain)
-  , (literalString, rd $ onkey Literal)
-  , copen' '"' QKey
+  [ goStr unquotedKey onkey
+  , copen' '\'' LKey
+  , copen' '"'  QKey
   ]
 
 valDFA : DFA q TSz TSTCK
@@ -223,13 +214,14 @@ valDFA =
     -- Nested Values
     , copen '[' openArray
     , copen '{' openInlineTable
-    , copen' '"' QStr
+    , copen' '"'  QStr
+    , copen' '\'' LStr
     , copen' #"""""# MStr
     ]
 
 escapes : TST -> Steps q TSz TSTCK
 escapes res =
-    [ read basicUnescaped  (pushStr res)
+    [ read basicUnescaped (pushStr res)
     , cexpr #"\""# (pushStr res "\"")
     , cexpr #"\\"# (pushStr res "\\")
     , cexpr #"\b"# (pushStr res "\b")
@@ -238,16 +230,13 @@ escapes res =
     , cexpr #"\n"# (pushStr res "\n")
     , cexpr #"\r"# (pushStr res "\r")
     , cexpr #"\t"# (pushStr res "\t")
-    , ("\\x" >> repeat 2 hexdigit, rd $ escape res)
-    , ("\\u" >> repeat 4 hexdigit, rd $ escape res)
-    , ("\\U" >> repeat 8 hexdigit, rd $ escape res)
+    , goBS ("\\x" >> repeat 2 hexdigit) (escape res)
+    , goBS ("\\u" >> repeat 4 hexdigit) (escape res)
+    , goBS ("\\U" >> repeat 8 hexdigit) (escape res)
     ]
 
-strDFA : TST -> (TSTCK q => F1 q TST) -> DFA q TSz TSTCK
-strDFA res cls = dfa $ cexpr '"' cls :: escapes res
-
 mstrDFA : TST -> DFA q TSz TSTCK
-mstrDFA res = dfa $ cexpr #"""""# qstr :: escapes res
+mstrDFA res = dfa $ ccloseStr #"""""# qstr :: escapes res
 
 --------------------------------------------------------------------------------
 -- State Transitions
@@ -262,8 +251,10 @@ tomlTrans =
     , E ASep $ tomlSpaced ASep [cexpr' '.' EKey, cclose "]]" close]
     , E EKey $ tomlSpaced EKey keySteps
     , E EVal valDFA
-    , E QKey $ strDFA QKey qkey
-    , E QStr $ strDFA QStr qstr
+    , E QKey $ dfa $ ccloseBoundedStr '"' (addkey Quoted) :: escapes QKey
+    , E LKey $ dfa [ccloseBoundedStr '\'' (addkey Plain), read literalChars (pushStr LKey)]
+    , E QStr $ dfa $ ccloseStr '"' qstr :: escapes QStr
+    , E LStr $ dfa [ccloseStr '\'' qstr, read literalChars (pushStr LStr)]
     , E MStr $ mstrDFA MStr
     , E EOL  $ tomlIgnore EOL []
     ]

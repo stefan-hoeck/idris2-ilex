@@ -57,12 +57,8 @@ unquotedKey = plus (alphaNum || '-' || '_')
 
 ||| literal-char = %x09 / %x20-26 / %x28-7E / non-ascii
 export
-literalChar : RExp True
-literalChar = '\t' || range32 0x20 0x26 || range32 0x28 0x7e || nonAscii
-
-export
-literalString : RExp True
-literalString = '\'' >> star literalChar >> '\''
+literalChars : RExp True
+literalChars = plus $ '\t' || range32 0x20 0x26 || range32 0x28 0x7e || nonAscii
 
 export %inline
 unlit : ByteString -> String
@@ -203,10 +199,6 @@ localTime = timeHour >> ':' >> timeMinute >> opt (':' >> sec >> opt frac)
     sec  = timeMinute <|> "60"
     frac = '.' >> plus digit
 
--- TODO: This should go to idris2-bytestring
-myPadRight : Nat -> Bits8 -> ByteString -> ByteString
-myPadRight n b bs = bs <+> replicate (n `minus` bs.size) b
-
 export
 readLocalTime : ByteString -> LocalTime
 readLocalTime bs =
@@ -216,7 +208,7 @@ readLocalTime bs =
    in case drop 9 bs of
         BS 0 _ => LT h m s Nothing
         bs     =>
-         let bs' := myPadRight 6 byte_0 $ take 6 bs
+         let bs' := padRight 6 byte_0 $ take 6 bs
           in LT h m s $ Just $ readInt refineMicroSecond 0 bs'
 
 ||| local-date-time = full-date time-delim partial-time

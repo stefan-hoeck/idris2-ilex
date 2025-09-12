@@ -9,8 +9,6 @@ import Text.ILex.Error
 import Text.ILex.Parser
 import Text.ILex.RExp
 
-%hide Prelude.(>>=)
-%hide Prelude.(>>)
 %default total
 
 --------------------------------------------------------------------------------
