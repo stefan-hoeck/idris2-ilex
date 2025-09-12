@@ -2,6 +2,7 @@ module Text.ILex.Stack
 
 import Data.Buffer
 import Data.Linear.Ref1
+import Data.String
 import Syntax.T1
 import Text.ILex.Bounds
 import Text.ILex.Error
@@ -183,6 +184,14 @@ parameters {auto sk  : s q}
   pushStr res str = T1.do
     push1 (strings sk) str
     pure res
+
+  export %inline
+  pushChar : v -> Char -> F1 q v
+  pushChar res = pushStr res . singleton
+
+  export %inline
+  pushBits32 : v -> Bits32 -> F1 q v
+  pushBits32 res = pushChar res . cast
 
 --------------------------------------------------------------------------------
 -- Bounds and Position

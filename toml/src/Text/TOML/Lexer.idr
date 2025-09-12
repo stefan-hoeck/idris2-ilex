@@ -262,16 +262,6 @@ readOffsetDateTime bs =
 
 -- 557 LOC
 
--- ;; Key-Value pairs
---
--- keyval = key keyval-sep val
--- key = simple-key / dotted-key
--- val = string / boolean / array / inline-table / date-time / float / integer
---
--- simple-key = quoted-key / unquoted-key
---
--- ;; Quoted and dotted key
---
 -- quoted-key = basic-string / literal-string
 -- dotted-key = simple-key 1*( dot-sep simple-key )
 --
@@ -289,15 +279,6 @@ readOffsetDateTime bs =
 -- basic-char = basic-unescaped / escaped
 -- escaped = escape escape-seq-char
 --
--- escape = %x5C                   ; \
--- escape-seq-char =  %x22         ; "    quotation mark  U+0022
--- escape-seq-char =/ %x5C         ; \    reverse solidus U+005C
--- escape-seq-char =/ %x62         ; b    backspace       U+0008
--- escape-seq-char =/ %x65         ; e    escape          U+001B
--- escape-seq-char =/ %x66         ; f    form feed       U+000C
--- escape-seq-char =/ %x6E         ; n    line feed       U+000A
--- escape-seq-char =/ %x72         ; r    carriage return U+000D
--- escape-seq-char =/ %x74         ; t    tab             U+0009
 -- escape-seq-char =/ %x78 2HEXDIG ; xHH                  U+00HH
 -- escape-seq-char =/ %x75 4HEXDIG ; uHHHH                U+HHHH
 -- escape-seq-char =/ %x55 8HEXDIG ; UHHHHHHHH            U+HHHHHHHH

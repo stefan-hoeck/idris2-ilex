@@ -13,3 +13,5 @@ modules = Data.Time.Date
         , Text.TOML.Lexer
         , Text.TOML.Parser
         , Text.TOML.Types
+
+        , Text.TOML.Internal.TStack

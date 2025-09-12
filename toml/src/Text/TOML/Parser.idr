@@ -1,21 +1,49 @@
 module Text.TOML.Parser
 
 import Data.SortedMap
+import Data.String
 import Data.Linear.Ref1
 import Text.ILex
 import Text.TOML.Lexer
 import Text.TOML.Types
+import Text.TOML.Internal.TStack
 import Syntax.T1
 
 %hide Data.Linear.(.)
 %default total
+
+--------------------------------------------------------------------------------
+--          Parser Stack
+--------------------------------------------------------------------------------
+
+export
+data TStack : Type where
+  STbl : TreeTable -> SnocList Key -> TStack
+  SArr : TreeTable -> SnocList Key -> TStack
+  STop : TView Tree -> SnocList Key -> TreeTable -> TStack
+  VArr : TStack -> SnocList TomlValue -> TStack
+  VTbl : TStack -> SnocList Key -> TomlTable -> TStack
+
+toRoot : TStack -> TreeTable
+toRoot (STbl t sk)   = t
+toRoot (SArr t sk)   = t
+toRoot (STop v sk t) = reduceT Undef t v
+toRoot (VArr x sv)   = toRoot x
+toRoot (VTbl x sk y) = toRoot x
+
+toTable : TStack -> Either e TomlTable
+toTable = Right . toTbl . toRoot
+
+empty : TStack
+empty = STop VR [<] empty
+
 --------------------------------------------------------------------------------
 -- States
 --------------------------------------------------------------------------------
 
 public export
 TSz : Bits32
-TSz = 13
+TSz = 16
 
 public export
 TST : Type
@@ -35,74 +63,76 @@ EKey = 1; ESep = 2; EVal = 3; EOL = 4; Err = 5; TSep = 6; ASep = 7
 ANew, AVal, ACom, TVal, TCom : TST
 ANew = 8; AVal = 9; ACom = 10; TVal = 11; TCom = 12
 
+-- Strings
+-- QKey, QStr
+QKey, QStr, MStr : TST
+QKey = 13; QStr = 14; MStr = 15
+
+
 public export
 0 TSTCK : Type -> Type
 TSTCK = Stack TomlParseError TStack TSz
-
---------------------------------------------------------------------------------
--- Spaces
---------------------------------------------------------------------------------
-
-tomlSpaced : TST -> Steps q TSz TSTCK -> DFA q TSz TSTCK
-tomlSpaced res ss = dfa $ (plus wschar, spaces res) :: ss
-
-tomlIgnore : TST -> Steps q TSz TSTCK -> DFA q TSz TSTCK
-tomlIgnore res ss =
-  tomlSpaced res $ [(comment, lineComment res), (newline, newline Ini)] ++ ss
-
---------------------------------------------------------------------------------
--- Keys
---------------------------------------------------------------------------------
 
 keyString : KeyType -> ByteString -> (String,Nat)
 keyString Plain bs = (toString bs, size bs)
 keyString _     bs = let s := unlit bs in (s, length s + 2)
 
-onkey : KeyType -> (sk : TSTCK q) => ByteString -> F1 q TST
-onkey tpe bs = T1.do
-  p  <- getPosition
-  let (s,n)  := keyString tpe bs
-      k      := KT s tpe (BS p $ incCol n p)
-  inccol n
-  getStack >>= \case
-    STbl x ks   => putStackAs (STbl x $ ks:<k) TSep
-    SArr x ks   => putStackAs (SArr x $ ks:<k) ASep
-    STop x ks t => putStackAs (STop x (ks:<k) t) ESep
-    VTbl x ks t => putStackAs (VTbl x (ks:<k) t) ESep
-    VArr x sv   => putStackAs (VArr x sv) Err
-
-keySteps : Steps q TSz TSTCK
-keySteps =
-  [ (unquotedKey, rd $ onkey Plain)
-  , (literalString, rd $ onkey Literal)
-  ]
-
 --------------------------------------------------------------------------------
--- Values
+-- Tables and Values
 --------------------------------------------------------------------------------
 
-vexists : TableType -> TView -> TErr
-vexists tt v         =
-  case v of
-    Arr {} => exists [] v (TTbls [<])
-    _      => exists [] v (TTbl tt empty)
+addTreeVal : TreeTable -> SnocList Key -> TomlValue -> Either TErr TreeTable
+addTreeVal t sk tv =
+  case tview t (sk <>> []) of
+    Left x                 => Left x
+    Right (VT v t k New,_) => Right $ reduceT Def (insert k.key (TV tv) t) v
+    Right (v,_)            => Left $ exists [] v (TTbl empty)
 
-addVal : TableType -> TomlTable -> SnocList Key -> TomlValue -> Either TErr TomlTable
-addVal tt t sk tv =
-  case view tt Root t (sk <>> []) of
-    Left x            => Left x
-    Right (New v t k) => Right $ reduceT tt (insert k.key tv t) v
-    Right v           => Left $ vexists tt v
+addInlineVal : TomlTable -> SnocList Key -> TomlValue -> Either TErr TomlTable
+addInlineVal t sk tv =
+  case iview VR t (sk <>> []) of
+    Left x               => Left x
+    Right (VT v t k New) => Right $ reduceI (insert k.key tv t) v
+    Right v              => Left $ exists [] v (TTbl empty)
 
 parameters {auto sk : TSTCK q}
+
+  addkey : Key -> F1 q TST
+  addkey k =
+    getStack >>= \case
+      STbl x ks   => putStackAs (STbl x $ ks:<k) TSep
+      SArr x ks   => putStackAs (SArr x $ ks:<k) ASep
+      STop x ks t => putStackAs (STop x (ks:<k) t) ESep
+      VTbl x ks t => putStackAs (VTbl x (ks:<k) t) ESep
+      VArr x sv   => putStackAs (VArr x sv) Err
+
+  onkey : KeyType -> ByteString -> F1 q TST
+  onkey tpe bs = T1.do
+    p  <- getPosition
+    let (s,n)  := keyString tpe bs
+    addkey (KT s tpe (BS p $ incCol n p))
+
+  escape : TST -> ByteString -> F1 q TST
+  escape res bs =
+   let hex := cast {to = Bits32} $ hexadecimal (drop 2 bs)
+    in case has unicode hex && not (has surrogate hex) of
+         True  => inccol (size bs) >> pushBits32 res hex
+         False => unexpected [] sk >>= flip failWith Err
+
+  qkey : F1 q TST
+  qkey = T1.do
+    bs <- closeBounds
+    s  <- getStr
+    addkey (KT s Quoted bs)
+
   end : TST -> Either TErr TStack -> F1 q TST
   end x (Left y)  = failWith y Err
   end x (Right y) = putStackAs y x
 
   onval : TomlValue -> TStack -> F1 q TST
-  onval v (STop x sk t) = end EOL  $ STop x [<] <$> addVal Table t sk v
+  onval v (STop x sk t) = end EOL  $ STop x [<] <$> addTreeVal t sk v
   onval v (VArr x sv)   = end AVal $ Right (VArr x (sv:<v))
-  onval v (VTbl x sk t) = end TVal $ VTbl x [<] <$> addVal Inline t sk v
+  onval v (VTbl x sk t) = end TVal $ VTbl x [<] <$> addInlineVal t sk v
   onval v s             = end Err (Right s)
 
   openStdTable : F1 q TST
@@ -121,19 +151,24 @@ parameters {auto sk : TSTCK q}
   close =
     getStack >>= \case
       STbl t sk =>
-        case view Table Root t (sk <>> []) of
-          Right v@(New {}) => putStackAs (STop v [<] empty) EOL
-          Right v          => failWith (vexists Table v) Err
-          Left  x          => failWith x Err
+        case tview t (sk <>> []) of
+          Right (v,t) => putStackAs (STop v [<] t) EOL
+          Left  x     => failWith x Err
       SArr t sk =>
-        case view Table Root t (sk <>> []) of
-          Right (New v t k)       => putStackAs (STop (Arr v t k [<] empty) [<] empty) EOL
-          Right (Arr v t k st t2) => putStackAs (STop (Arr v t k (st:<t2) empty) [<] empty) EOL
-          Right v                 => failWith (vexists Table v) Err
+        case view VR t (sk <>> []) of
+          Right (VT v t k New,t2) => putStackAs (STop (VA v t k [<]) [<] t2) EOL
+          Right (VA v t k st,t2)  => putStackAs (STop (VA v t k (st:<t2)) [<] empty) EOL
+          Right (v,_)             => failWith (vexists v) Err
           Left  x                 => failWith x Err
-      VArr x sx   => onval (TArr sx) x
-      VTbl x sk t => onval (TTbl Inline t) x
+      VArr x sx   => onval (TArr $ sx <>> []) x
+      VTbl x sk t => onval (TTbl t) x
       s           => end Err (Right s)
+
+  qstr : F1 q TST
+  qstr = T1.do
+    popPosition
+    s  <- getStr
+    getStack >>= onval (TStr s)
 
 %inline
 val : a -> (ByteString -> TomlValue) -> (a, Step q TSz TSTCK)
@@ -142,6 +177,24 @@ val x f = (x, rd $ \bs => getStack >>= onval (f bs))
 %inline
 val' : a -> TomlValue -> (a, Step q TSz TSTCK)
 val' x = val x . const
+
+--------------------------------------------------------------------------------
+-- Lexer Steps
+--------------------------------------------------------------------------------
+
+tomlSpaced : TST -> Steps q TSz TSTCK -> DFA q TSz TSTCK
+tomlSpaced res ss = dfa $ (plus wschar, spaces res) :: ss
+
+tomlIgnore : TST -> Steps q TSz TSTCK -> DFA q TSz TSTCK
+tomlIgnore res ss =
+  tomlSpaced res $ [(comment, lineComment res), (newline, newline Ini)] ++ ss
+
+keySteps : Steps q TSz TSTCK
+keySteps =
+  [ (unquotedKey, rd $ onkey Plain)
+  , (literalString, rd $ onkey Literal)
+  , copen' '"' QKey
+  ]
 
 valDFA : DFA q TSz TSTCK
 valDFA =
@@ -170,7 +223,31 @@ valDFA =
     -- Nested Values
     , copen '[' openArray
     , copen '{' openInlineTable
+    , copen' '"' QStr
+    , copen' #"""""# MStr
     ]
+
+escapes : TST -> Steps q TSz TSTCK
+escapes res =
+    [ read basicUnescaped  (pushStr res)
+    , cexpr #"\""# (pushStr res "\"")
+    , cexpr #"\\"# (pushStr res "\\")
+    , cexpr #"\b"# (pushStr res "\b")
+    , cexpr #"\e"# (pushStr res "\e")
+    , cexpr #"\f"# (pushStr res "\f")
+    , cexpr #"\n"# (pushStr res "\n")
+    , cexpr #"\r"# (pushStr res "\r")
+    , cexpr #"\t"# (pushStr res "\t")
+    , ("\\x" >> repeat 2 hexdigit, rd $ escape res)
+    , ("\\u" >> repeat 4 hexdigit, rd $ escape res)
+    , ("\\U" >> repeat 8 hexdigit, rd $ escape res)
+    ]
+
+strDFA : TST -> (TSTCK q => F1 q TST) -> DFA q TSz TSTCK
+strDFA res cls = dfa $ cexpr '"' cls :: escapes res
+
+mstrDFA : TST -> DFA q TSz TSTCK
+mstrDFA res = dfa $ cexpr #"""""# qstr :: escapes res
 
 --------------------------------------------------------------------------------
 -- State Transitions
@@ -185,6 +262,9 @@ tomlTrans =
     , E ASep $ tomlSpaced ASep [cexpr' '.' EKey, cclose "]]" close]
     , E EKey $ tomlSpaced EKey keySteps
     , E EVal valDFA
+    , E QKey $ strDFA QKey qkey
+    , E QStr $ strDFA QStr qstr
+    , E MStr $ mstrDFA MStr
     , E EOL  $ tomlIgnore EOL []
     ]
 
@@ -202,7 +282,7 @@ tomlEOI : TST -> TSTCK q -> F1 q (Either TErr TomlTable)
 tomlEOI st sk =
   case st == Ini || st == EOL of
     False => arrFail TSTCK tomlErr st sk
-    True  => getStack >>= pure . Right . toRoot
+    True  => getStack >>= pure . toTable
 
 export
 toml : P1 q TErr TSz TSTCK TomlTable
