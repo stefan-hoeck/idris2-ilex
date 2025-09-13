@@ -33,12 +33,12 @@ newline = '\n' <|> "\r\n"
 ||| non-ascii = %x80-D7FF / %xE000-10FFFF
 export
 nonAscii : RExp True
-nonAscii = range32 0x80 0xd7ff || range32 0xe000 0x10ffff
+nonAscii = range32 0x80 0xD7FF || range32 0xE000 0x10FFFF
 
 ||| non-eol = %x09 / %x20-7F / non-ascii
 export
 nonEOL : RExp True
-nonEOL = '\t' || range32 0x20 0x7f || nonAscii
+nonEOL = '\t' || range32 0x20 0x7F || nonAscii
 
 ||| comment-start-symbol = %x23 ; #
 ||| comment = comment-start-symbol *non-eol
@@ -195,7 +195,7 @@ timeMinute  = range '0' '5' >> digit
 ||| time-secfrac = "." 1*DIGIT
 export
 localTime : RExp True
-localTime = timeHour >> ':' >> timeMinute >> opt (':' >> sec >> opt frac)
+localTime = timeHour >> ':' >> timeMinute >> ':' >> sec >> opt frac
   where
     sec,frac : RExp True
     sec  = timeMinute <|> "60"
@@ -255,36 +255,3 @@ readOffsetDateTime bs =
              in O x h m
 
 -- 557 LOC
---
---
--- ;; Array
---
--- array = array-open [ array-values ] ws-comment-newline array-close
---
--- array-open =  %x5B ; [
--- array-close = %x5D ; ]
---
--- array-values =  ws-comment-newline val ws-comment-newline array-sep array-values
--- array-values =/ ws-comment-newline val ws-comment-newline [ array-sep ]
---
--- array-sep = %x2C  ; , Comma
---
--- ;; Table
---
--- table = std-table / array-table
---
--- ;; Standard Table
---
--- std-table = std-table-open key std-table-close
---
---
--- ;; Inline Table
---
--- inline-table = inline-table-open [ inline-table-keyvals ] ws-comment-newline inline-table-close
---
--- inline-table-open  = %x7B  ; {
--- inline-table-close = %x7D  ; }
--- inline-table-sep   = %x2C  ; , Comma
---
--- inline-table-keyvals =  ws-comment-newline keyval ws-comment-newline inline-table-sep inline-table-keyvals
--- inline-table-keyvals =/ ws-comment-newline keyval ws-comment-newline [ inline-table-sep ]

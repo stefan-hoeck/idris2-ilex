@@ -67,26 +67,35 @@ record Span where
   c1 : Vect (S len) Bits8
   c2 : Vect (S len) Bits8
 
+encodeSP : (n : Bits32) -> Vect (S $ len $ encode n) Bits8
+encodeSP n = bytes $ encode n
+
 partial
 spans : Vect m Bits8 -> Vect n Bits8 -> List Span
 spans x@[_]       y@[_]       = [SP x y]
 spans x@[_,_]     y@[_,_]     = [SP x y]
 spans x@[_,_,_]   y@[_,_,_]   = [SP x y]
 spans x@[_,_,_,_] y@[_,_,_,_] = [SP x y]
-spans x@[_]       y = SP x [0x7f] :: spans [0xc2,0x80] y
-spans x@[_,_]     y = SP x [0xdf,0xbf] :: spans [0xe0,0x80,0x80] y
-spans x@[_,_,_]   y = SP x [0xef,0xbf,0xbf] :: spans [0xf0,0x80,0x80,0x80] y
+spans x@[_]       y = SP x (encodeSP 0x7f) :: spans (encodeSP 0x80) y
+spans x@[_,_]     y = SP x (encodeSP 0x7ff) :: spans (encodeSP 0x800) y
+spans x@[_,_,_]   y = SP x (encodeSP 0xffff) :: spans (encodeSP 0x10000) y
 
 --------------------------------------------------------------------------------
 -- UTF-8 ranges
 --------------------------------------------------------------------------------
 
+-- minimum and maximum additional (non-leading) UTF-8 bytes in
+-- multi-byte code points.
+MinAddByte, MaxAddByte : Bits8
+MinAddByte = 0b1000_0000
+MaxAddByte = 0b1011_1111
+
 bytes : (x,y : Bits8) -> RExp8 True
 bytes x y = Ch (range $ range (cast x) (cast y))
 
 anyBytes : Vect (S n) Bits8 -> RExp8 True
-anyBytes [_]              = bytes 0x00 0xff
-anyBytes (_ :: xs@(_::_)) = bytes 0x00 0xff >> anyBytes xs
+anyBytes [_]              = bytes MinAddByte MaxAddByte
+anyBytes (_ :: xs@(_::_)) = bytes MinAddByte MaxAddByte >> anyBytes xs
 
 fromSpan : Span -> RExp8 True
 fromSpan (SP xs ys) = go xs ys
@@ -97,8 +106,8 @@ fromSpan (SP xs ys) = go xs ys
       case x == y of
         True  => bytes x x >> go xs ys
         False =>
-          let r1 := bytes x x >> go xs (ys $> 0xff)
-              r2 := bytes y y >> go (xs $> 0x00) ys
+          let r1 := bytes x x >> go xs (ys $> MaxAddByte)
+              r2 := bytes y y >> go (xs $> MinAddByte) ys
            in case x+1 < y of
                 False => r1 <|> r2
                 True  => r1 <|> r2 <|> (bytes (x+1) (y-1) >> anyBytes xs)
@@ -108,7 +117,7 @@ fromRange r =
   case isEmpty r of
     True  => Ch empty
     False => assert_total $
-      case spans (encode $ lowerBound r).bytes (encode $ upperBound r).bytes of
+      case spans (encodeSP $ lowerBound r) (encodeSP $ upperBound r) of
         []      => Ch empty
         (s::ss) => foldr (\x,y => fromSpan x <|> y) (fromSpan s) ss
 

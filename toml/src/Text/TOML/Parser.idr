@@ -27,7 +27,7 @@ data TStack : Type where
 toRoot : TStack -> TreeTable
 toRoot (STbl t sk)   = t
 toRoot (SArr t sk)   = t
-toRoot (STop v sk t) = reduceT Undef t v
+toRoot (STop v sk t) = reduceT Undef t (tagAsHDef v)
 toRoot (VArr x sv)   = toRoot x
 toRoot (VTbl x sk y) = toRoot x
 
@@ -78,7 +78,7 @@ TSTCK = Stack TomlParseError TStack TSz
 
 addTreeVal : TreeTable -> SnocList Key -> TomlValue -> Either TErr TreeTable
 addTreeVal t sk tv =
-  case tview t (sk <>> []) of
+  case vview t (sk <>> []) of
     Left x                 => Left x
     Right (VT v t k New,_) => Right $ reduceT Def (insert k.key (TV tv) t) v
     Right (v,_)            => Left $ exists [] v (TTbl empty)
@@ -232,7 +232,6 @@ escapes res =
     , cexpr #"\n"# (pushStr res "\n")
     , cexpr #"\r"# (pushStr res "\r")
     , cexpr #"\t"# (pushStr res "\t")
-    , goBS ("\\x" >> repeat 2 hexdigit) (escape res)
     , goBS ("\\u" >> repeat 4 hexdigit) (escape res)
     , goBS ("\\U" >> repeat 8 hexdigit) (escape res)
     ]
@@ -285,7 +284,7 @@ tomlTrans =
     , E MLLStr mllDFA
     , E TVal $ tomlSpaced TVal [cexpr' ',' TCom, cclose '}' close]
     , E TNew $ tomlSpaced TNew (cclose '}' close :: keySteps)
-    , E TCom $ tomlSpaced TNew (cclose '}' close :: keySteps)
+    , E TCom $ tomlSpaced TCom keySteps
     , E EOL  $ tomlIgnore EOL Ini []
     ]
 

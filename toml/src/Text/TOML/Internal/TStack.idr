@@ -16,7 +16,7 @@ import Syntax.T1
 --------------------------------------------------------------------------------
 
 public export
-data Tag = New | Undef | Def
+data Tag = New | Undef | Def | HDef
 
 %runElab derive "Tag" [Eq,Show,Ord]
 
@@ -50,6 +50,11 @@ data TView : Type -> Type where
   VR : TView t
   VT : TView t -> SortedMap String t -> Key -> Tag -> TView t
   VA : TView Tree -> TreeTable -> Key -> SnocList TreeTable -> TView Tree
+
+export
+tagAsHDef : TView t -> TView t
+tagAsHDef (VT v t k _) = VT v t k HDef
+tagAsHDef v            = v
 
 keys : List Key -> TView t -> List Key
 keys ks VR           = ks
@@ -88,10 +93,21 @@ view v t (k::ks) =
 export
 tview : TreeTable -> List Key -> Either TErr (TView Tree,TreeTable)
 tview t ks =
-  case view VR t ks of
-    Right (v@(VT _ _ _ Def),_) => Left $ exists [] v (TTbl empty)
-    Right (v@(VA {}),_)        => Left $ exists [] v (TArr [])
-    res                        => res
+  view VR t ks >>= \case
+    (v@(VT _ _ _ x), t) => if x < Def then Right (v,t) else Left (vexists v)
+    (v,t)               => Left (vexists v)
+
+noHDef : TView a -> Either TErr ()
+noHDef VR              = Right ()
+noHDef v@(VT w _ _ x)  = if x < HDef then noHDef w else Left (vexists v)
+noHDef v@(VA {})       = Left (vexists v)
+
+export
+vview : TreeTable -> List Key -> Either TErr (TView Tree,TreeTable)
+vview t ks =
+  view VR t ks >>= \case
+    (v@(VT _ _ _ New), t) => noHDef v $> (v,t)
+    (v,_)                 => Left $ vexists v
 
 export
 iview : TView TomlValue -> TomlTable -> List Key -> Either TErr (TView TomlValue)
