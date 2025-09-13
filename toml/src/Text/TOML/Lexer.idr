@@ -35,16 +35,16 @@ export
 nonAscii : RExp True
 nonAscii = range32 0x80 0xD7FF || range32 0xE000 0x10FFFF
 
-||| non-eol = %x09 / %x20-7F / non-ascii
-export
-nonEOL : RExp True
-nonEOL = '\t' || range32 0x20 0x7F || nonAscii
-
 ||| comment-start-symbol = %x23 ; #
 ||| comment = comment-start-symbol *non-eol
+||| non-eol = %x09 / %x20-7F / non-ascii
+|||
+||| Note: In the ABNF spec (see above) `0x7F` (`'\DEL'`) is a valid
+|||       character in comments, but according to the written spec,
+|||       it is explicitly forbidden.
 export
 comment : RExp True
-comment = '#' >> star nonEOL
+comment = '#' >> star ('\t' || range32 0x20 0x7E || nonAscii)
 
 --------------------------------------------------------------------------------
 -- Strings and Keys
@@ -253,5 +253,3 @@ readOffsetDateTime bs =
                 m := readInt refineMinute 0 (take 2 $ drop 4 bs2)
                 x := if at bv 0 == 43 then Plus else Minus
              in O x h m
-
--- 557 LOC

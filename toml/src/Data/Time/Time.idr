@@ -187,6 +187,22 @@ data AnyTime : Type where
 %runElab derive "AnyTime" [Show, Eq]
 
 export
+getDate : AnyTime -> Maybe LocalDate
+getDate (ATLocalDate x)      = Just x
+getDate (ATLocalTime x)      = Nothing
+getDate (ATLocalDateTime x)  = Just x.date
+getDate (ATOffsetDateTime x) = Just x.date
+
+export
+extraCheckDate : AnyTime -> Either LocalDate AnyTime
+extraCheckDate at =
+  case getDate at of
+    Nothing                => Right at
+    Just (MkDate y FEB 29) =>
+      if isLeap y then Right at else Left (MkDate y FEB 29)
+    Just d                 => Right at
+
+export
 Interpolation AnyTime where
   interpolate (ATLocalDate x)       = interpolate x
   interpolate (ATLocalTime x)      = interpolate x

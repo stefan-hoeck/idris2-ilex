@@ -106,6 +106,7 @@ data TomlParseError : Type where
   TableExists       : List Key -> TomlParseError
   StaticArray       : List Key -> TomlParseError
   TableArray        : List Key -> TomlParseError
+  InvalidLeapDay    : LocalDate -> TomlParseError
 
 %runElab derive "TomlParseError" [Eq,Show]
 
@@ -121,6 +122,7 @@ Interpolation TomlParseError where
     "Trying to modify a static array: \{k}"
   interpolate (TableArray k) =
     "Trying to overwrite an array of tables: \{k}"
+  interpolate (InvalidLeapDay d) = "Invalid leap day: \{d}"
 
 ||| Error type when lexing and parsing TOML files
 public export

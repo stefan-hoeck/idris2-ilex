@@ -24,6 +24,10 @@ export
 Interpolation Year where
   interpolate (Y y) = padLeft 4 '0' $ show y
 
+public export
+isLeap : Year -> Bool
+isLeap (Y y) = mod y 4 == 0 && (mod y 100 /= 0 || mod y 400 == 0)
+
 --------------------------------------------------------------------------------
 --          Month
 --------------------------------------------------------------------------------

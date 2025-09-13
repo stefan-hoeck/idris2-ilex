@@ -160,6 +160,12 @@ parameters {auto sk : TSTCK q}
 val : a -> (ByteString -> TomlValue) -> (a, Step q TSz TSTCK)
 val x f = goBS x $ \bs => getStack >>= onval (f bs)
 
+valE : a -> (ByteString -> AnyTime) -> (a, Step q TSz TSTCK)
+valE x f =
+  goBS x $ \bs => case extraCheckDate (f bs) of
+    Right v => getStack >>= onval (TTime v)
+    Left  x => raise (Custom $ InvalidLeapDay x) (size bs) Err
+
 %inline
 val' : a -> TomlValue -> (a, Step q TSz TSTCK)
 val' x = val x . const
@@ -200,11 +206,11 @@ valSteps =
   , val float    (TDbl . readFloat)
 
   -- Date and Time
-  , val fullDate  (TTime . ATLocalDate . readLocalDate)
-  , val (fullDate >> opt ' ')  (TTime . ATLocalDate . readLocalDate . trim)
-  , val localTime (TTime . ATLocalTime . readLocalTime)
-  , val localDateTime (TTime . ATLocalDateTime . readLocalDateTime)
-  , val offsetDateTime (TTime . ATOffsetDateTime . readOffsetDateTime)
+  , valE fullDate  (ATLocalDate . readLocalDate)
+  , valE (fullDate >> opt ' ')  (ATLocalDate . readLocalDate . trim)
+  , valE localTime (ATLocalTime . readLocalTime)
+  , valE localDateTime (ATLocalDateTime . readLocalDateTime)
+  , valE offsetDateTime (ATOffsetDateTime . readOffsetDateTime)
 
   -- Nested Values
   , copen '[' openArray
@@ -307,11 +313,3 @@ tomlEOI st sk =
 export
 toml : P1 q TErr TSz TSTCK TomlTable
 toml = P Ini (init empty) tomlTrans (\x => (Nothing #)) tomlErr tomlEOI
-
-test : String -> IO ()
-test s =
-  case parseString toml Virtual s of
-    Right v => printLn v
-    Left  x => putStrLn "\{x}"
-
--- 222 LOC

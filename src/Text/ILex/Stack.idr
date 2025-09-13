@@ -506,6 +506,13 @@ parameters {auto he  : HasError s e}
            {auto pos : HasBytes s}
 
   export
+  raise : InnerError e -> Nat -> s q => v -> F1 q v
+  raise err n res = T1.do
+    ps <- getPosition
+    let bs := BS ps (incCol n ps)
+    failWith (B err bs) res
+
+  export
   unexpected : List String -> s q -> F1 q (BoundedErr e)
   unexpected strs sk =
     read1 (error sk) >>= \case
