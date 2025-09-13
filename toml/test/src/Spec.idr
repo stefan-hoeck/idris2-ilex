@@ -11,6 +11,28 @@ import Text.ILex.FS
 import Text.TOML.Parser
 import Text.TOML.Types
 
+encode : String -> String -> JSON
+encode t v = JObject [("type", JString t), ("value", JString v)]
+
+valueToJSON : TomlValue -> JSON
+
+tableToJSON : TomlTable -> JSON
+tableToJSON = JObject . SortedMap.toList . map valueToJSON
+
+arrayToJSON : List TomlValue -> JSON
+arrayToJSON = JArray . map valueToJSON
+
+valueToJSON (TStr str) = encode "string" str
+valueToJSON (TBool x)  = encode "bool" (toLower $ show x)
+valueToJSON (TTime (ATLocalDate x))      = encode "date-local" "\{x}"
+valueToJSON (TTime (ATLocalTime x))      = encode "time-local" "\{x}"
+valueToJSON (TTime (ATLocalDateTime x))  = encode "datetime-local" "\{x}"
+valueToJSON (TTime (ATOffsetDateTime x)) = encode "datetime" "\{x}"
+valueToJSON (TInt i)   = encode "integer" (show i)
+valueToJSON (TDbl x)   = encode "float" (interpolate x)
+valueToJSON (TArr vs)  = arrayToJSON vs
+valueToJSON (TTbl x)   = tableToJSON x
+
 testdir : Path Abs
 testdir = "/home/gundi/toml/toml-test/tests"
 
@@ -53,12 +75,19 @@ runTest p =
       pjson := testdir </> p <.> "json"
    in case invalidTest p.parent of
         True => Prelude.do
-          Left x <- ttbl ptoml | Right _ => stdoutLn "\{ptoml} should have failed" >> emit (1,1)
+          Left x <- ttbl ptoml
+            | Right _ => stdoutLn "\{ptoml} should have failed" >> emit (1,1)
           emit (1,0)
         False => Prelude.do
           jv        <- jval pjson
           Right tbl <- ttbl ptoml | Left x => stdoutLn "\{x}" >> emit (1,1)
-          emit (1,0)
+          case jv == tableToJSON tbl of
+            True  => emit (1,0)
+            False => Prelude.do
+              stdoutLn "\{ptoml}:"
+              stdoutLn "expected: \{show jv}"
+              stdoutLn "found:    \{show $ tableToJSON tbl}\n"
+              emit (1,1)
 
 toPath : ByteString -> Maybe (File Rel)
 toPath (BS 0 _) = Nothing

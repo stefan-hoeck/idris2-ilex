@@ -37,11 +37,7 @@ nonAscii = range32 0x80 0xD7FF || range32 0xE000 0x10FFFF
 
 ||| comment-start-symbol = %x23 ; #
 ||| comment = comment-start-symbol *non-eol
-||| non-eol = %x09 / %x20-7F / non-ascii
-|||
-||| Note: In the ABNF spec (see above) `0x7F` (`'\DEL'`) is a valid
-|||       character in comments, but according to the written spec,
-|||       it is explicitly forbidden.
+||| non-eol = %x09 / %x20-7E / non-ascii
 export
 comment : RExp True
 comment = '#' >> star ('\t' || range32 0x20 0x7E || nonAscii)
