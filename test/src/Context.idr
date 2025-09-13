@@ -41,9 +41,8 @@ SK = Stack Void (SnocList $ Bounded Lit) 2
 -- Transformations
 --------------------------------------------------------------------------------
 
-closeStr : (x : SK q) => F1 q (Index 2)
-closeStr = T1.do
-  bs <- closeBounds
+closeStr : (x : SK q) => Bounds -> F1 q (Index 2)
+closeStr bs = T1.do
   s  <- getStr
   push1 x.stck (B (SL s) bs)
   pure SLit
@@ -56,13 +55,13 @@ lit1 =
   lex1
     [ E SLit $ dfa $ jsonSpaced SLit
         [ readTok decimal (Context.Num . cast)
-        , copen '"' (pure SStr)
+        , copen' '"' SStr
         ]
     , E SStr $ dfa
         [ read chars $ pushStr SStr
         , cexpr #"\\"# $ pushStr SStr #"\"#
         , cexpr #"\""# $ pushStr SStr #"""#
-        , cexpr '"' closeStr
+        , ccloseWithBounds '"' closeStr
         ]
     ]
 

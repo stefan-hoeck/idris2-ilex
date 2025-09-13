@@ -42,3 +42,14 @@ streamParse prs o pl = lift1 (init prs) >>= flip go pl
           lift1 (pparseBytes prs st bs) >>= \case
             Left x        => throw (toStreamError o x)
             Right (st2,m) => consMaybe m (go st2 p2)
+
+export %inline
+streamVal :
+     {auto has : Has (ParseError e) es}
+  -> {auto lft : ELift1 q f}
+  -> (dflts : Lazy a)
+  -> P1 q (BoundedErr e) r s a
+  -> Origin
+  -> Stream f es ByteString
+  -> Pull f o es a
+streamVal dflt prs o = P.lastOr dflt . streamParse prs o

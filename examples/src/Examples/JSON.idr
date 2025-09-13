@@ -1,8 +1,6 @@
 module Examples.JSON
 
-import Derive.Prelude
 import FS.Posix
-import FS.Posix.Internal
 import FS.System
 import IO.Async.Loop.Epoll
 import IO.Async.Loop.Posix
@@ -33,12 +31,12 @@ runProg prog =
  let handled := handle [stderrLn . interpolate, stderrLn . interpolate] prog
   in epollApp $ mpull handled
 
-streamVals : Prog String () -> Buf -> Prog Void ()
-streamVals pths buf =
+streamVals : Prog String () -> Prog Void ()
+streamVals pths =
      flatMap pths (\p => streamParse jsonArray (FileSrc p) (readBytes p))
   |> C.count
   |> foreach (\x => stdoutLn "\{show x} values streamed.")
 
 covering
 main : IO ()
-main = runProg $ lift1 (buf 0xfff) >>= streamVals (P.tail args)
+main = runProg $ streamVals (P.tail args)

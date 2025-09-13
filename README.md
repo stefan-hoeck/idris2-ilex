@@ -603,7 +603,7 @@ HasStringLits CSTCK where
   strings = strs
 
 export %inline
-HasStack CSTCK Line where
+HasStack CSTCK (SnocList Line) where
   stack = lines
 
 export %inline
