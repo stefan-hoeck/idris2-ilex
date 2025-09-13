@@ -130,7 +130,7 @@ float = decInt >> (exp <|> (frac >> opt exp))
   where
     frac, exp, zeroPrefixableInt : RExp True
     frac              = '.' >> zeroPrefixableInt
-    exp               = 'e' >> mp >> zeroPrefixableInt
+    exp               = ('e' <|> 'E') >> mp >> zeroPrefixableInt
     zeroPrefixableInt = digit >> star (opt '_' >> digit)
 
 export

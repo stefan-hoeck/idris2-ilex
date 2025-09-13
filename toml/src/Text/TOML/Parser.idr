@@ -43,7 +43,7 @@ empty = STop VR [<] empty
 
 public export
 TSz : Bits32
-TSz = 19
+TSz = 20
 
 public export
 TST : Type
@@ -60,8 +60,8 @@ EKey = 1; ESep = 2; EVal = 3; EOL = 4; Err = 5; TSep = 6; ASep = 7
 
 -- Arrays and Inline Tabls:
 -- ANew, AVal, ACom : New array / array after value / array after comma
-ANew, AVal, ACom, TVal, TCom : TST
-ANew = 8; AVal = 9; ACom = 10; TVal = 11; TCom = 12
+ANew, AVal, ACom, TVal, TCom, TNew : TST
+ANew = 8; AVal = 9; ACom = 10; TVal = 11; TCom = 12; TNew = 19
 
 -- Strings
 QKey, LKey, QStr, LStr, MLQStr, MLLStr : TST
@@ -134,7 +134,7 @@ parameters {auto sk : TSTCK q}
   openArray = getStack >>= \s => putStackAs (VArr s [<]) ANew
 
   openInlineTable : F1 q TST
-  openInlineTable = getStack >>= \s => putStackAs (VTbl s [<] empty) EKey
+  openInlineTable = getStack >>= \s => putStackAs (VTbl s [<] empty) TNew
 
   close : F1 q TST
   close =
@@ -171,9 +171,9 @@ val' x = val x . const
 tomlSpaced : TST -> Steps q TSz TSTCK -> DFA q TSz TSTCK
 tomlSpaced res ss = dfa $ conv' (plus wschar) res :: ss
 
-tomlIgnore : TST -> Steps q TSz TSTCK -> DFA q TSz TSTCK
-tomlIgnore res ss =
-  tomlSpaced res $ [read' comment res, newline' newline Ini] ++ ss
+tomlIgnore : TST -> TST -> Steps q TSz TSTCK -> DFA q TSz TSTCK
+tomlIgnore res nl ss =
+  tomlSpaced res $ [read' comment res, newline' newline nl] ++ ss
 
 keySteps : Steps q TSz TSTCK
 keySteps =
@@ -182,44 +182,44 @@ keySteps =
   , copen' '"'  QKey
   ]
 
-valDFA : DFA q TSz TSTCK
-valDFA =
-  tomlSpaced EVal
-    [ val' "true"  (TBool True)
-    , val' "false" (TBool False)
+valSteps : Steps q TSz TSTCK
+valSteps =
+  [ val' "true"  (TBool True)
+  , val' "false" (TBool False)
 
-    -- integers
-    , val  decInt  (TInt . readDecInt)
-    , val  binInt  (TInt . binarySep . drop 2)
-    , val  octInt  (TInt . octalSep underscore . drop 2)
-    , val  hexInt  (TInt . hexadecimalSep underscore . drop 2)
+  -- integers
+  , val  decInt  (TInt . readDecInt)
+  , val  binInt  (TInt . binarySep . drop 2)
+  , val  octInt  (TInt . octalSep underscore . drop 2)
+  , val  hexInt  (TInt . hexadecimalSep underscore . drop 2)
 
-    -- floats
-    , val' nan     (TDbl NaN)
-    , val' posInf  (TDbl $ Infty Plus)
-    , val' "-inf"  (TDbl $ Infty Minus)
-    , val float    (TDbl . readFloat)
+  -- floats
+  , val' nan     (TDbl NaN)
+  , val' posInf  (TDbl $ Infty Plus)
+  , val' "-inf"  (TDbl $ Infty Minus)
+  , val float    (TDbl . readFloat)
 
-    -- Date and Time
-    , val fullDate  (TTime . ATLocalDate . readLocalDate)
-    , val localTime (TTime . ATLocalTime . readLocalTime)
-    , val localDateTime (TTime . ATLocalDateTime . readLocalDateTime)
-    , val offsetDateTime (TTime . ATOffsetDateTime . readOffsetDateTime)
+  -- Date and Time
+  , val fullDate  (TTime . ATLocalDate . readLocalDate)
+  , val (fullDate >> opt ' ')  (TTime . ATLocalDate . readLocalDate . trim)
+  , val localTime (TTime . ATLocalTime . readLocalTime)
+  , val localDateTime (TTime . ATLocalDateTime . readLocalDateTime)
+  , val offsetDateTime (TTime . ATOffsetDateTime . readOffsetDateTime)
 
-    -- Nested Values
-    , copen '[' openArray
-    , copen '{' openInlineTable
+  -- Nested Values
+  , copen '[' openArray
+  , copen '{' openInlineTable
 
-    -- Strings
-    , copen' '"'  QStr
-    , copen' '\'' LStr
-    , copen' #"""""# MLQStr
-    , go (#"""""# >> newline) (pushPosition >> incline 1 >> pure MLQStr)
-    , copen' "'''" MLLStr
-    , go ("'''" >> newline) (pushPosition >> incline 1 >> pure MLLStr)
-    , val' #""""# (TStr "")
-    , val' #"''"# (TStr "")
-    ]
+  -- Strings
+  , copen' '"'  QStr
+  , copen' '\'' LStr
+  , copen' #"""""# MLQStr
+  , go (#"""""# >> newline) (pushPosition >> incline 1 >> pure MLQStr)
+  , copen' "'''" MLLStr
+  , go ("'''" >> newline) (pushPosition >> incline 1 >> pure MLLStr)
+  , val' #""""# (TStr "")
+  , val' #"''"# (TStr "")
+  ]
 
 escapes : TST -> Steps q TSz TSTCK
 escapes res =
@@ -268,19 +268,25 @@ mllDFA =
 tomlTrans : Lex1 q TSz TSTCK
 tomlTrans =
   lex1
-    [ E Ini  $ tomlIgnore Ini (keySteps ++ [copen '[' openStdTable, copen "[[" openArrayTable])
+    [ E Ini  $ tomlIgnore Ini Ini (keySteps ++ [copen '[' openStdTable, copen "[[" openArrayTable])
     , E ESep $ tomlSpaced ESep [cexpr' '.' EKey, cexpr' '=' EVal]
     , E TSep $ tomlSpaced TSep [cexpr' '.' EKey, cclose ']' close]
     , E ASep $ tomlSpaced ASep [cexpr' '.' EKey, cclose "]]" close]
     , E EKey $ tomlSpaced EKey keySteps
-    , E EVal valDFA
+    , E EVal $ tomlSpaced EVal valSteps
+    , E ANew $ tomlIgnore ANew ANew (cclose ']' close :: valSteps)
+    , E AVal $ tomlIgnore AVal AVal [cclose ']' close, cexpr' ',' ACom]
+    , E ACom $ tomlIgnore ACom ACom (cclose ']' close :: valSteps)
     , E QKey $ dfa $ ccloseBoundedStr '"' (addkey Quoted) :: escapes QKey
     , E LKey $ dfa [ccloseBoundedStr '\'' (addkey Plain), read literalChars (pushStr LKey)]
     , E QStr $ dfa $ ccloseStr '"' qstr :: escapes QStr
     , E LStr $ dfa [ccloseStr '\'' qstr, read literalChars (pushStr LStr)]
     , E MLQStr mlqDFA
     , E MLLStr mllDFA
-    , E EOL  $ tomlIgnore EOL []
+    , E TVal $ tomlSpaced TVal [cexpr' ',' TCom, cclose '}' close]
+    , E TNew $ tomlSpaced TNew (cclose '}' close :: keySteps)
+    , E TCom $ tomlSpaced TNew (cclose '}' close :: keySteps)
+    , E EOL  $ tomlIgnore EOL Ini []
     ]
 
 tomlErr : Arr32 TSz (TSTCK q -> F1 q TErr)

@@ -53,8 +53,7 @@ runTest p =
       pjson := testdir </> p <.> "json"
    in case invalidTest p.parent of
         True => Prelude.do
-          stdoutLn "Testing: \{ptoml}"
-          Left x <- ttbl ptoml | Right _ => emit (1,1)
+          Left x <- ttbl ptoml | Right _ => stdoutLn "\{ptoml} should have failed" >> emit (1,1)
           emit (1,0)
         False => Prelude.do
           jv        <- jval pjson
