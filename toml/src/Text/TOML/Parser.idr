@@ -43,7 +43,7 @@ empty = STop VR [<] empty
 
 public export
 TSz : Bits32
-TSz = 18
+TSz = 19
 
 public export
 TST : Type
@@ -64,18 +64,13 @@ ANew, AVal, ACom, TVal, TCom : TST
 ANew = 8; AVal = 9; ACom = 10; TVal = 11; TCom = 12
 
 -- Strings
--- QKey, QStr
-QKey, LKey, QStr, LStr, MStr : TST
-QKey = 13; LKey = 14; QStr = 15; MStr = 16; LStr = 17
+QKey, LKey, QStr, LStr, MLQStr, MLLStr : TST
+QKey = 13; LKey = 14; QStr = 15; MLQStr = 16; LStr = 17; MLLStr = 18
 
 
 public export
 0 TSTCK : Type -> Type
 TSTCK = Stack TomlParseError TStack TSz
-
-keyString : KeyType -> ByteString -> (String,Nat)
-keyString Plain bs = (toString bs, size bs)
-keyString _     bs = let s := unlit bs in (s, length s + 2)
 
 --------------------------------------------------------------------------------
 -- Tables and Values
@@ -214,9 +209,16 @@ valDFA =
     -- Nested Values
     , copen '[' openArray
     , copen '{' openInlineTable
+
+    -- Strings
     , copen' '"'  QStr
     , copen' '\'' LStr
-    , copen' #"""""# MStr
+    , copen' #"""""# MLQStr
+    , go (#"""""# >> newline) (pushPosition >> incline 1 >> pure MLQStr)
+    , copen' "'''" MLLStr
+    , go ("'''" >> newline) (pushPosition >> incline 1 >> pure MLLStr)
+    , val' #""""# (TStr "")
+    , val' #"''"# (TStr "")
     ]
 
 escapes : TST -> Steps q TSz TSTCK
@@ -235,8 +237,29 @@ escapes res =
     , goBS ("\\U" >> repeat 8 hexdigit) (escape res)
     ]
 
-mstrDFA : TST -> DFA q TSz TSTCK
-mstrDFA res = dfa $ ccloseStr #"""""# qstr :: escapes res
+mlqDFA : DFA q TSz TSTCK
+mlqDFA =
+  dfa $
+    [ ccloseStr #"""""# qstr
+    , cclose #""""""# (pushStr' "\"" >> getStr >>= qstr)
+    , cclose #"""""""# (pushStr' "\"\"" >> getStr >>= qstr)
+    , cexpr #"""# (pushStr MLQStr "\"")
+    , cexpr #""""# (pushStr MLQStr "\"\"")
+    , newline newline (pushStr MLQStr "\n")
+    , multiline' mlbEscapedNL MLQStr
+    ] ++ escapes MLQStr
+
+mllDFA : DFA q TSz TSTCK
+mllDFA =
+  dfa $
+    [ ccloseStr "'''" qstr
+    , cclose "''''" (pushStr' "'" >> getStr >>= qstr)
+    , cclose "'''''" (pushStr' "''" >> getStr >>= qstr)
+    , cexpr "'" (pushStr MLLStr "'")
+    , cexpr "''" (pushStr MLLStr "''")
+    , newline newline (pushStr MLLStr "\n")
+    , read literalChars (pushStr MLLStr)
+    ]
 
 --------------------------------------------------------------------------------
 -- State Transitions
@@ -255,7 +278,8 @@ tomlTrans =
     , E LKey $ dfa [ccloseBoundedStr '\'' (addkey Plain), read literalChars (pushStr LKey)]
     , E QStr $ dfa $ ccloseStr '"' qstr :: escapes QStr
     , E LStr $ dfa [ccloseStr '\'' qstr, read literalChars (pushStr LStr)]
-    , E MStr $ mstrDFA MStr
+    , E MLQStr mlqDFA
+    , E MLLStr mllDFA
     , E EOL  $ tomlIgnore EOL []
     ]
 

@@ -33,7 +33,7 @@ newline = '\n' <|> "\r\n"
 ||| non-ascii = %x80-D7FF / %xE000-10FFFF
 export
 nonAscii : RExp True
-nonAscii = range32 0x80 0xd7ff || range32 0xe000 0x10fff
+nonAscii = range32 0x80 0xd7ff || range32 0xe000 0x10ffff
 
 ||| non-eol = %x09 / %x20-7F / non-ascii
 export
@@ -60,15 +60,17 @@ export
 literalChars : RExp True
 literalChars = plus $ '\t' || range32 0x20 0x26 || range32 0x28 0x7e || nonAscii
 
-export %inline
-unlit : ByteString -> String
-unlit = toString . drop 1 . dropEnd 1
-
 ||| basic-unescaped = wschar / %x21 / %x23-5B / %x5D-7E / non-ascii
 export
 basicUnescaped : RExp True
 basicUnescaped =
   wschar || '!' || range32 0x23 0x5b || range32 0x5d 0x7e || nonAscii
+
+||| mlb-escaped-nl = escape ws newline *( wschar / newline )
+export
+mlbEscapedNL : RExp True
+mlbEscapedNL =
+  '\\' >> star wschar >> newline >> star (wschar <|> newline)
 
 --------------------------------------------------------------------------------
 -- Numbers
@@ -253,54 +255,6 @@ readOffsetDateTime bs =
              in O x h m
 
 -- 557 LOC
-
--- quoted-key = basic-string / literal-string
--- dotted-key = simple-key 1*( dot-sep simple-key )
---
---
--- ;; String
---
--- string = ml-basic-string / basic-string / ml-literal-string / literal-string
---
--- ;; Basic String
---
--- basic-string = quotation-mark *basic-char quotation-mark
---
--- quotation-mark = %x22            ; "
---
--- basic-char = basic-unescaped / escaped
--- escaped = escape escape-seq-char
---
--- escape-seq-char =/ %x78 2HEXDIG ; xHH                  U+00HH
--- escape-seq-char =/ %x75 4HEXDIG ; uHHHH                U+HHHH
--- escape-seq-char =/ %x55 8HEXDIG ; UHHHHHHHH            U+HHHHHHHH
---
--- ;; Multiline Basic String
---
--- ml-basic-string = ml-basic-string-delim [ newline ] ml-basic-body
---                   ml-basic-string-delim
--- ml-basic-string-delim = 3quotation-mark
--- ml-basic-body = *mlb-content *( mlb-quotes 1*mlb-content ) [ mlb-quotes ]
---
--- mlb-content = basic-char / newline / mlb-escaped-nl
--- mlb-quotes = 1*2quotation-mark
--- mlb-escaped-nl = escape ws newline *( wschar / newline )
---
--- ;; Literal String
---
--- literal-string = apostrophe *literal-char apostrophe
---
--- apostrophe = %x27 ; ' apostrophe
---
--- ;; Multiline Literal String
---
--- ml-literal-string = ml-literal-string-delim [ newline ] ml-literal-body
---                     ml-literal-string-delim
--- ml-literal-string-delim = 3apostrophe
--- ml-literal-body = *mll-content *( mll-quotes 1*mll-content ) [ mll-quotes ]
---
--- mll-content = literal-char / newline
--- mll-quotes = 1*2apostrophe
 --
 --
 -- ;; Array

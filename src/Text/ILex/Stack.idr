@@ -114,8 +114,8 @@ HasStringLits (Stack e a r) where
 --------------------------------------------------------------------------------
 
 export %inline
-go : (s q => F1 q (Index r)) -> Step q r s
-go f = Go $ \(x # t) => f t
+go : a -> (s q => F1 q (Index r)) -> (a,Step q r s)
+go x f = (x,Go $ \(x # t) => f t)
 
 export %inline
 goBS : HasBytes s => a -> (s q => ByteString -> F1 q (Index r)) -> (a,Step q r s)
@@ -208,6 +208,12 @@ parameters {auto sk  : s q}
     pure $ snocPack sv
 
   ||| Appends the given string to the `strings` field of some mutable
+  ||| state implementing `HasStringLits`.
+  export %inline
+  pushStr' : String -> F1' q
+  pushStr' str = push1 (strings sk) str
+
+  ||| Appends the given string to the `strings` field of some mutable
   ||| state implementing `HasStringLits` and returns the given result.
   export %inline
   pushStr : v -> String -> F1 q v
@@ -234,6 +240,15 @@ parameters {auto sk  : s q}
 parameters {auto sk  : s q}
            {auto pos : HasPosition s}
 
+  ||| Gets the current text position (line and column) from some
+  ||| mutable state implementing `HasPosition`.
+  export %inline
+  getPosition : F1 q Position
+  getPosition = T1.do
+    l <- read1 (line sk)
+    c <- read1 (col sk)
+    pure $ P l c
+
   ||| Increases the text column of some mutable state implementing
   ||| `HasPosition` by the given amount.
   export %inline
@@ -250,14 +265,17 @@ parameters {auto sk  : s q}
     write1 (line sk) (n + l)
     write1 (col sk) 0
 
-  ||| Gets the current text position (line and column) from some
-  ||| mutable state implementing `HasPosition`.
+  ||| Increases the current text position according to the characters
+  ||| encountered in the given byte string.
+  |||
+  ||| See also `Text.ILex.Bounds.inBytes`.
   export %inline
-  getPosition : F1 q Position
-  getPosition = T1.do
-    l <- read1 (line sk)
-    c <- read1 (col sk)
-    pure $ P l c
+  incML : ByteString -> F1 q ()
+  incML bs = T1.do
+    p <- getPosition
+    let P l c := incBytes bs p
+    write1 (line sk) l
+    write1 (col sk) c
 
   ||| Gets the current token bounds from some
   ||| mutable state implementing `HasPosition` after
@@ -309,13 +327,13 @@ parameters {auto pos : HasPosition s}
   ||| returning the given result.
   export %inline
   newline : RExp True -> (v : s q => F1 q (Index r)) -> (RExp True, Step q r s)
-  newline x f = (x, go $ f <* incline 1)
+  newline x f = go x $ f <* incline 1
 
   ||| Recognizes the given expression and invokes `incline` before
   ||| returning the given result.
   export %inline
   newline' : RExp True -> (v : Index r) -> (RExp True, Step q r s)
-  newline' x v = (x, go $ incline 1 >> pure v)
+  newline' x v = go x $ incline 1 >> pure v
 
 --------------------------------------------------------------------------------
 -- Constant-Size Terminals
@@ -339,7 +357,7 @@ parameters (x          : RExp True)
   ||| The current column is increased by `n` *before* invoking `f`.
   export %inline
   cexpr : (s q => F1 q (Index r)) -> (RExp True, Step q r s)
-  cexpr f = (x, go $ inccol n >> f)
+  cexpr f = go x $ inccol n >> f
 
   ||| Convenience alias for `cexpr . pure`.
   export %inline
@@ -354,7 +372,7 @@ parameters (x          : RExp True)
   ||| the stack of bounds.
   export %inline
   copen : (s q => F1 q (Index r)) -> (RExp True, Step q r s)
-  copen f = (x, go $ pushPosition >> inccol n >> f)
+  copen f = go x $ pushPosition >> inccol n >> f
 
   ||| Convenience alias for `copen . pure`.
   export %inline
@@ -368,7 +386,7 @@ parameters (x          : RExp True)
   ||| is popped from the stack.
   export %inline
   cclose : (s q => F1 q (Index r)) -> (RExp True, Step q r s)
-  cclose f = (x, go $ inccol n >> popPosition >> f)
+  cclose f = go x $ inccol n >> popPosition >> f
 
   ||| Recognizes the given character(s) and uses it to
   ||| finalize and assemble a string literal.
@@ -389,7 +407,7 @@ parameters (x          : RExp True)
   ||| is popped from the stack.
   export %inline
   ccloseWithBounds : (s q => Bounds -> F1 q (Index r)) -> (RExp True, Step q r s)
-  ccloseWithBounds f = (x, go $ inccol {q} n >> closeBounds >>= f)
+  ccloseWithBounds f = go x $ inccol {q} n >> closeBounds >>= f
 
   ||| Recognizes the given character(s) and uses it to
   ||| finalize and assemble a string literal.
@@ -429,11 +447,23 @@ parameters (x        : RExp True)
        in v # t
     )
 
-  ||| Converts the recognized token to a `String`, increases the
-  ||| current column by its length and invokes the given state transformer.
+  ||| Increases the current column by the length of the byte string
+  ||| and invokes the given state transformer.
   export %inline
   conv : (s q => ByteString -> F1 q (Index r)) -> (RExp True, Step q r s)
   conv f = goBS x $ \bs => f bs <* inccol (size bs)
+
+  ||| Like `conv` but can handle byte sequence with an unknown number
+  ||| of line feed characters.
+  |||
+  ||| Note: In performance critical parsers, this should be avoided whenever
+  |||       possible. Advancing token bounds by inspecting every byte a second
+  |||       time *can* have an impact. Whenever possible, try to separate your
+  |||       lexems into those which consist of no line breaks and those which
+  |||       consist of a predefine (typically only one) number of line breaks.
+  export %inline
+  multiline : (s q => ByteString -> F1 q (Index r)) -> (RExp True, Step q r s)
+  multiline f = goBS x $ \bs => f bs <* incML bs
 
   ||| Convenience alias for `conv . pure`.
   export %inline
@@ -443,6 +473,20 @@ parameters (x        : RExp True)
     , Rd $ \(sk # t) =>
        let bs # t := read1 (bytes sk) t
            _  # t := inccol (size bs) t
+        in v # t
+    )
+
+  ||| Convenience alias for `convML . pure`.
+  |||
+  ||| Please not, that the same performance considerations as for `convML`
+  ||| apply.
+  export %inline
+  multiline' : Index r -> (RExp True, Step q r s)
+  multiline' v =
+    ( x
+    , Rd $ \(sk # t) =>
+       let bs # t := read1 (bytes sk) t
+           _  # t := incML bs t
         in v # t
     )
 
@@ -531,7 +575,7 @@ parameters (x          : RExp True)
   ||| The current column is increased by one *after* invoking `f`.
   export %inline
   ctok : {n : _} -> (0 prf : ConstSize n x) => a -> (RExp True, Step q r s)
-  ctok v = (x, go $ lexPush n v)
+  ctok v = go x $ lexPush n v
 
   export %inline
   readTok : HasBytes s => (String -> a) -> (RExp True, Step q r s)
