@@ -101,6 +101,7 @@ runTest p =
         True => Prelude.do
           Left x <- ttbl ptoml
             | Right _ => stdoutLn "\{ptoml} should have failed" >> emit (1,1)
+          stdoutLn "\{x}"
           emit (1,0)
         False => Prelude.do
           jv        <- jval pjson
@@ -137,7 +138,7 @@ testSpec ref =
 export
 spec : IO ()
 spec = do
-  ref <- newIORef (Z,Z)
+  ref <- newref (Z,Z)
   runProg (testSpec ref)
   (t,f) <- readref ref
   stdoutLn "Spec tests run: \{show t}; Failed \{show f}"

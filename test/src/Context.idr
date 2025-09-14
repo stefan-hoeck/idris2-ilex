@@ -145,13 +145,13 @@ prop_boundsEsc =
 prop_boundsEscErr : Property
 prop_boundsEscErr =
   property1 $
-        Left (PE Virtual (BS (P 0 3) (P 0 5)) (Just #""ab\D""#) (Expected [] #"\D"#))
+        toErr (P 0 3) (P 0 5) #""ab\D""# (Expected [] #"\D"#)
     === lexBounds lit #""ab\D""#
 
 prop_unclosedErr : Property
 prop_unclosedErr =
   property1 $
-        Left (PE Virtual (BS (P 0 0) (P 0 1)) (Just #""abc d"#) (Unclosed #"""#))
+        toErr (P 0 0) (P 0 1) #""abc d"# (Unclosed #"""#)
     === lexBounds lit #""abc d"#
 
 export

@@ -288,6 +288,13 @@ tomlErr =
     , E ACom $ unclosedIfEOI "[" []
     , E TVal $ unclosedIfEOI "{" [",", "}"]
     , E TCom $ unclosedIfEOI "{" []
+    , E TNew $ unclosedIfEOI "{" []
+    , E QStr $ unclosedIfEOI "\"" []
+    , E QKey $ unclosedIfEOI "\"" []
+    , E LStr $ unclosedIfEOI "'" []
+    , E LKey $ unclosedIfEOI "'" []
+    , E MLQStr $ unclosedIfEOI "\"\"\"" []
+    , E MLLStr $ unclosedIfEOI "'''" []
     ]
 
 tomlEOI : TST -> TSTCK q -> F1 q (Either TErr TomlTable)

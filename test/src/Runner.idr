@@ -8,6 +8,10 @@ import Hedgehog
 %default total
 %language ElabReflection
 
+export
+toErr : Position -> Position -> String -> InnerError e -> Either (ParseError e) a
+toErr strt end s x = Left (PE Virtual (BS strt end) (BS strt end) (Just s) x)
+
 public export
 data AorB : Type where
   MA : AorB
@@ -113,19 +117,19 @@ prop_boundsMany =
 prop_boundsByteErr : Property
 prop_boundsByteErr =
   property1 $
-        Left (PE Virtual (BS (P 0 4) (P 0 5)) (Just " AaaD") (Expected [] "D"))
+        toErr (P 0 4) (P 0 5) " AaaD" (Expected [] "D")
     === lexBounds aOrB " AaaD"
 
 prop_boundsByteErr2 : Property
 prop_boundsByteErr2 =
   property1 $
-        Left (PE Virtual (BS (P 0 0) (P 0 3)) (Just "CcD") (Expected [] "CcD"))
+        toErr (P 0 0) (P 0 3) "CcD" (Expected [] "CcD")
     === lexBounds aOrB "CcD"
 
 prop_boundsEoiErr : Property
 prop_boundsEoiErr =
   property1 $
-        Left (PE Virtual (BS (P 0 4) (P 0 6)) (Just " AaaCc") (Expected [] "Cc"))
+        toErr (P 0 4) (P 0 6) " AaaCc" (Expected [] "Cc")
     === lexBounds aOrB " AaaCc"
 
 export

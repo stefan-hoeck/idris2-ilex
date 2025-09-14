@@ -46,11 +46,17 @@ Functor InnerError where
   map f ExpectedEOI     = ExpectedEOI
   map f (Unclosed x)    = Unclosed x
 
+uncontrol : Char -> String
+uncontrol c = if isControl c then adj (unpack $ show c) else singleton c
+  where
+    adj : List Char -> String
+    adj = pack . filter ('\'' /=)
+
 quote : String -> String
 quote s =
-  case length s of
-    1 => "'\{s}'"
-    _ => "\"\{s}\""
+  case map uncontrol (unpack s) of
+    [c] => "'\{c}'"
+    cs  => "\"\{concat cs}\""
 
 quotes : String -> List String -> String
 quotes x []  = quote x
@@ -143,25 +149,34 @@ BoundedErr = Bounded . InnerError
 public export
 record ParseError e where
   constructor PE
-  origin  : Origin
-  bounds  : Bounds
-  content : Maybe String
-  error   : InnerError e
+  ||| Origin of the byte sequence that was parsed.
+  origin    : Origin
+
+  ||| Absolute bounds where the error occurred.
+  bounds    : Bounds
+
+  ||| Bounds where the error occurred relative to the string stored
+  ||| in `content`. See also the docs of `Text.ILex.FC.printFC` for an
+  ||| explanation why the distinction between relative and absolute bounds
+  ||| is necessary.
+  relBounds : Bounds
+
+  ||| Relevant part of the text that was parsed.
+  content   : Maybe String
+
+  ||| The actual error that occurred.
+  error     : InnerError e
 
 %runElab derive "ParseError" [Show,Eq]
 
 export
-toStreamError : Origin -> Bounded (InnerError e) -> ParseError e
-toStreamError o (B err bs) = PE o bs Nothing err
-
-export
 toParseError : Origin -> String -> Bounded (InnerError e) -> ParseError e
-toParseError o s (B err bs) = PE o bs (Just s) err
+toParseError o s (B err bs) = PE o bs bs (Just s) err
 
 export
 Interpolation e => Interpolation (ParseError e) where
-  interpolate (PE origin bounds cont err) =
+  interpolate (PE origin bounds relbs cont err) =
     let fc := FC origin bounds
      in case cont of
-          Just c  => unlines $ "Error: \{err}" :: printFC fc (lines c)
+          Just c  => unlines $ "Error: \{err}" :: printFC fc relbs (lines c)
           Nothing => unlines ["Error: \{err}", interpolate fc]
