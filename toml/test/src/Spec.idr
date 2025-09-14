@@ -2,11 +2,13 @@ module Spec
 
 import Data.FilePath
 import Data.FilePath.File
+import Data.Linear.Ref1
 import FS.Posix
 import FS.System
 import IO.Async.Loop.Epoll
 import IO.Async.Loop.Posix
 import JSON.Parser
+import System
 import Text.ILex.FS
 import Text.TOML.Parser
 import Text.TOML.Types
@@ -55,8 +57,8 @@ adjJSON (JObject xs) =
 adjJSON (JArray vs)  = JArray $ map adjJSON vs
 adjJSON v            = v
 
-testdir : Path Abs
-testdir = "/home/gundi/toml/toml-test/tests"
+testdir : Path Rel
+testdir = "toml/test/suite"
 
 0 Errs : List Type
 Errs = [ParseError Void, Errno]
@@ -68,7 +70,7 @@ AllErrs = [ParseError TomlParseError, ParseError Void, Errno]
 Prog o = AsyncPull Poll o Errs
 
 export %inline
-readFile : File Abs -> Prog ByteString ()
+readFile : File Rel -> Prog ByteString ()
 readFile = readBytes . interpolate
 
 covering
@@ -83,10 +85,10 @@ invalidTest (PRel sp) =
     b::bs => b == "invalid"
     _     => True
 
-jval : File Abs -> Prog o JSON
+jval : File Rel -> Prog o JSON
 jval p = streamVal JNull json (FileSrc "\{p}") (readFile p)
 
-ttbl : File Abs -> Prog o (Either (ParseError TomlParseError) TomlTable)
+ttbl : File Rel -> Prog o (Either (ParseError TomlParseError) TomlTable)
 ttbl p =
   extractErr _ $
   streamVal {es = AllErrs} empty toml (FileSrc "\{p}") (readBytes "\{p}")
@@ -122,15 +124,21 @@ toPath bs       = Prelude.do
 add : (Nat,Nat) -> (Nat,Nat) -> (Nat,Nat)
 add (a,b) (c,d) = (a+c, b+d)
 
-testSpec : Prog Void ()
-testSpec =
+testSpec : IORef (Nat,Nat) -> Prog Void ()
+testSpec ref =
      readFile (testdir /> "files-toml-1.0.0")
   |> lines
   |> C.mapMaybe toPath
   |> bind emits
   |> bind runTest
   |> P.fold add (Z,Z)
-  |> foreach (\(t,f) => stdoutLn "Tests run: \{show t}; Tests failed \{show f}")
+  |> foreach (writeref ref)
 
-main : IO ()
-main = runProg testSpec
+export
+spec : IO ()
+spec = do
+  ref <- newIORef (Z,Z)
+  runProg (testSpec ref)
+  (t,f) <- readref ref
+  stdoutLn "Spec tests run: \{show t}; Failed \{show f}"
+  when (t == 0 || f > 0) (die "Some spec tests failed")
