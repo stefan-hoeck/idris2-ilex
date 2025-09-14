@@ -22,55 +22,72 @@ parameters (p : P1 q e r s a)
         Just f  => lastStep p f st sk
         Nothing => fail p st sk
 
+||| Converts a stream of byte strings to a list of tokens of
+||| type `a`.
+|||
+||| This can be used with any non-backtracking parsers, but for large
+||| amounts of data, the mutable parser stack must accumulate completely
+||| parsed values and emit them after every chunk of bytes has been
+||| processed.
 export
 streamParse :
      {auto has : Has (ParseError e) es}
   -> {auto lft : ELift1 q f}
   -> {auto hap : HasPosition s}
+  -> {auto hab : HasBytes s}
   -> P1 q (BoundedErr e) r s a
   -> Origin
   -> Pull f ByteString es x
   -> Pull f a es x
 streamParse prs o pl = Prelude.do
-  st  <- lift1 (init prs)
-  pos <- lift1 (getPosition @{st.stack})
-  go pos empty st pl
+  st      <- lift1 (init prs)
+  posprev <- lift1 (getPosition @{st.stack})
+  prev    <- readref (bytes st.stack)
+  go prev posprev empty st pl
 
   where
-    toErr : Position -> ByteString -> BoundedErr e -> ParseError e
-    toErr pos bs (B x bnds) =
+    toErr : ByteString -> Position -> ByteString -> BoundedErr e -> ParseError e
+    toErr prev posprev bs (B x bnds) =
      -- We are in the middle of an UTF-8-encoded byte sequence.
      -- If we start with the remainder of a multi-byte codepoint,
      -- we drop the corresponding bytes and increas the position's
      -- column by one.
-     let bs'  := dropWhile (not . isStartByte) bs
+     let pos  := incBytes prev posprev
+         bs'  := dropWhile (not . isStartByte) bs
          pos' := if bs'.size < bs.size then incCol 1 pos else pos
-      in toParseError o (toString bs') (B x $ bnds `relativeTo` pos')
+      in PE o bnds (bnds `relativeTo` pos') (Just $ toString bs') x
 
+    -- Position and ByteString correspond to the previously processed
+    -- chunk of data and the text position of its first byte. This is
+    -- used to print the error context in case of an excpetion. If tokens
+    -- can be larger than a single chunk of data, this might not be enough
+    -- to print a proper error context.
     go :
-         Position
-      -> ByteString
+         (prev0    : ByteString)
+      -> (posprev0 : Position)
+      -> (bs0      : ByteString)
       -> LexState q (BoundedErr e) r s
       -> Pull f ByteString es x
       -> Pull f a es x
-    go pos prev st p =
+    go prev0 posprev0 bs0 st p =
       assert_total $ P.uncons p >>= \case
         Left res      =>
           lift1 (appLast prs st.state st.stack st.tok) >>= \case
-            Left x  => throw (toErr pos prev x)
+            Left x  => throw (toErr prev0 posprev0 bs0 x)
             Right v => emit v $> res
-        Right (bs,p2) =>
-          lift1 (pparseBytes prs st bs) >>= \case
-            Left x        => throw (toErr pos (prev <+> bs) x)
-            Right (st2,m) => Prelude.do
-              pos <- lift1 (getPosition @{st.stack})
-              consMaybe m (go pos bs st2 p2)
+        Right (bs1,p2) => Prelude.do
+          posprev1 <- lift1 (getPosition @{st.stack})
+          prev1    <- readref (bytes st.stack)
+          lift1 (pparseBytes prs st bs1) >>= \case
+            Left x        => throw (toErr prev0 posprev0 (bs0 <+> bs1) x)
+            Right (st2,m) => consMaybe m (go prev1 posprev1 bs1 st2 p2)
 
 export %inline
 streamVal :
      {auto has : Has (ParseError e) es}
   -> {auto lft : ELift1 q f}
   -> {auto hap : HasPosition s}
+  -> {auto hab : HasBytes s}
   -> (dflts : Lazy a)
   -> P1 q (BoundedErr e) r s a
   -> Origin

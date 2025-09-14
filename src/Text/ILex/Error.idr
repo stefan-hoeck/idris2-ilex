@@ -149,21 +149,34 @@ BoundedErr = Bounded . InnerError
 public export
 record ParseError e where
   constructor PE
-  origin  : Origin
-  bounds  : Bounds
-  content : Maybe String
-  error   : InnerError e
+  ||| Origin of the byte sequence that was parsed.
+  origin    : Origin
+
+  ||| Absolute bounds where the error occurred.
+  bounds    : Bounds
+
+  ||| Bounds where the error occurred relative to the string stored
+  ||| in `content`. See also the docs of `Text.ILex.FC.printFC` for an
+  ||| explanation why the distinction between relative and absolute bounds
+  ||| is necessary.
+  relBounds : Bounds
+
+  ||| Relevant part of the text that was parsed.
+  content   : Maybe String
+
+  ||| The actual error that occurred.
+  error     : InnerError e
 
 %runElab derive "ParseError" [Show,Eq]
 
 export
 toParseError : Origin -> String -> Bounded (InnerError e) -> ParseError e
-toParseError o s (B err bs) = PE o bs (Just s) err
+toParseError o s (B err bs) = PE o bs bs (Just s) err
 
 export
 Interpolation e => Interpolation (ParseError e) where
-  interpolate (PE origin bounds cont err) =
+  interpolate (PE origin bounds relbs cont err) =
     let fc := FC origin bounds
      in case cont of
-          Just c  => unlines $ "Error: \{err}" :: printFC fc (lines c)
+          Just c  => unlines $ "Error: \{err}" :: printFC fc relbs (lines c)
           Nothing => unlines ["Error: \{err}", interpolate fc]
