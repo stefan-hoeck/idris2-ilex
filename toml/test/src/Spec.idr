@@ -138,7 +138,7 @@ testSpec ref =
 export
 spec : IO ()
 spec = do
-  ref <- newIORef (Z,Z)
+  ref <- newref (Z,Z)
   runProg (testSpec ref)
   (t,f) <- readref ref
   stdoutLn "Spec tests run: \{show t}; Failed \{show f}"
