@@ -97,34 +97,20 @@ tview t ks =
     (v@(VT _ _ _ x), t) => if x < Def then Right (v,t) else Left (vexists v)
     (v,t)               => Left (vexists v)
 
-noHDef : TView a -> Either TErr ()
-noHDef VR              = Right ()
-noHDef v@(VT w _ _ x)  = if x < HDef then noHDef w else Left (vexists v)
-noHDef v@(VA {})       = Left (vexists v)
-
-export
-vview : TreeTable -> List Key -> Either TErr (TView Tree,TreeTable)
-vview t ks =
-  view VR t ks >>= \case
-    (v@(VT _ _ _ New), t) => noHDef v $> (v,t)
-    (v,_)                 => Left $ vexists v
-
-export
-iview : TView TomlValue -> TomlTable -> List Key -> Either TErr (TView TomlValue)
-iview v t []      = Right v
-iview v t (k::ks) =
-  case lookup k.key t of
-    Nothing        => Right $ new (VT v t k New) ks
-    Just (TTbl t2) => iview (VT v t k Def) t2 ks
-    Just val       => Left $ exists [k] v val
-
 export
 reduceT : Tag -> TreeTable -> TView Tree -> TreeTable
 reduceT x t VR             = t
 reduceT x t (VT v t2 k y)  = reduceT x (insert k.key (TT (max x y) t) t2) v
 reduceT x t (VA v t2 k st) = reduceT x (insert k.key (TA st t) t2) v
 
+noHDef : TView a -> Either TErr ()
+noHDef VR              = Right ()
+noHDef v@(VT w _ _ x)  = if x < HDef then noHDef w else Left (vexists v)
+noHDef v@(VA {})       = Left (vexists v)
+
 export
-reduceI : TomlTable -> TView TomlValue -> TomlTable
-reduceI t VR            = t
-reduceI t (VT v t2 k _) = reduceI (insert k.key (TTbl t) t2) v
+addVal : TreeTable -> SnocList Key -> TomlValue -> Either TErr TreeTable
+addVal t sk tv = do
+  (VT v t k New,_) <- view VR t (sk <>> []) | (v,_) => Left (vexists v)
+  noHDef v
+  Right $ reduceT Def (insert k.key (TV tv) t) v

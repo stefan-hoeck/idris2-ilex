@@ -22,7 +22,7 @@ data TStack : Type where
   SArr : TreeTable -> SnocList Key -> TStack
   STop : TView Tree -> SnocList Key -> TreeTable -> TStack
   VArr : TStack -> SnocList TomlValue -> TStack
-  VTbl : TStack -> SnocList Key -> TomlTable -> TStack
+  VTbl : TStack -> SnocList Key -> TreeTable -> TStack
 
 toRoot : TStack -> TreeTable
 toRoot (STbl t sk)   = t
@@ -76,20 +76,6 @@ TSTCK = Stack TomlParseError TStack TSz
 -- Tables and Values
 --------------------------------------------------------------------------------
 
-addTreeVal : TreeTable -> SnocList Key -> TomlValue -> Either TErr TreeTable
-addTreeVal t sk tv =
-  case vview t (sk <>> []) of
-    Left x                 => Left x
-    Right (VT v t k New,_) => Right $ reduceT Def (insert k.key (TV tv) t) v
-    Right (v,_)            => Left $ exists [] v (TTbl empty)
-
-addInlineVal : TomlTable -> SnocList Key -> TomlValue -> Either TErr TomlTable
-addInlineVal t sk tv =
-  case iview VR t (sk <>> []) of
-    Left x               => Left x
-    Right (VT v t k New) => Right $ reduceI (insert k.key tv t) v
-    Right v              => Left $ exists [] v (TTbl empty)
-
 parameters {auto sk : TSTCK q}
 
   addkey : KeyType -> Bounded String -> F1 q TST
@@ -119,9 +105,9 @@ parameters {auto sk : TSTCK q}
   end x (Right y) = putStackAs y x
 
   onval : TomlValue -> TStack -> F1 q TST
-  onval v (STop x sk t) = end EOL  $ STop x [<] <$> addTreeVal t sk v
+  onval v (STop x sk t) = end EOL  $ STop x [<] <$> addVal t sk v
   onval v (VArr x sv)   = end AVal $ Right (VArr x (sv:<v))
-  onval v (VTbl x sk t) = end TVal $ VTbl x [<] <$> addInlineVal t sk v
+  onval v (VTbl x sk t) = end TVal $ VTbl x [<] <$> addVal t sk v
   onval v s             = end Err (Right s)
 
   openStdTable : F1 q TST
@@ -150,7 +136,7 @@ parameters {auto sk : TSTCK q}
           Right (v,_)             => failWith (vexists v) Err
           Left  x                 => failWith x Err
       VArr x sx   => onval (TArr $ sx <>> []) x
-      VTbl x sk t => onval (TTbl t) x
+      VTbl x sk t => onval (TTbl $ toTbl t) x
       s           => end Err (Right s)
 
   qstr : String -> F1 q TST

@@ -122,7 +122,6 @@ toPath bs       = Prelude.do
 add : (Nat,Nat) -> (Nat,Nat) -> (Nat,Nat)
 add (a,b) (c,d) = (a+c, b+d)
 
--- TODO: We should have `foreach` for chunks
 testSpec : Prog Void ()
 testSpec =
      readFile (testdir /> "files-toml-1.0.0")
