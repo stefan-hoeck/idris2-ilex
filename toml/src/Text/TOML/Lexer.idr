@@ -203,11 +203,13 @@ readLocalTime bs =
   let h := readInt refineHour   0 (take 2 bs)
       m := readInt refineMinute 0 (take 2 $ drop 3 bs)
       s := readInt refineSecond 0 (take 2 $ drop 6 bs)
-   in case drop 9 bs of
-        BS 0 _ => LT h m s Nothing
-        bs     =>
-         let bs' := padRight 6 byte_0 $ take 6 bs
-          in LT h m s $ Just $ readInt refineMicroSecond 0 bs'
+   in case drop 8 bs of
+        BS 0 _           => LT h m s Nothing
+        bs@(BS (S k) bv) => case bv `at` 0 of
+          46 => -- 0.0
+           let bs' := padRight 6 byte_0 $ takeWhile isDigit (BS k $ tail bv)
+            in LT h m s $ Just $ readInt refineMicroSecond 0 bs'
+          _  => LT h m s Nothing
 
 ||| local-date-time = full-date time-delim partial-time
 ||| time-delim     = "T" / %x20 ; T, t, or space

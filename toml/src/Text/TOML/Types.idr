@@ -23,8 +23,9 @@ data TomlFloat : Type where
 
 export
 Interpolation TomlFloat where
-  interpolate NaN         = "nan"
-  interpolate (Infty x)   = "\{x}inf"
+  interpolate NaN          = "nan"
+  interpolate (Infty Plus) = "inf"
+  interpolate (Infty _)    = "-inf"
   interpolate (Float dbl) = show dbl
 
 --------------------------------------------------------------------------------

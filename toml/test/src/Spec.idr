@@ -11,6 +11,20 @@ import Text.ILex.FS
 import Text.TOML.Parser
 import Text.TOML.Types
 
+take : Nat -> String -> String
+take n = pack . take n . unpack
+
+dispLT : LocalTime -> String
+dispLT (LT h m s ms) =
+ let mss := maybe "" (\x => ".\{take 3 $ interpolate x}") ms
+  in "\{h}:\{m}:\{s}\{mss}"
+
+dispLDT : LocalDateTime -> String
+dispLDT (LDT d t) = "\{d}T\{dispLT t}"
+
+dispODT : OffsetDateTime -> String
+dispODT (ODT d $ OT t o) = "\{d}T\{dispLT t}\{o}"
+
 encode : String -> String -> JSON
 encode t v = JObject [("type", JString t), ("value", JString v)]
 
@@ -25,13 +39,21 @@ arrayToJSON = JArray . map valueToJSON
 valueToJSON (TStr str) = encode "string" str
 valueToJSON (TBool x)  = encode "bool" (toLower $ show x)
 valueToJSON (TTime (ATLocalDate x))      = encode "date-local" "\{x}"
-valueToJSON (TTime (ATLocalTime x))      = encode "time-local" "\{x}"
-valueToJSON (TTime (ATLocalDateTime x))  = encode "datetime-local" "\{x}"
-valueToJSON (TTime (ATOffsetDateTime x)) = encode "datetime" "\{x}"
+valueToJSON (TTime (ATLocalTime x))      = encode "time-local" "\{dispLT x}"
+valueToJSON (TTime (ATLocalDateTime x))  = encode "datetime-local" "\{dispLDT x}"
+valueToJSON (TTime (ATOffsetDateTime x)) = encode "datetime" "\{dispODT x}"
 valueToJSON (TInt i)   = encode "integer" (show i)
 valueToJSON (TDbl x)   = encode "float" (interpolate x)
 valueToJSON (TArr vs)  = arrayToJSON vs
 valueToJSON (TTbl x)   = tableToJSON x
+
+adjJSON : JSON -> JSON
+adjJSON (JObject [("type", JString "float"),("value", JString v)]) =
+  JObject [("type", JString "float"),("value", JDouble $ cast v)]
+adjJSON (JObject xs) =
+  JObject $ sortBy (comparing fst) (map adjJSON <$> xs)
+adjJSON (JArray vs)  = JArray $ map adjJSON vs
+adjJSON v            = v
 
 testdir : Path Abs
 testdir = "/home/gundi/toml/toml-test/tests"
@@ -81,7 +103,7 @@ runTest p =
         False => Prelude.do
           jv        <- jval pjson
           Right tbl <- ttbl ptoml | Left x => stdoutLn "\{x}" >> emit (1,1)
-          case jv == tableToJSON tbl of
+          case adjJSON jv == adjJSON (tableToJSON tbl) of
             True  => emit (1,0)
             False => Prelude.do
               stdoutLn "\{ptoml}:"
