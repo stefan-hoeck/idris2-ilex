@@ -7,6 +7,12 @@ import Text.ILex.RExp
 %default total
 %language ElabReflection
 
+||| True, if the given byte is the first byte
+||| of an UTF-8 encoded code point.
+export
+isStartByte : Bits8 -> Bool
+isStartByte b = b < 0x80 || (b .&. 0b1100_0000) == 0b1100_0000
+
 public export
 record Codepoint where
   constructor CP

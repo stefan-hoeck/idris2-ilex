@@ -2,9 +2,10 @@ module Text.ILex.FS
 
 import public FS
 import public Text.ILex
+import Syntax.T1
+import Text.ILex.Char.UTF8
 import Text.ILex.Internal.Runner
 import Text.ILex.Runner1
-import Syntax.T1
 
 %default total
 
@@ -25,28 +26,51 @@ export
 streamParse :
      {auto has : Has (ParseError e) es}
   -> {auto lft : ELift1 q f}
+  -> {auto hap : HasPosition s}
   -> P1 q (BoundedErr e) r s a
   -> Origin
   -> Pull f ByteString es x
   -> Pull f a es x
-streamParse prs o pl = lift1 (init prs) >>= flip go pl
+streamParse prs o pl = Prelude.do
+  st  <- lift1 (init prs)
+  pos <- lift1 (getPosition @{st.stack})
+  go pos empty st pl
+
   where
-    go : LexState q (BoundedErr e) r s -> Pull f ByteString es x -> Pull f a es x
-    go st p =
+    toErr : Position -> ByteString -> BoundedErr e -> ParseError e
+    toErr pos bs (B x bnds) =
+     -- We are in the middle of an UTF-8-encoded byte sequence.
+     -- If we start with the remainder of a multi-byte codepoint,
+     -- we drop the corresponding bytes and increas the position's
+     -- column by one.
+     let bs'  := dropWhile (not . isStartByte) bs
+         pos' := if bs'.size < bs.size then incCol 1 pos else pos
+      in toParseError o (toString bs') (B x $ bnds `relativeTo` pos')
+
+    go :
+         Position
+      -> ByteString
+      -> LexState q (BoundedErr e) r s
+      -> Pull f ByteString es x
+      -> Pull f a es x
+    go pos prev st p =
       assert_total $ P.uncons p >>= \case
         Left res      =>
           lift1 (appLast prs st.state st.stack st.tok) >>= \case
-            Left err => throw (toStreamError o err)
-            Right v  => emit v $> res
+            Left x  => throw (toErr pos prev x)
+            Right v => emit v $> res
         Right (bs,p2) =>
           lift1 (pparseBytes prs st bs) >>= \case
-            Left x        => throw (toStreamError o x)
-            Right (st2,m) => consMaybe m (go st2 p2)
+            Left x        => throw (toErr pos (prev <+> bs) x)
+            Right (st2,m) => Prelude.do
+              pos <- lift1 (getPosition @{st.stack})
+              consMaybe m (go pos bs st2 p2)
 
 export %inline
 streamVal :
      {auto has : Has (ParseError e) es}
   -> {auto lft : ELift1 q f}
+  -> {auto hap : HasPosition s}
   -> (dflts : Lazy a)
   -> P1 q (BoundedErr e) r s a
   -> Origin

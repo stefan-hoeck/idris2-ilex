@@ -101,6 +101,7 @@ runTest p =
         True => Prelude.do
           Left x <- ttbl ptoml
             | Right _ => stdoutLn "\{ptoml} should have failed" >> emit (1,1)
+          stdoutLn "\{x}"
           emit (1,0)
         False => Prelude.do
           jv        <- jval pjson

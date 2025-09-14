@@ -40,6 +40,11 @@ public export %inline
 incLine : Position -> Position
 incLine p = P (S p.line) 0
 
+export
+relativeTo : Position -> Position -> Position
+relativeTo (P l c) (P ls cs) =
+  if l <= ls then P 0 (c `minus` cs) else P (l `minus` ls) c
+
 ||| Advances the given text position by the characters encountered
 ||| in the given string.
 |||
@@ -92,6 +97,12 @@ data Bounds : Type where
 export
 atPos : Position -> Bounds
 atPos p = BS p (incCol 1 p)
+
+namespace Bounds
+  export
+  relativeTo : Bounds -> Position -> Bounds
+  relativeTo Empty _    = Empty
+  relativeTo (BS s e) p = BS (s `relativeTo` p) (e `relativeTo` p)
 
 export
 Semigroup Bounds where

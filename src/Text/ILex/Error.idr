@@ -46,11 +46,17 @@ Functor InnerError where
   map f ExpectedEOI     = ExpectedEOI
   map f (Unclosed x)    = Unclosed x
 
+uncontrol : Char -> String
+uncontrol c = if isControl c then adj (unpack $ show c) else singleton c
+  where
+    adj : List Char -> String
+    adj = pack . filter ('\'' /=)
+
 quote : String -> String
 quote s =
-  case length s of
-    1 => "'\{s}'"
-    _ => "\"\{s}\""
+  case map uncontrol (unpack s) of
+    [c] => "'\{c}'"
+    cs  => "\"\{concat cs}\""
 
 quotes : String -> List String -> String
 quotes x []  = quote x
@@ -149,10 +155,6 @@ record ParseError e where
   error   : InnerError e
 
 %runElab derive "ParseError" [Show,Eq]
-
-export
-toStreamError : Origin -> Bounded (InnerError e) -> ParseError e
-toStreamError o (B err bs) = PE o bs Nothing err
 
 export
 toParseError : Origin -> String -> Bounded (InnerError e) -> ParseError e
