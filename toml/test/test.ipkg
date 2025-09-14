@@ -1,0 +1,15 @@
+package ilex-toml-test
+version = 0.1.0
+authors = "stefan-hoeck"
+
+depends = ilex-toml
+        , ilex-json
+        , ilex-streams
+        , filepath
+        , hedgehog
+        , async-epoll
+        , streams-posix
+
+main = Main
+executable = "ilex-toml-test"
+sourcedir = "src"

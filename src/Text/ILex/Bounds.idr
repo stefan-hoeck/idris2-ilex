@@ -1,5 +1,7 @@
 module Text.ILex.Bounds
 
+import Data.Bits
+import Data.ByteString
 import Derive.Prelude
 
 %default total
@@ -37,6 +39,41 @@ incCol n (P l c) = P l (n+c)
 public export %inline
 incLine : Position -> Position
 incLine p = P (S p.line) 0
+
+||| Advances the given text position by the characters encountered
+||| in the given string.
+|||
+||| A line feed character ('\n'; codepoint `0x0A`) will increase
+||| the current line by one and reset the column to zero. Every
+||| other character will increase the column by one.
+export
+incString : String -> Position -> Position
+incString s (P l c) = go l c (unpack s)
+  where
+    go : Nat -> Nat -> List Char -> Position
+    go l c []        = P l c
+    go l c ('\n' :: xs) = go (S l) 0 xs
+    go l c (x    :: xs) = go l (S c) xs
+
+||| Advances the given text position by the bytes encountered
+||| in the given string.
+|||
+||| A line feed byte (`0x0A`) will increase
+||| the current line by one and reset the column to zero. Every
+||| other start character of a unicode code point will advance
+||| the column by one.
+export
+incBytes : ByteString -> Position -> Position
+incBytes (BS n bv) (P l c) = go l c n
+  where
+    go : Nat -> Nat -> (k : Nat) -> (x : Ix k n) => Position
+    go l c 0     = P l c
+    go l c (S k) =
+      case bv `ix` k of
+        0x0a => go (S l) 0 k
+        b    => case b < 128 || b .&. 0b1100_0000 == 0b1100_000 of
+          True => go l (S c) k
+          _    => go l c k
 
 ||| Upper and lower bounds of a region in a string.
 |||
