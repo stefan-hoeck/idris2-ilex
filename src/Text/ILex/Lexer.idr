@@ -27,6 +27,13 @@ record Index (n : Bits32) where
 
 %runElab deriveIndexed "Index" [Show,Eq,Ord]
 
+export
+toIndex : {r : _} -> Bits32 -> Maybe (Index r)
+toIndex n =
+  case lt n r of
+    Nothing0 => Nothing
+    Just0 v  => Just (I n)
+
 public export
 fromInteger : (n : Integer) -> (0 p : cast n < r) => Index r
 fromInteger n = I (cast n)

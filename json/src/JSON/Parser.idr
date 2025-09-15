@@ -4,6 +4,7 @@ import Data.Buffer
 import Data.Linear.Ref1
 import Derive.Prelude
 import Syntax.T1
+import Text.ILex.Derive
 
 import public Text.ILex
 
@@ -116,18 +117,8 @@ dropNull x            = x
 --          Parser State
 --------------------------------------------------------------------------------
 
-public export
-JSz : Bits32
-JSz = 11
-
-public export
-0 JST : Type
-JST = Index JSz
-
-ANew, AVal, ACom, ONew, OVal, OCom, OLbl, OCol, Str, Done : JST
-ANew = 1; AVal = 2; ACom = 3
-ONew = 4; OVal = 5; OCom = 6; OLbl = 7; OCol = 8
-Str  = 9; Done = 10
+%runElab deriveParserState "JSz" "JST"
+  ["JIni","ANew","AVal","ACom","ONew","OVal","OCom","OLbl","OCol","Str","Done"]
 
 data Part : Type where
   PA : Part -> SnocList JSON -> Part -- partial array
@@ -151,7 +142,7 @@ parameters {auto sk : SK q}
   part : JSON -> Part -> F1 q JST
   part v (PA p sy)   = putStackAs (PA p (sy :< v)) AVal
   part v (PL p sy l) = putStackAs (PO p (sy :< (l,v))) OVal
-  part v (PV sy)     = putStackAs (PV (sy :< v)) Ini
+  part v (PV sy)     = putStackAs (PV (sy :< v)) JIni
   part v _           = putStackAs (PF v) Done
 
   %inline
@@ -245,7 +236,7 @@ strTok =
 jsonTrans : Lex1 q JSz SK
 jsonTrans =
   lex1
-    [ E Ini (valTok Ini [])
+    [ E JIni (valTok JIni [])
     , E Done (spaced Done [])
 
     , E ANew (valTok ANew [cclose ']' closeVal])
@@ -285,7 +276,7 @@ jsonEOI sk s t =
 
 export
 json : P1 q (BoundedErr Void) JSz SK JSON
-json = P Ini (init PI) jsonTrans (\x => (Nothing #)) jsonErr jsonEOI
+json = P JIni (init PI) jsonTrans (\x => (Nothing #)) jsonErr jsonEOI
 
 export %inline
 parseJSON : Origin -> String -> Either (ParseError Void) JSON
@@ -312,7 +303,7 @@ arrChunk sk = T1.do
 
 arrEOI : JST -> SK q -> F1 q (Either (BoundedErr Void) (List JSON))
 arrEOI st sk t =
-  case st == Ini of
+  case st == JIni of
     True  => case getStack t of
       PV sv # t => Right (sv <>> []) # t
       _     # t => Right [] # t
@@ -325,7 +316,7 @@ arrEOI st sk t =
 ||| array of JSON values.
 export
 jsonArray : P1 q (BoundedErr Void) JSz SK (List JSON)
-jsonArray = P Ini (init PI) jsonTrans arrChunk jsonErr arrEOI
+jsonArray = P JIni (init PI) jsonTrans arrChunk jsonErr arrEOI
 
 ||| Parser that is capable of streaming large amounts of
 ||| JSON values.
@@ -334,4 +325,4 @@ jsonArray = P Ini (init PI) jsonTrans arrChunk jsonErr arrEOI
 ||| possible value will always be consumed.
 export
 jsonValues : P1 q (BoundedErr Void) JSz SK (List JSON)
-jsonValues = P Ini (init $ PV [<]) jsonTrans arrChunk jsonErr arrEOI
+jsonValues = P JIni (init $ PV [<]) jsonTrans arrChunk jsonErr arrEOI
