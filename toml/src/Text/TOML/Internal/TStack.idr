@@ -61,20 +61,21 @@ keys ks VR           = ks
 keys ks (VT v _ k _) = keys (k::ks) v
 keys ks (VA v _ k _) = keys (k::ks) v
 
-export
-exists : List Key -> TView t -> TomlValue -> TErr
-exists add view val =
+existsErr : (List Key -> TomlParseError) -> List Key -> TView t -> TErr
+existsErr f add view =
  let ks := keys add view
-     bs := foldMap bounds ks
-  in case val of
-       TArr _ => B (Custom $ StaticArray ks) bs
-       TTbl _ => B (Custom $ TableExists ks) bs
-       _      => B (Custom $ ValueExists ks) bs
+  in B (Custom $ f ks) (foldMap bounds ks)
+
+export
+exists : TomlValue -> List Key -> TView t -> TErr
+exists (TArr _) = existsErr StaticArray
+exists (TTbl _) = existsErr InlineTableExists
+exists _        = existsErr ValueExists
 
 export
 vexists : TView t -> TErr
-vexists (VA v _ k _) = exists [k] v (TArr [])
-vexists v            = exists [] v (TTbl empty)
+vexists (VA v _ k _) = existsErr TableArray [k] v
+vexists v            = existsErr TableExists [] v
 
 new : TView t -> List Key -> TView t
 new v []        = v
@@ -88,7 +89,7 @@ view v t (k::ks) =
     Nothing         => Right (new (VT v t k New) ks, empty)
     Just (TT tt t2) => view (VT v t k tt) t2 ks
     Just (TA st t2) => view (VA v t k st) t2 ks
-    Just (TV val)   => Left $ exists [k] v val
+    Just (TV val)   => Left $ exists val [k] v
 
 export
 tview : TreeTable -> List Key -> Either TErr (TView Tree,TreeTable)

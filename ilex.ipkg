@@ -12,6 +12,7 @@ depends = elab-util
 sourcedir = "src"
 
 modules = Text.ILex
+        , Text.ILex.Derive
 
         , Text.ILex.Char.Range
         , Text.ILex.Char.Set

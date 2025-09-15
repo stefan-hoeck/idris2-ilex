@@ -114,15 +114,15 @@ data TomlParseError : Type where
 export
 Interpolation TomlParseError where
   interpolate (ValueExists k) =
-    "Trying to overwrite existing value: \{k}"
+    "Trying to overwrite an existing value: \{k}"
   interpolate (InlineTableExists k) =
-    "Trying to modify existing inline table: \{k}"
+    "Trying to overwrite an existing inline table: \{k}"
   interpolate (TableExists k) =
-    "Trying to overwrite existing table: \{k}"
+    "Trying to overwrite an existing table: \{k}"
   interpolate (StaticArray k) =
-    "Trying to modify a static array: \{k}"
+    "Trying to overwrite an existing array: \{k}"
   interpolate (TableArray k) =
-    "Trying to overwrite an array of tables: \{k}"
+    "Trying to overwrite an existing array of tables: \{k}"
   interpolate (InvalidLeapDay d) = "Invalid leap day: \{d}"
 
 ||| Error type when lexing and parsing TOML files

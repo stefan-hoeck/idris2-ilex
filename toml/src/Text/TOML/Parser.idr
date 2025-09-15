@@ -3,6 +3,7 @@ module Text.TOML.Parser
 import Data.SortedMap
 import Data.String
 import Data.Linear.Ref1
+import Text.ILex.Derive
 import Text.ILex
 import Text.TOML.Lexer
 import Text.TOML.Types
@@ -11,6 +12,7 @@ import Syntax.T1
 
 %hide Data.Linear.(.)
 %default total
+%language ElabReflection
 
 --------------------------------------------------------------------------------
 --          Parser Stack
@@ -41,32 +43,15 @@ empty = STop VR [<] empty
 -- States
 --------------------------------------------------------------------------------
 
-public export
-TSz : Bits32
-TSz = 20
-
-public export
-TST : Type
-TST = Index TSz
-
--- Keys and utilities:
--- EKey, ESep, EVal : Expects a key / key-val separator / value
--- TSep             : Expects a key-seperator or end of table header
--- ASep             : Expects a key-seperator or end of table of arrays header
--- EOL              : Expects end of line stuff (comment, whitespace)
--- Err              : Error state
-EKey, ESep, EVal, EOL, Err, TSep, ASep : TST
-EKey = 1; ESep = 2; EVal = 3; EOL = 4; Err = 5; TSep = 6; ASep = 7
-
--- Arrays and Inline Tabls:
--- ANew, AVal, ACom : New array / array after value / array after comma
-ANew, AVal, ACom, TVal, TCom, TNew : TST
-ANew = 8; AVal = 9; ACom = 10; TVal = 11; TCom = 12; TNew = 19
-
--- Strings
-QKey, LKey, QStr, LStr, MLQStr, MLLStr : TST
-QKey = 13; LKey = 14; QStr = 15; MLQStr = 16; LStr = 17; MLLStr = 18
-
+-- TOML Parser states: `TSz` is the number of states, `TST` is an alias
+-- for `Index TSz`.
+%runElab deriveParserState "TSz" "TST"
+  [ "TIni", "EKey", "ESep", "EVal", "EOL", "Err", "TSep", "ASep"
+  -- arrays and inline tables (`Val` after value, `Com` after comma)
+  , "ANew", "AVal", "ACom", "TVal", "TCom", "TNew"
+  -- quoted keys and strings
+  , "QKey", "LKey", "QStr", "LStr", "MLQStr", "MLLStr"
+  ]
 
 public export
 0 TSTCK : Type -> Type
@@ -193,7 +178,7 @@ valSteps =
 
   -- Date and Time
   , valE fullDate  (ATLocalDate . readLocalDate)
-  , valE (fullDate >> opt ' ')  (ATLocalDate . readLocalDate . trim)
+  , valE (fullDate >> ' ')  (ATLocalDate . readLocalDate . trim)
   , valE localTime (ATLocalTime . readLocalTime)
   , valE localDateTime (ATLocalDateTime . readLocalDateTime)
   , valE offsetDateTime (ATOffsetDateTime . readOffsetDateTime)
@@ -259,7 +244,7 @@ mllDFA =
 tomlTrans : Lex1 q TSz TSTCK
 tomlTrans =
   lex1
-    [ E Ini  $ tomlIgnore Ini Ini (keySteps ++ [copen '[' openStdTable, copen "[[" openArrayTable])
+    [ E TIni $ tomlIgnore TIni TIni (keySteps ++ [copen '[' openStdTable, copen "[[" openArrayTable])
     , E ESep $ tomlSpaced ESep [cexpr' '.' EKey, cexpr' '=' EVal]
     , E TSep $ tomlSpaced TSep [cexpr' '.' EKey, cclose ']' close]
     , E ASep $ tomlSpaced ASep [cexpr' '.' EKey, cclose "]]" close]
@@ -277,7 +262,7 @@ tomlTrans =
     , E TVal $ tomlSpaced TVal [cexpr' ',' TCom, cclose '}' close]
     , E TNew $ tomlSpaced TNew (cclose '}' close :: keySteps)
     , E TCom $ tomlSpaced TCom keySteps
-    , E EOL  $ tomlIgnore EOL Ini []
+    , E EOL  $ tomlIgnore EOL TIni []
     ]
 
 tomlErr : Arr32 TSz (TSTCK q -> F1 q TErr)
@@ -302,10 +287,10 @@ tomlErr =
 
 tomlEOI : TST -> TSTCK q -> F1 q (Either TErr TomlTable)
 tomlEOI st sk =
-  case st == Ini || st == EOL of
+  case st == TIni || st == EOL of
     False => arrFail TSTCK tomlErr st sk
     True  => getStack >>= pure . toTable
 
 export
 toml : P1 q TErr TSz TSTCK TomlTable
-toml = P Ini (init empty) tomlTrans (\x => (Nothing #)) tomlErr tomlEOI
+toml = P TIni (init empty) tomlTrans (\x => (Nothing #)) tomlErr tomlEOI
