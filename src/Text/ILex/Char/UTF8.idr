@@ -7,12 +7,19 @@ import Text.ILex.RExp
 %default total
 %language ElabReflection
 
+||| True if the given byte is an ASCII character (in the range `[0..127]`).
+export %inline
+isAscii : Bits8 -> Bool
+isAscii = (< 0x80)
+
 ||| True, if the given byte is the first byte
 ||| of an UTF-8 encoded code point.
 export
 isStartByte : Bits8 -> Bool
-isStartByte b = b < 0x80 || (b .&. 0b1100_0000) == 0b1100_0000
+isStartByte b = isAscii b || (b .&. 0b1100_0000) == 0b1100_0000
 
+||| A unicode code point encoded as a list of up to
+||| four bytes.
 public export
 record Codepoint where
   constructor CP
@@ -49,24 +56,16 @@ hexChar 13 = 'd'
 hexChar 14 = 'e'
 hexChar _  = 'f'
 
+||| Pretty prints a byte in hexadecimal for.
+|||
+||| Example: `toHex 110 === "0x6e"`.
 export
 toHex : Bits8 -> String
 toHex x = pack ['0','x',hexChar (shiftR x 4), hexChar (x .&. 15)]
 
-pretty : Codepoint -> String
-pretty (CP _ m) = fastConcat . intersperse "_" . map toHex $ toList m
-
-toUTF : String -> String
-toUTF =
-     fastConcat
-   . intersperse " "
-   . map (pretty . encode . cast)
-   . unpack
-
-test : String
-test = "The quick brown 🦊 jumps over 13 lazy 🐶."
-
-public export
+||| A range of unicode codepoints that take up the same number
+||| of bytes when UTF-8 encoded.
+export
 record Span where
   constructor SP
   {0 len : Nat}

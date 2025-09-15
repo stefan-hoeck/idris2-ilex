@@ -66,7 +66,11 @@ aOrBs = choice [genA, genMA, genB, genC]
 
 export
 lexBounds : Parser1 (BoundedErr e) r s a -> String -> Either (ParseError e) a
-lexBounds lex s = parseString lex Virtual s
+lexBounds lex = parseString lex Virtual
+
+export
+lexBytes : Parser1 (BoundedErr e) r s a -> ByteString -> Either (ParseError e) a
+lexBytes lex = parseBytes lex Virtual
 
 export
 lexNoBounds :
@@ -114,14 +118,14 @@ prop_boundsMany =
           ]
     === lexBounds aOrB " Aaaa   Bb Bbbb A  AaaABCcc  Aa"
 
-prop_boundsByteErr : Property
-prop_boundsByteErr =
+prop_boundsExpectedErr : Property
+prop_boundsExpectedErr =
   property1 $
         toErr (P 0 4) (P 0 5) " AaaD" (Expected [] "D")
     === lexBounds aOrB " AaaD"
 
-prop_boundsByteErr2 : Property
-prop_boundsByteErr2 =
+prop_boundsExpectedErr2 : Property
+prop_boundsExpectedErr2 =
   property1 $
         toErr (P 0 0) (P 0 3) "CcD" (Expected [] "CcD")
     === lexBounds aOrB "CcD"
@@ -132,6 +136,18 @@ prop_boundsEoiErr =
         toErr (P 0 4) (P 0 6) " AaaCc" (Expected [] "Cc")
     === lexBounds aOrB " AaaCc"
 
+prop_boundsByteErr : Property
+prop_boundsByteErr =
+  property1 $
+        toErr (P 0 5) (P 0 6) " Aaaa\65533" (InvalidByte 0b1001_0011)
+    === lexBytes aOrB (" Aaaa" <+> pack [0b1001_0011])
+
+prop_boundsByteErr2 : Property
+prop_boundsByteErr2 =
+  property1 $
+        toErr (P 0 5) (P 0 6) " Aaaaä" (InvalidByte 0xc3)
+    === lexBounds aOrB " Aaaaä"
+
 export
 props : Group
 props =
@@ -140,7 +156,9 @@ props =
     , ("prop_boundsAOnly", prop_boundsAOnly)
     , ("prop_boundsAsOnly", prop_boundsAsOnly)
     , ("prop_boundsMany", prop_boundsMany)
+    , ("prop_boundsExpectedErr", prop_boundsExpectedErr)
+    , ("prop_boundsExpectedErr2", prop_boundsExpectedErr2)
+    , ("prop_boundsEoiErr", prop_boundsEoiErr)
     , ("prop_boundsByteErr", prop_boundsByteErr)
     , ("prop_boundsByteErr2", prop_boundsByteErr2)
-    , ("prop_boundsEoiErr", prop_boundsEoiErr)
     ]

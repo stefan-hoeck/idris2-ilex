@@ -5,6 +5,7 @@ import Data.Linear.Ref1
 import Data.String
 import Syntax.T1
 import Text.ILex.Bounds
+import Text.ILex.Char.UTF8
 import Text.ILex.Error
 import Text.ILex.Parser
 import Text.ILex.Util
@@ -519,12 +520,20 @@ parameters {auto he  : HasError s e}
       Just x  => pure x
       Nothing => T1.do
        bs <- read1 (bytes sk)
-       let str := toString bs
        ps <- getPosition
-       let bnds := BS ps (incCol (max 1 $ length str) ps)
-       case size bs of
-         0 => pure (B EOI bnds)
-         _ => pure (B (Expected strs str) bnds)
+       let bnds1 := BS ps $ incCol 1 ps
+       case bs of
+         BS 0 _  => pure (B EOI bnds1)
+         BS 1 bv =>
+          let b := bv `at` 0
+              s := String.singleton (cast b)
+           in case isAscii b of
+                True  => pure (B (Expected strs s) bnds1)
+                False => pure (B (InvalidByte b) bnds1)
+         bs =>
+          let str  := toString bs
+              bnds := BS ps (incCol (max 1 $ length str) ps)
+           in pure (B (Expected strs str) bnds)
 
   export
   unclosed : String -> s q -> F1 q (BoundedErr e)
