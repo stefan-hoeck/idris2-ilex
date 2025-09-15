@@ -272,7 +272,7 @@ jsonErr =
     , E OCom $ unclosedIfEOI "{" ["\""]
     , E OLbl $ unclosedIfEOI "{" [":"]
     , E OCol $ unclosedIfEOI "{" []
-    , E Str  $ unclosedIfEOI "\"" []
+    , E Str  $ unclosedIfNLorEOI "\"" []
     ]
 
 jsonEOI : JST -> SK q -> F1 q (Either (BoundedErr Void) JSON)
