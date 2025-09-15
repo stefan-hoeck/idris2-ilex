@@ -36,6 +36,11 @@ data InnerError : (err : Type) -> Type where
   ||| An unclosed opening token
   Unclosed     : String -> InnerError e
 
+  ||| An unexpected non-ascii byte, either from an unexpected
+  ||| mutli-byte codepoint or from altogether invalid unicode
+  ||| input.
+  InvalidByte  : Bits8 -> InnerError e
+
 %runElab derive "InnerError" [Show,Eq]
 
 public export
@@ -45,6 +50,7 @@ Functor InnerError where
   map f (Expected xs x) = Expected xs x
   map f ExpectedEOI     = ExpectedEOI
   map f (Unclosed x)    = Unclosed x
+  map f (InvalidByte x) = InvalidByte x
 
 uncontrol : Char -> String
 uncontrol c = if isControl c then adj (unpack $ show c) else singleton c
@@ -75,6 +81,7 @@ Interpolation e => Interpolation (InnerError e) where
   interpolate ExpectedEOI          = "Expected end of input"
   interpolate (Unclosed x)         = "Unclosed \{quote x}"
   interpolate (Custom err)         = interpolate err
+  interpolate (InvalidByte x)      = "Unexpected or invalid byte: \{toHex x}"
 
 --------------------------------------------------------------------------------
 --          Identities
@@ -86,6 +93,7 @@ fromVoid EOI             = EOI
 fromVoid (Expected ss s) = Expected ss s
 fromVoid ExpectedEOI     = ExpectedEOI
 fromVoid (Unclosed s)    = Unclosed s
+fromVoid (InvalidByte s) = InvalidByte s
 
 --------------------------------------------------------------------------------
 --          Interface
@@ -169,6 +177,8 @@ record ParseError e where
 
 %runElab derive "ParseError" [Show,Eq]
 
+||| Converts a bounded error to a `ParseError` by pairing it with
+||| an origin and the parsed string.
 export
 toParseError : Origin -> String -> Bounded (InnerError e) -> ParseError e
 toParseError o s (B err bs) = PE o bs bs (Just s) err
