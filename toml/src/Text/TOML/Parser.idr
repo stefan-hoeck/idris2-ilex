@@ -144,12 +144,12 @@ parameters {auto sk : TSTCK q}
 
 %inline
 val : a -> (ByteString -> TomlValue) -> (a, Step q TSz TSTCK)
-val x f = goBS x $ \bs => getStack >>= onval (f bs)
+val x f = goBS x $ \bs => inccol bs.size >> getStack >>= onval (f bs)
 
 valE : a -> (ByteString -> AnyTime) -> (a, Step q TSz TSTCK)
 valE x f =
   goBS x $ \bs => case extraCheckDate (f bs) of
-    Right v => getStack >>= onval (TTime v)
+    Right v => inccol bs.size >> getStack >>= onval (TTime v)
     Left  x => raise (Custom $ InvalidLeapDay x) (size bs) Err
 
 %inline
@@ -286,15 +286,18 @@ tomlErr =
     [ E ANew $ unclosedIfEOI "[" []
     , E AVal $ unclosedIfEOI "[" [",", "]"]
     , E ACom $ unclosedIfEOI "[" []
-    , E TVal $ unclosedIfEOI "{" [",", "}"]
-    , E TCom $ unclosedIfEOI "{" []
-    , E TNew $ unclosedIfEOI "{" []
-    , E QStr $ unclosedIfEOI "\"" []
-    , E QKey $ unclosedIfEOI "\"" []
-    , E LStr $ unclosedIfEOI "'" []
-    , E LKey $ unclosedIfEOI "'" []
+    , E TVal $ unclosedIfNLorEOI "{" [",", "}"]
+    , E TCom $ unclosedIfNLorEOI "{" []
+    , E TNew $ unclosedIfNLorEOI "{" []
+    , E QStr $ unclosedIfNLorEOI "\"" []
+    , E QKey $ unclosedIfNLorEOI "\"" []
+    , E LStr $ unclosedIfNLorEOI "'" []
+    , E LKey $ unclosedIfNLorEOI "'" []
     , E MLQStr $ unclosedIfEOI "\"\"\"" []
     , E MLLStr $ unclosedIfEOI "'''" []
+    , E ESep $ unexpected [".", "="]
+    , E TSep $ unclosedIfNLorEOI "[" [".", "]"]
+    , E ASep $ unclosedIfNLorEOI "[[" [".", "]]"]
     ]
 
 tomlEOI : TST -> TSTCK q -> F1 q (Either TErr TomlTable)

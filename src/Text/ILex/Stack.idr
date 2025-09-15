@@ -541,12 +541,24 @@ parameters {auto he  : HasError s e}
     bnds <- popAndGetBounds (length str)
     pure $ B (Unclosed str) bnds
 
+  ||| Fails with `unclosed` if this is the end of input, otherwise
+  ||| invokes `unexpected`.
   export
   unclosedIfEOI : String -> List String -> s q -> F1 q (BoundedErr e)
   unclosedIfEOI s ss sk =
     read1 (bytes sk) >>= \case
       BS 0 _ => unclosed s sk
       _      => unexpected ss sk
+
+  ||| Fails with `unclosed` if this is the end of input or
+  ||| a linefeed character (`\n`, byte `0x0a`) was encountered,
+  ||| otherwise, invokes `unexpected`.
+  export
+  unclosedIfNLorEOI : String -> List String -> s q -> F1 q (BoundedErr e)
+  unclosedIfNLorEOI s ss sk =
+    read1 (bytes sk) >>= \case
+      BS 0 _ => unclosed s sk
+      bs     => if elem 0x0a bs then unclosed s sk else unexpected ss sk
 
   export %inline
   errs :
