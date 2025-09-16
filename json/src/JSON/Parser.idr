@@ -4,7 +4,6 @@ import Data.Buffer
 import Data.Linear.Ref1
 import Derive.Prelude
 import Syntax.T1
-import Text.ILex.Debug
 import Text.ILex.Derive
 
 import public Text.ILex
