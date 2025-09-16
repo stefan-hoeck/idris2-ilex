@@ -19,7 +19,6 @@ import Text.ILex.Util
 -- General Purpose Stack
 --------------------------------------------------------------------------------
 
-%logging "derive.claims" 1
 public export
 record Stack (e,a : Type) (r : Bits32) (q : Type) where
   [search q]
