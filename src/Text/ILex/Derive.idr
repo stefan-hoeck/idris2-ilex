@@ -40,6 +40,14 @@ import public Language.Reflection.Util
 ||| export
 ||| Done : ST
 ||| Done = I 3
+|||
+||| export
+||| showST : ST -> String
+||| showST (I 0) = "SIni"
+||| showST (I 1) = "Str"
+||| showST (I 2) = "Err"
+||| showST (I 3) = "Done"
+||| showST _     = "impossible"
 ||| ```
 export
 deriveParserState :
@@ -49,21 +57,32 @@ deriveParserState :
   -> m ()
 deriveParserState sz st ss =
  let count      := primVal $ B32 $ cast (length ss)
-     decls      := go [<] count ss 0
+     decls      := defs [<] count ss 0
      sizeClaim  := public' sz `(Bits32)
      sizeDefn   := def sz [patClause (var sz) count]
      stateClaim := claim M0 Public [] st type
      stateDefn  := def st [patClause (var st) `(Index ~(var sz))]
+     showName   := fromString "show\{st}"
+     showVar    := var showName
+     showClaim  := export' showName `(~(var st) -> String)
+     showDecl   := def showName (shows [<] showVar ss 0)
 
-  in declare (sizeClaim :: sizeDefn :: stateClaim :: stateDefn :: decls)
+  in declare $
+       [sizeClaim, sizeDefn, stateClaim, stateDefn] ++ decls ++ [showClaim, showDecl]
 
   where
-    go : SnocList Decl -> TTImp -> List Name -> Bits32 -> List Decl
-    go sd c []      _ = sd <>> []
-    go sd c (n::ns) x =
+    defs : SnocList Decl -> TTImp -> List Name -> Bits32 -> List Decl
+    defs sd c []      _ = sd <>> []
+    defs sd c (n::ns) x =
      let claim := export' n (var st)
          defn  := def n [patClause (var n) `(I ~(primVal $ B32 x))]
-      in go (sd :< claim :< defn) c ns (x+1)
+      in defs (sd :< claim :< defn) c ns (x+1)
+
+    shows : SnocList Clause -> TTImp -> List Name -> Bits32 -> List Clause
+    shows sc v []      _ = sc <>> [patClause `(~(v) _) `("impossible")]
+    shows sc v (n::ns) x =
+     let c := patClause `(~(v) (I ~(primVal $ B32 x))) n.namePrim
+      in shows (sc :< c) v ns (x+1)
 
 --------------------------------------------------------------------------------
 -- Deriving Interfaces

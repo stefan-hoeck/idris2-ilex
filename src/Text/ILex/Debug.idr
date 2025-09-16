@@ -148,7 +148,7 @@ prettyByteStep (x,bs) =
         Keep       => Just (prettyByte byte <+> colon <++> line "stay")
         Done y     => Just (prettyByte byte <+> colon <++> line "done")
         DoneBS y   => Just (prettyByte byte <+> colon <++> line "done with bytes")
-        Move y z   => Just (prettyByte byte <+> colon <++> line "move ({show y})")
+        Move y z   => Just (prettyByte byte <+> colon <++> line "move (\{show y})")
         MoveE y    => Just (prettyByte byte <+> colon <++> line "move non-terminal (\{show y})")
         Bottom     => Nothing
 
@@ -160,3 +160,18 @@ Pretty (DFA q r s) where
 export
 prettyLexer : DFA q r s -> IO ()
 prettyLexer dfa = putPretty dfa
+
+export
+prettyParser : {r : _} -> (Index r -> String) -> P1 q e r s a -> IO ()
+prettyParser shw p = go 0
+  where
+    go : Bits32 -> IO ()
+    go v =
+      case lt v r of
+        Just0 prf => Prelude.do
+          let lx := p.lex `at` I v
+          putStrLn "\{shw $ I v} (\{show $ S lx.states} states): "
+          prettyLexer lx
+          putStrLn ""
+          go (assert_smaller v $ v+1)
+        Nothing0  => pure ()
