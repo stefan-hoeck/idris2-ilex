@@ -481,7 +481,7 @@ recognized tokens, and change the parser state back to `Ini`:
 closeStr = T1.do
   bs <- closeBounds
   s  <- getStr
-  push1 x.stck (B (Txt1 s) bs)
+  push1 x.stack_ (B (Txt1 s) bs)
   pure Ini
 ```
 
@@ -519,7 +519,7 @@ quotedEOI : QST -> QSTCK q -> F1 q (Either (BoundedErr Void) (List $ Bounded CSV
 quotedEOI st x =
   case st == Ini of
     False => arrFail QSTCK quotedErr st x
-    True  => getList x.stck >>= pure . Right
+    True  => getList x.stack_ >>= pure . Right
 ```
 
 Finally, we wrap everything up in a record of type `P1` (a "linear parser").

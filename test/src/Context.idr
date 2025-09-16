@@ -44,7 +44,7 @@ SK = Stack Void (SnocList $ Bounded Lit) 2
 closeStr : (x : SK q) => Bounds -> F1 q (Index 2)
 closeStr bs = T1.do
   s  <- getStr
-  push1 x.stck (B (SL s) bs)
+  push1 x.stack_ (B (SL s) bs)
   pure SLit
 
 chars : RExp True
@@ -72,7 +72,7 @@ leoi : Index 2 -> SK q -> F1 q (Either (BoundedErr Void) $ List (Bounded Lit))
 leoi sk s =
   case sk == SLit of
     False => arrFail SK litErr sk s
-    True  => replace1 s.stck [<] >>= pure . Right . (<>> [])
+    True  => replace1 s.stack_ [<] >>= pure . Right . (<>> [])
 
 export
 lit : P1 q (BoundedErr Void) 2 SK (List $ Bounded Lit)

@@ -34,6 +34,7 @@ prim__machineSet : AnyPtr -> Bits32 -> (val : AnyPtr) -> PrimIO ()
 ||| the currently parsed token.
 public export
 interface HasBytes (0 s : Type -> Type) where
+  constructor MkHB
   bytes : s q -> Ref q ByteString
 
 export
