@@ -162,16 +162,26 @@ prettyLexer : DFA q r s -> IO ()
 prettyLexer dfa = putPretty dfa
 
 export
-prettyParser : {r : _} -> (Index r -> String) -> P1 q e r s a -> IO ()
-prettyParser shw p = go 0
+prettyParser :
+     {r : _}
+  -> {default False details : Bool}
+  -> (Index r -> String)
+  -> P1 World e r s a
+  -> IO ()
+prettyParser shw p = go 0 0
   where
-    go : Bits32 -> IO ()
-    go v =
+    go : Nat -> Bits32 -> IO ()
+    go tot v =
       case lt v r of
-        Just0 prf => Prelude.do
+        Just0 prf =>
           let lx := p.lex `at` I v
-          putStrLn "\{shw $ I v} (\{show $ S lx.states} states): "
-          prettyLexer lx
-          putStrLn ""
-          go (assert_smaller v $ v+1)
-        Nothing0  => pure ()
+           in case details of
+                False => Prelude.do
+                  putStrLn "\{shw $ I v} (\{show $ S lx.states} states)"
+                  go (tot + lx.states) (assert_smaller v $ v+1)
+                True  => Prelude.do
+                  putStrLn "\{shw $ I v} (\{show $ S lx.states} states): "
+                  prettyLexer lx
+                  putStrLn ""
+                  go (tot + lx.states) (assert_smaller v $ v+1)
+        Nothing0  => putStrLn "Total: \{show tot} state transitions"
