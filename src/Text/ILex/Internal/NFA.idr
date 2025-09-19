@@ -1,8 +1,8 @@
 module Text.ILex.Internal.NFA
 
-import Control.Monad.State
+import Data.Linear.Traverse1
 import Data.Maybe
-import Data.SortedMap
+import Syntax.T1
 import Text.ILex.Internal.ENFA
 import Text.ILex.Internal.Types
 
@@ -58,24 +58,28 @@ fromEdge (E r t) = (NE r [t])
 fromENode : Nat -> ENode -> NNode
 fromENode n x = NN n x.acc $ map fromEdge x.out
 
-covering
-eclosure : Nat -> Norm a NNode
-eclosure x = do
-  Nothing <- lookupNNode x | Just v => pure v
-  n       <- getENode x
-  es      <- traverse eclosure n.eps
-  let nn := foldl joinNNode (fromENode x n) es
-  insertNNode x nn
-  pure nn
+parameters {auto st : DFAState s a}
+  covering
+  eclosure : Nat -> F1 s NNode
+  eclosure x = T1.do
+    Nothing <- lookupNNode x | Just v => pure v
+    n       <- getENode x
+    es      <- traverse1 eclosure n.eps
+    let nn := foldl joinNNode (fromENode x n) es
+    insertNNode x nn
+    pure nn
 
-covering
-closures : EGraph -> Norm a ()
-closures g = ignore $ for (keys g) eclosure
+  covering
+  closures : F1' s
+  closures = keys1 st.egraph >>= traverse1_  (ignore1 . eclosure)
 
-export covering
-toNFA : TokenMap8 a -> Norm a NGraph
-toNFA xs = do
-  toENFA xs >>= closures
-  modify {ngraph $= connectedComponent nchildren 0}
-  st <- get
-  pure st.ngraph
+  export covering
+  toNFA : TokenMap8 a -> F1' s
+  toNFA xs = T1.do
+    toENFA xs
+    closures
+    connectedComponent nchildren 0 st.ngraph
+
+  export %inline
+  debugNFA : TokenMap8 a -> F1 s (List (Nat, NNode))
+  debugNFA ts = assert_total (toNFA ts) >> pairs1 st.ngraph

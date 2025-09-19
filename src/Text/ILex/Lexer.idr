@@ -154,8 +154,8 @@ export
 byteDFA : (m : TokenMap8 (Step q r s)) -> DFA q r s
 byteDFA m =
   let M tms graph := assert_total $ machine (toDFA m)
-      terms       := SM.fromList (mapMaybe (terminals tms) (values graph))
-      nodes       := zipWithIndex $ mapMaybe (nonFinal terms) (values graph)
+      terms       := SM.fromList (mapMaybe (terminals tms . snd) graph)
+      nodes       := zipWithIndex $ mapMaybe (nonFinal terms . snd) graph
       S len       := length nodes | 0 => emptyDFA
       ix          := index nodes
       trans       := fromPairs (S len) emptyRow (map (node terms ix) nodes)
