@@ -77,19 +77,16 @@ prettyNode (n, N _ acc ds) =
     ]
 
 export
-Pretty EGraph where
-  prettyPrec p g =
-    strLst "graph:" (map prettyENode $ SortedMap.toList g)
+Pretty (List (Nat,ENode)) where
+  prettyPrec p g = strLst "graph:" (map prettyENode g)
 
 export
-Pretty NGraph where
-  prettyPrec p g =
-    strLst "graph:" (map prettyNNode $ SortedMap.toList g)
+Pretty (List (Nat,NNode)) where
+  prettyPrec p g = strLst "graph:" (map prettyNNode g)
 
 export
-Pretty Graph where
-  prettyPrec p g =
-    strLst "graph:" (map prettyNode $ SortedMap.toList g)
+Pretty (List (Nat,Node)) where
+  prettyPrec p g = strLst "graph:" (map prettyNode g)
 
 terminal : Pretty a => {d : _} -> (Nat, a) -> Doc d
 terminal (n,c) = line (show n) <+> colon <++> pretty c
