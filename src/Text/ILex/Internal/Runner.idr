@@ -10,9 +10,9 @@ import Data.Linear.Ref1
 import Data.Maybe0
 import Data.Nat.BSExtra
 
-import Text.ILex.Bounds
-import Text.ILex.Error
-import Text.ILex.FC
+import Text.Bounds
+import Text.ParseError
+import Text.FC
 import Text.ILex.Lexer
 import Text.ILex.RExp
 

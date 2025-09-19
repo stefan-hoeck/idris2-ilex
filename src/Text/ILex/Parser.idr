@@ -5,8 +5,8 @@ import Data.Buffer
 import public Data.Prim.Bits32
 import public Data.ByteString
 import public Data.Linear.Ref1
-import public Text.ILex.Bounds
-import public Text.ILex.Error
+import public Text.Bounds
+import public Text.ParseError
 import public Text.ILex.RExp
 import public Text.ILex.Lexer
 

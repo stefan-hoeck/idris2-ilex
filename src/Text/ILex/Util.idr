@@ -4,8 +4,8 @@ import Data.ByteString
 import Data.Linear.Ref1
 import Derive.Prelude
 import Syntax.T1
-import Text.ILex.Bounds
-import Text.ILex.Error
+import Text.Bounds
+import Text.ParseError
 import Text.ILex.Parser
 import Text.ILex.RExp
 

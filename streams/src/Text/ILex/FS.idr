@@ -54,7 +54,7 @@ streamParse prs o pl = Prelude.do
      -- column by one.
      let pos  := incBytes prev posprev
          bs'  := dropWhile (not . isStartByte) bs
-         pos' := if bs'.size < bs.size then incCol 1 pos else pos
+         pos' := if bs'.size < bs.size then incCol pos else pos
       in PE o bnds (bnds `relativeTo` pos') (Just $ toString bs') x
 
     -- Position and ByteString correspond to the previously processed

@@ -2,8 +2,8 @@ module Text.ILex.Runner
 
 import Data.Buffer
 import Text.ILex.Internal.Runner
-import public Text.ILex.Error
-import public Text.ILex.FC
+import public Text.ParseError
+import public Text.FC
 import public Text.ILex.Parser
 
 %default total

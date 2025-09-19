@@ -3,6 +3,7 @@ module Text.ILex.Char.UTF8
 import Data.Bits
 import Derive.Prelude
 import Text.ILex.RExp
+import Text.ParseError
 
 %default total
 %language ElabReflection
@@ -37,31 +38,6 @@ encode x =
   else if x < 0x800   then CP 1 $ go 0b1100_0000 _ x
   else if x < 0x10000 then CP 2 $ go 0b1110_0000 _ x
   else                     CP 3 $ go 0b1111_0000 _ x
-
-hexChar : Bits8 -> Char
-hexChar 0  = '0'
-hexChar 1  = '1'
-hexChar 2  = '2'
-hexChar 3  = '3'
-hexChar 4  = '4'
-hexChar 5  = '5'
-hexChar 6  = '6'
-hexChar 7  = '7'
-hexChar 8  = '8'
-hexChar 9  = '9'
-hexChar 10 = 'a'
-hexChar 11 = 'b'
-hexChar 12 = 'c'
-hexChar 13 = 'd'
-hexChar 14 = 'e'
-hexChar _  = 'f'
-
-||| Pretty prints a byte in hexadecimal for.
-|||
-||| Example: `toHex 110 === "0x6e"`.
-export
-toHex : Bits8 -> String
-toHex x = pack ['0','x',hexChar (shiftR x 4), hexChar (x .&. 15)]
 
 ||| A range of unicode codepoints that take up the same number
 ||| of bytes when UTF-8 encoded.

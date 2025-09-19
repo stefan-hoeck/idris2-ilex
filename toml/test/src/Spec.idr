@@ -9,6 +9,7 @@ import IO.Async.Loop.Epoll
 import IO.Async.Loop.Posix
 import JSON.Parser
 import System
+import Text.ILex
 import Text.ILex.FS
 import Text.TOML.Parser
 import Text.TOML.Types
