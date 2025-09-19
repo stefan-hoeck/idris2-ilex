@@ -4,11 +4,11 @@ import Data.Buffer
 import Data.Linear.Ref1
 import Data.String
 import Syntax.T1
-import Text.ILex.Bounds
+import Text.Bounds
 import Text.ILex.Char.UTF8
-import Text.ILex.Error
 import Text.ILex.Parser
 import Text.ILex.Util
+import Text.ParseError
 
 %hide Prelude.(>>)
 %hide Prelude.(>>=)
@@ -250,8 +250,8 @@ parameters {auto sk  : s q}
   popAndGetBounds : Nat -> F1 q Bounds
   popAndGetBounds n =
     read1 (positions sk) >>= \case
-      sb:<b => writeAs (positions sk) sb (BS b $ incCol n b)
-      [<]   => pure Empty
+      sb:<b => writeAs (positions sk) sb (BS b $ addCol n b)
+      [<]   => pure NoBounds
 
   ||| Returns the bounds from start to end of some "enclosed" or
   ||| quoted region of text such as an expression in parantheses
@@ -262,7 +262,7 @@ parameters {auto sk  : s q}
     pe <- getPosition
     read1 (positions sk) >>= \case
       sb:<b => writeAs (positions sk) sb (BS b pe)
-      [<]   => pure Empty
+      [<]   => pure NoBounds
 
 parameters {auto pos : HasPosition s}
 
@@ -452,7 +452,7 @@ parameters {auto he  : HasError s e}
   raise : InnerError e -> Nat -> s q => v -> F1 q v
   raise err n res = T1.do
     ps <- getPosition
-    let bs := BS ps (incCol n ps)
+    let bs := BS ps (addCol n ps)
     failWith (B err bs) res
 
   export
@@ -463,7 +463,7 @@ parameters {auto he  : HasError s e}
       Nothing => T1.do
        bs <- read1 (bytes sk)
        ps <- getPosition
-       let bnds1 := BS ps $ incCol 1 ps
+       let bnds1 := BS ps $ incCol ps
        case bs of
          BS 0 _  => pure (B EOI bnds1)
          BS 1 bv =>
@@ -474,7 +474,7 @@ parameters {auto he  : HasError s e}
                 False => pure (B (InvalidByte b) bnds1)
          bs =>
           let str  := toString bs
-              bnds := BS ps (incCol (max 1 $ length str) ps)
+              bnds := BS ps (addCol (max 1 $ length str) ps)
            in pure (B (Expected strs str) bnds)
 
   export

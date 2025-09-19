@@ -3,8 +3,8 @@ module Text.TOML.Types
 import public Data.Time.Time
 import public Data.SortedMap
 import Derive.Prelude
-import Text.ILex.Bounds
-import Text.ILex.Error
+import Text.Bounds
+import Text.ParseError
 
 %default total
 %language ElabReflection

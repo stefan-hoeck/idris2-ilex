@@ -8,6 +8,7 @@ depends = elab-util
         , elab-pretty
         , array
         , bytestring
+        , parser
 
 sourcedir = "src"
 
@@ -24,10 +25,7 @@ modules = Text.ILex
         , Text.ILex.Internal.Runner
         , Text.ILex.Internal.Types
 
-        , Text.ILex.Bounds
         , Text.ILex.Debug
-        , Text.ILex.Error
-        , Text.ILex.FC
         , Text.ILex.Interfaces
         , Text.ILex.Lexer
         , Text.ILex.Parser

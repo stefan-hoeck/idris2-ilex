@@ -2,12 +2,12 @@ module Text.ILex.Stack
 
 import Data.Linear.Ref1
 import Syntax.T1
-import Text.ILex.Bounds
+import Text.Bounds
 import Text.ILex.Derive
-import Text.ILex.Error
 import Text.ILex.Interfaces
 import Text.ILex.Parser
 import Text.ILex.Util
+import Text.ParseError
 
 %hide Prelude.(>>)
 %hide Prelude.(>>=)
