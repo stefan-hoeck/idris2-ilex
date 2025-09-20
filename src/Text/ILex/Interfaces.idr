@@ -368,6 +368,62 @@ parameters (x          : RExp True)
     -> (RExp True, Step q r s)
   ccloseBoundedStr f = ccloseWithBounds $ \bs => getStr >>= \s => f (B s bs)
 
+parameters {auto pos : HasPosition s}
+
+  ||| Lexes a single value based on its printed form. Returns
+  ||| `Nothing` in case `display` returns the empty string.
+  |||
+  ||| For instance, `value show soSomething True` would recognice
+  ||| the token `"True"` and invoke act with `True`.
+  export
+  val :
+       (display : a -> String)
+    -> (act     : a -> Step1 q r s)
+    -> (value   : a)
+    -> Maybe (RExp True, Step q r s)
+  val display act v =
+   let f := act v
+    in case unpack (display v) of
+         cs@(_::_) =>
+          let 0 prf := charsConstSize cs
+           in Just $ cexpr (chars cs) (\t => f (%search # t))
+         []        => Nothing
+
+  ||| Specialized version of `value` that writes the lexed value
+  ||| to a predefined mutable field of the parser stack.
+  export %inline
+  writeVal :
+       (display : a -> String)
+    -> (field   : s q -> Ref q a)
+    -> Index r
+    -> (value   : a)
+    -> Maybe (RExp True, Step q r s)
+  writeVal display field res =
+    val display (\v => \(x # t) => writeAs (field x) v res t)
+
+  ||| Applies `value` to a list of values.
+  |||
+  ||| Highly useful in combination with the `Finite` interface from
+  ||| the idris2-finite library.
+  export %inline
+  vals :
+       (display : a -> String)
+    -> (act     : a -> Step1 q r s)
+    -> List a
+    -> List (RExp True, Step q r s)
+  vals display = mapMaybe . val display
+
+  ||| Specialized version of `vals` that writes the lexed value
+  ||| to a predefined mutable field of the parser stack.
+  export %inline
+  writeVals :
+       (display : a -> String)
+    -> (field   : s q -> Ref q a)
+    -> (res     : Index r)
+    -> List a
+    -> List (RExp True, Step q r s)
+  writeVals display field = mapMaybe . writeVal display field
+
 --------------------------------------------------------------------------------
 -- String Terminals
 --------------------------------------------------------------------------------
