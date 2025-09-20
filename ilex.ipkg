@@ -5,10 +5,11 @@ brief   = "Generating fast Lexers from an Idris2 DSL"
 langversion >= 0.7
 depends = elab-util
         , algebra
-        , elab-pretty
         , array
         , bytestring
+        , elab-pretty
         , parser
+        , refined
 
 sourcedir = "src"
 

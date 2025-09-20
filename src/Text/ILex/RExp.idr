@@ -2,6 +2,8 @@ module Text.ILex.RExp
 
 import Data.Bool
 import Data.ByteString
+import Data.DPair
+import Decidable.HDecEq
 import public Text.ILex.Char.Set
 import Derive.Prelude
 
@@ -47,42 +49,8 @@ adjRanges f (Or x y)  = Or (adjRanges f x) (adjRanges f y)
 adjRanges f (Star x)  = Star (adjRanges f x)
 
 --------------------------------------------------------------------------------
--- Conv
+-- Token Maps
 --------------------------------------------------------------------------------
-
-||| Description of lexicographic tokens
-|||
-||| These are used to convert a lexer state to a token (or an error)
-||| of the appropriate type. Every lexer state corresponds to exactly
-||| one convertion. Typically, most lexer states are non-terminal
-||| states, so they correspond to `Bottom`.
-public export
-data Tok : (e, a : Type) -> Type where
-  ||| Marks a terminal state that does not produce a token.
-  ||| This can be used for comments or whitespace that should be
-  ||| ignored.
-  Ignore : Tok e a
-
-  ||| A constant token that allows us to emit a value directly.
-  Const  : a -> Tok e a
-
-  ||| A token that needs to be parsed from its corresponding bytestring.
-  Txt    : (String -> Either e a) -> Tok e a
-
-  ||| A token that needs to be parsed from its corresponding bytestring.
-  Bytes  : (ByteString -> Either e a) -> Tok e a
-
-export %inline
-const : a -> Tok e a
-const = Const
-
-export %inline
-txt : (String -> a) -> Tok e a
-txt f = Txt (Right . f)
-
-export %inline
-bytes : (ByteString -> a) -> Tok e a
-bytes f = Bytes (Right . f)
 
 public export
 0 TokenMap : Type -> Type
@@ -319,3 +287,55 @@ natural =
   pre "0o" octal       <|>
   pre "0x" hexadecimal <|>
   decimal
+
+--------------------------------------------------------------------------------
+-- Constant Size Expressions
+--------------------------------------------------------------------------------
+
+||| Proof that regular expression `x` consists of a constant number
+||| (`n`) of characters.
+public export
+data ConstSize : (n : Nat) -> (x : RExp b) -> Type where
+  [search x]
+  ||| The epsilon expression trivially matches zero characters.
+  CS0   : ConstSize 0 Eps
+
+  ||| A single character trivially matches one character.
+  CSC   : ConstSize 1 (Ch x)
+
+  ||| Sequencing two constant size expressions of `m` and `n` characters
+  ||| yields an expression matching `m+n` characters.
+  CSAnd : ConstSize m x -> ConstSize n y -> ConstSize (m+n) (And x y)
+
+  ||| A choice of constant size expressions all matching the same number of
+  ||| characters yields again an expression matching the same number of
+  ||| characters.
+  CSOr  : ConstSize n x -> ConstSize n y -> ConstSize n (Or x y)
+
+||| Decides if the given expression matches a constant number of
+||| characters.
+export
+constSize : (x : RExp b) -> Maybe (Subset Nat (`ConstSize` x))
+constSize Eps       = Just (Element 0 CS0)
+constSize (Ch x)    = Just (Element 1 CSC)
+constSize (And x y) = do
+  Element m p1 <- constSize x
+  Element n p2 <- constSize y
+  pure (Element (m+n) (CSAnd p1 p2))
+constSize (Or x y)  = do
+  Element m p1 <- constSize x
+  Element n p2 <- constSize y
+  case hdecEq m n of
+    Just0 prf => pure (Element m (CSOr p1 (rewrite prf in p2)))
+    Nothing0  => Nothing
+constSize (Star x)  = Nothing
+
+||| Proof that the `chars cs` combinator returns an expression
+||| that matches a constant number of `length cs` characters.
+export
+0 charsConstSize :
+     (cs : List Char)
+  -> {auto 0 prf : NonEmpty cs}
+  -> ConstSize (length cs) (chars cs)
+charsConstSize [c]              = CSC
+charsConstSize (c :: cs@(_::_)) = CSAnd CSC (charsConstSize cs)

@@ -11,6 +11,13 @@ import public Text.ILex
 %default total
 %language ElabReflection
 
+||| We cannot use `cast` to convert all valid JSON numbers
+||| to `Double`. Fortunately, both the JavaScript and Scheme
+||| backends are more tolerant, so we can use a simple FFI call.
+export %foreign "scheme:(lambda (s) (string->number s))"
+                "javascript:lambda:(s) => Number(s)"
+jdouble : String -> Double
+
 --------------------------------------------------------------------------------
 --          String Encoding
 --------------------------------------------------------------------------------
@@ -191,7 +198,7 @@ valTok x ts =
     , cexpr "true"  (onVal $ JBool True)
     , cexpr "false" (onVal $ JBool False)
     , conv (opt '-' >> decimal) (onVal . JInteger . integer)
-    , read jsonDouble (onVal . JDouble . cast)
+    , read jsonDouble (onVal . JDouble . jdouble)
     , copen '{' (begin (`PO` [<]) ONew)
     , copen '[' (begin (`PA` [<]) ANew)
     , copen' '"' Str

@@ -129,12 +129,6 @@ export %inline
 putStackAs : HasStack s a => (sk : s q) => a -> v -> F1 q v
 putStackAs = writeAs (stack sk)
 
-||| Writes the given exception to the `error` field of some
-||| mutable state and returns the given result.
-export %inline
-failWith : HasError s e => (sk : s q) => BoundedErr e -> v -> F1 q v
-failWith = writeAs (error sk) . Just
-
 --------------------------------------------------------------------------------
 -- String Literals
 --------------------------------------------------------------------------------
@@ -278,16 +272,26 @@ parameters {auto pos : HasPosition s}
   newline' : RExp True -> (v : Index r) -> (RExp True, Step q r s)
   newline' x v = go x $ incline 1 >> pure v
 
+parameters {auto hae : HasError s e}
+
+  ||| Writes the given exception to the `error` field of some
+  ||| mutable state and returns the given result.
+  export %inline
+  failWith : (sk : s q) => BoundedErr e -> v -> F1 q v
+  failWith = writeAs (error sk) . Just
+
+  ||| Like `failWith`, but generates the bounds of the error from the
+  ||| current position and the bytes read until the error occurred.
+  export %inline
+  failHere : HasBytes s => HasPosition s => (sk : s q) => InnerError e -> v -> F1 q v
+  failHere x res = T1.do
+    p  <- getPosition
+    bs <- read1 (bytes sk)
+    failWith (B x $ BS p (incBytes bs p)) res
+
 --------------------------------------------------------------------------------
 -- Constant-Size Terminals
 --------------------------------------------------------------------------------
-
-public export
-data ConstSize : (n : Nat) -> (x : RExp True) -> Type where
-  [search x]
-  CSC   : ConstSize 1 (Ch x)
-  CSAnd : ConstSize m x -> ConstSize n y -> ConstSize (m+n) (And x y)
-  CSOr  : ConstSize n x -> ConstSize n y -> ConstSize n (Or x y)
 
 parameters (x          : RExp True)
            {n          : Nat}
@@ -474,7 +478,7 @@ parameters {auto he  : HasError s e}
                 False => pure (B (InvalidByte b) bnds1)
          bs =>
           let str  := toString bs
-              bnds := BS ps (addCol (max 1 $ length str) ps)
+              bnds := BS ps (addCol (length str) ps)
            in pure (B (Expected strs str) bnds)
 
   export
@@ -508,3 +512,26 @@ parameters {auto he  : HasError s e}
     -> List (Entry n $ s q -> F1 q (BoundedErr e))
     -> Arr32 n (s q -> F1 q (BoundedErr e))
   errs = arr32 n (unexpected [])
+
+--------------------------------------------------------------------------------
+-- Streaming
+--------------------------------------------------------------------------------
+
+||| Never emits a chunk of values during streaming.
+|||
+||| This is for parsers that produce a single value after consuming the
+||| whole input. Such a parser can still be used with the facilities
+||| from ilex-streams but will only emit a single value at the end of input.
+||| In general, such a parser consumes a linear amount of memory and can
+||| typically not be used to process very large amounts of data.
+export
+noChunk : s -> F1 q (Maybe a)
+noChunk _ t = (Nothing # t)
+
+||| Extracts the values parsed so far from the parser stack
+||| and emits them during streaming.
+export
+snocChunk : HasStack s (SnocList a) => s q -> F1 q (Maybe $ List a)
+snocChunk sk = T1.do
+  ss <- replace1 (stack sk) [<]
+  pure (maybeList ss)
