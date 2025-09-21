@@ -10,6 +10,7 @@ brief     = "Stack-safe and efficient parser for the TOML config file language"
 modules = Data.Time.Date
         , Data.Time.Time
 
+        , Text.TOML
         , Text.TOML.Lexer
         , Text.TOML.Parser
         , Text.TOML.Types
