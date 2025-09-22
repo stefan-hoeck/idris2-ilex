@@ -7,7 +7,7 @@ depends = elab-util
         , algebra
         , array
         , bytestring
-        , parser
+        , ilex-core
         , refined
 
 sourcedir = "src"
