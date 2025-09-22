@@ -1,0 +1,13 @@
+package ilex-core
+version = 0.1.0
+authors = "stefan-hoeck"
+brief   = "Core data types and utilities for token bounds and parse errors"
+langversion >= 0.7
+depends = elab-util
+        , bytestring
+
+sourcedir = "src"
+
+modules = Text.Bounds
+        , Text.FC
+        , Text.ParseError
