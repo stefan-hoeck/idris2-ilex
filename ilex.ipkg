@@ -7,7 +7,6 @@ depends = elab-util
         , algebra
         , array
         , bytestring
-        , elab-pretty
         , parser
         , refined
 
@@ -26,7 +25,6 @@ modules = Text.ILex
         , Text.ILex.Internal.Runner
         , Text.ILex.Internal.Types
 
-        , Text.ILex.Debug
         , Text.ILex.Interfaces
         , Text.ILex.Lexer
         , Text.ILex.Parser
