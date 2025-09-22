@@ -3,9 +3,7 @@ module Repeat
 import Data.Either
 import Derive.Prelude
 import Hedgehog
-import Derive.Pretty
 import Text.ILex
-import Text.ILex.Debug
 import Runner
 
 %default total
@@ -22,9 +20,6 @@ data ABC : Type where
 
 export
 Interpolation ABC where interpolate = show
-
-export
-Pretty ABC where prettyPrec _ v = line (show v)
 
 abc : L1 q Void 1 ABC
 abc =
