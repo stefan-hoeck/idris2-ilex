@@ -6,9 +6,7 @@ import IO.Async.Loop.Epoll
 import IO.Async.Loop.Posix
 import JSON.Parser
 import Text.ILex
-import Text.ILex.Debug
 import Text.ILex.FS
-import Text.PrettyPrint.Bernardy
 
 %default total
 

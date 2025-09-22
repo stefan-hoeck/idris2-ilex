@@ -3,7 +3,6 @@ module Examples.Basics
 import Examples.Types
 
 import Text.ILex
-import Text.ILex.Debug
 
 %default total
 %hide Data.Linear.(.)
