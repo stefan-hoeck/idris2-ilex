@@ -438,6 +438,12 @@ parameters (x        : RExp True)
   read : (s q => String -> F1 q (Index r)) -> (RExp True, Step q r s)
   read f = goStr x $ \s => f s <* inccol (length s)
 
+  ||| Increases the current line by one after invoking the given
+  ||| state transformer.
+  export %inline
+  readline : (s q => String -> F1 q (Index r)) -> (RExp True, Step q r s)
+  readline f = goStr x $ \s => f s <* incline 1
+
   ||| Convenience alias for `read . pure`
   ||| current column by its length after invoking the given state transformer.
   export %inline
@@ -455,6 +461,12 @@ parameters (x        : RExp True)
   export %inline
   conv : (s q => ByteString -> F1 q (Index r)) -> (RExp True, Step q r s)
   conv f = goBS x $ \bs => f bs <* inccol (size bs)
+
+  ||| Increases the current line by one after invoking the given
+  ||| state transformer.
+  export %inline
+  convline : (s q => ByteString -> F1 q (Index r)) -> (RExp True, Step q r s)
+  convline f = goBS x $ \bs => f bs <* incline 1
 
   ||| Like `conv` but can handle byte sequence with an unknown number
   ||| of line feed characters.
