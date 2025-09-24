@@ -15,90 +15,9 @@ import Text.ILex.RExp
 -- Reading Numbers
 --------------------------------------------------------------------------------
 
-||| Converts a string of binary digits to an integer
-export
-binary : ByteString -> Integer
-binary (BS n bv) = go 0 n
-  where
-    go : Integer -> (k : Nat) -> (x : Ix k n) => Integer
-    go res 0     = res
-    go res (S k) =
-      case ix bv k of
-        48 => go (res * 2) k
-        _  => go (res * 2 + 1) k
-
-||| Converts a string of binary digits containing optional
-||| separators to an integer `0010_0011_1110_0011.
-|||
-||| Such integer literals are supported by Idris as well as TOML,
-||| for instance:
-export
-binarySep : ByteString -> Integer
-binarySep (BS n bv) = go 0 n
-  where
-    go : Integer -> (k : Nat) -> (x : Ix k n) => Integer
-    go res 0     = res
-    go res (S k) =
-      case ix bv k of
-        48 => go (res * 2) k
-        49 => go (res * 2 + 1) k
-        _  => go res k
-
 export %inline
 decimaldigit : Bits8 -> Integer
 decimaldigit x = cast x - 48
-
-||| Converts a string of octal digits to an integer
-export
-octal : ByteString -> Integer
-octal (BS n bv) = go 0 n
-  where
-    go : Integer -> (k : Nat) -> (x : Ix k n) => Integer
-    go res 0     = res
-    go res (S k) = go (res * 8 + decimaldigit (ix bv k)) k
-
-||| Converts a string of octal digits containing optional
-||| separators to an integer `077_334`.
-|||
-||| Such integer literals are supported by Idris as well as TOML,
-||| for instance:
-export
-octalSep : Bits8 -> ByteString -> Integer
-octalSep sep (BS n bv) = go 0 n
-  where
-    go : Integer -> (k : Nat) -> (x : Ix k n) => Integer
-    go res 0     = res
-    go res (S k) =
-     let b := ix bv k
-      in case prim__eq_Bits8 sep b of
-           0 => go (res * 8 + decimaldigit b) k
-           _ => go res k
-
-||| Converts a string of decimal digits to an integer
-export
-decimal : ByteString -> Integer
-decimal (BS n bv) = go 0 n
-  where
-    go : Integer -> (k : Nat) -> (x : Ix k n) => Integer
-    go res 0     = res
-    go res (S k) = go (res * 10 + decimaldigit (ix bv k)) k
-
-||| Converts a string of decimal digits containing optional
-||| separators to an integer `177_934`.
-|||
-||| Such integer literals are supported by Idris as well as TOML,
-||| for instance:
-export
-decimalSep : Bits8 -> ByteString -> Integer
-decimalSep sep (BS n bv) = go 0 n
-  where
-    go : Integer -> (k : Nat) -> (x : Ix k n) => Integer
-    go res 0     = res
-    go res (S k) =
-     let b := ix bv k
-      in case prim__eq_Bits8 sep b of
-           0 => go (res * 10 + decimaldigit b) k
-           _ => go res k
 
 export
 hexdigit : Bits8 -> Integer
@@ -107,42 +26,136 @@ hexdigit x =
   else if x <= byte_F then 10 + cast x - cast byte_A
   else                     10 + cast x - cast byte_a
 
+parameters (bv : ByteVect n)
+  export
+  binaryBV : Integer -> (k : Nat) -> (x : Ix k n) => Integer
+  binaryBV res 0     = res
+  binaryBV res (S k) =
+      case ix bv k of
+        48 => binaryBV (res * 2) k
+        _  => binaryBV (res * 2 + 1) k
+
+  export
+  binarySepBV : Integer -> (k : Nat) -> (x : Ix k n) => Integer
+  binarySepBV res 0     = res
+  binarySepBV res (S k) =
+      case ix bv k of
+        48 => binarySepBV (res * 2) k
+        49 => binarySepBV (res * 2 + 1) k
+        _  => binarySepBV res k
+
+  export
+  octalBV : Integer -> (k : Nat) -> (x : Ix k n) => Integer
+  octalBV res 0     = res
+  octalBV res (S k) = octalBV (res * 8 + decimaldigit (ix bv k)) k
+
+  export
+  octalSepBV : Bits8 -> Integer -> (k : Nat) -> (x : Ix k n) => Integer
+  octalSepBV sep res 0     = res
+  octalSepBV sep res (S k) =
+     let b := ix bv k
+      in case prim__eq_Bits8 sep b of
+           0 => octalSepBV sep (res * 8 + decimaldigit b) k
+           _ => octalSepBV sep res k
+
+  export
+  decimalBV : Integer -> (k : Nat) -> (x : Ix k n) => Integer
+  decimalBV res 0     = res
+  decimalBV res (S k) = decimalBV (res * 10 + decimaldigit (ix bv k)) k
+
+  export
+  decimalSepBV : Bits8 -> Integer -> (k : Nat) -> (x : Ix k n) => Integer
+  decimalSepBV sep res 0     = res
+  decimalSepBV sep res (S k) =
+     let b := ix bv k
+      in case prim__eq_Bits8 sep b of
+           0 => decimalSepBV sep (res * 10 + decimaldigit b) k
+           _ => decimalSepBV sep res k
+
+  export
+  hexadecimalBV : Integer -> (k : Nat) -> (x : Ix k n) => Integer
+  hexadecimalBV res 0     = res
+  hexadecimalBV res (S k) = hexadecimalBV (res * 16 + hexdigit (ix bv k)) k
+
+  export
+  hexadecimalSepBV : Bits8 -> Integer -> (k : Nat) -> (x : Ix k n) => Integer
+  hexadecimalSepBV sep res 0     = res
+  hexadecimalSepBV sep res (S k) =
+     let b := ix bv k
+      in case prim__eq_Bits8 sep b of
+           0 => hexadecimalSepBV sep (res * 16 + hexdigit b) k
+           _ => hexadecimalSepBV sep res k
+
+  export
+  integerBV : (k : Nat) -> (x : Ix k n) => Integer
+  integerBV 0     = 0
+  integerBV (S k) =
+    case ix bv k of
+      45 => negate $ decimalBV 0 k       -- '-'
+      43 => decimalBV 0 k                -- '+'
+      b  => decimalBV (decimaldigit b) k
+
+||| Converts a string of binary digits to an integer
+export %inline
+binary : ByteString -> Integer
+binary (BS n bv) = binaryBV bv 0 n
+
+||| Converts a string of binary digits containing optional
+||| separators to an integer `0010_0011_1110_0011.
+|||
+||| Such integer literals are supported by Idris as well as TOML,
+||| for instance:
+export %inline
+binarySep : ByteString -> Integer
+binarySep (BS n bv) = binarySepBV bv 0 n
+
+||| Converts a string of octal digits to an integer
+export %inline
+octal : ByteString -> Integer
+octal (BS n bv) = octalBV bv 0 n
+
+||| Converts a string of octal digits containing optional
+||| separators to an integer `077_334`.
+|||
+||| Such integer literals are supported by Idris as well as TOML,
+||| for instance:
+export %inline
+octalSep : Bits8 -> ByteString -> Integer
+octalSep sep (BS n bv) = octalSepBV bv sep 0 n
+
 ||| Converts a string of decimal digits to an integer
-export
-hexadecimal : ByteString -> Integer
-hexadecimal (BS n bv) = go 0 n
-  where
-    go : Integer -> (k : Nat) -> (x : Ix k n) => Integer
-    go res 0     = res
-    go res (S k) = go (res * 16 + hexdigit (ix bv k)) k
+export %inline
+decimal : ByteString -> Integer
+decimal (BS n bv) = decimalBV bv 0 n
 
 ||| Converts a string of decimal digits containing optional
 ||| separators to an integer `177_934`.
 |||
 ||| Such integer literals are supported by Idris as well as TOML,
 ||| for instance:
-export
+export %inline
+decimalSep : Bits8 -> ByteString -> Integer
+decimalSep sep (BS n bv) = decimalSepBV bv sep 0 n
+
+||| Converts a string of decimal digits to an integer
+export %inline
+hexadecimal : ByteString -> Integer
+hexadecimal (BS n bv) = hexadecimalBV bv 0 n
+
+||| Converts a string of decimal digits containing optional
+||| separators to an integer `177_934`.
+|||
+||| Such integer literals are supported by Idris as well as TOML,
+||| for instance:
+export %inline
 hexadecimalSep : Bits8 -> ByteString -> Integer
-hexadecimalSep sep (BS n bv) = go 0 n
-  where
-    go : Integer -> (k : Nat) -> (x : Ix k n) => Integer
-    go res 0     = res
-    go res (S k) =
-     let b := ix bv k
-      in case prim__eq_Bits8 sep b of
-           0 => go (res * 16 + hexdigit b) k
-           _ => go res k
+hexadecimalSep sep (BS n bv) = hexadecimalSepBV bv sep 0 n
 
 ||| Converts an integer literal with optional sign prefix
 ||| to an integer.
-export
+export %inline
 integer : ByteString -> Integer
-integer bs@(BS (S k) bv) =
-  case bv `at` 0 of
-    45 => negate $ decimal (BS k $ tail bv)
-    43 => decimal (BS k $ tail bv)
-    _  => decimal bs
-integer bs = decimal bs
+integer (BS n bv) = integerBV bv n
 
 --------------------------------------------------------------------------------
 -- Encodings
