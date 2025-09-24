@@ -128,6 +128,16 @@ export %inline
 putStackAs : HasStack s a => (sk : s q) => a -> v -> F1 q v
 putStackAs = writeAs (stack sk)
 
+||| Appends a value to some mutable state implementing `HasStack`.
+export %inline
+pushStack : HasStack s (SnocList a) => (sk : s q) => a -> F1' q
+pushStack = push1 (stack sk)
+
+||| Like `pushStack` but returns the given result.
+export %inline
+pushStackAs : HasStack s (SnocList a) => (sk : s q) => a -> v -> F1 q v
+pushStackAs v res = pushStack v >> pure res
+
 --------------------------------------------------------------------------------
 -- String Literals
 --------------------------------------------------------------------------------
