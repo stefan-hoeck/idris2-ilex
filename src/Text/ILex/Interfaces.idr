@@ -11,7 +11,6 @@ import Text.ILex.Util
 import Text.ParseError
 
 %hide Prelude.(>>)
-%hide Prelude.(>>=)
 %hide Prelude.(<*)
 %hide Prelude.pure
 
@@ -373,7 +372,7 @@ parameters {auto pos : HasPosition s}
   ||| Lexes a single value based on its printed form. Returns
   ||| `Nothing` in case `display` returns the empty string.
   |||
-  ||| For instance, `value show soSomething True` would recognice
+  ||| For instance, `val show soSomething True` would recognice
   ||| the token `"True"` and invoke act with `True`.
   export
   val :
@@ -389,7 +388,25 @@ parameters {auto pos : HasPosition s}
            in Just $ cexpr (chars cs) (\t => f (%search # t))
          []        => Nothing
 
-  ||| Specialized version of `value` that writes the lexed value
+  ||| Like `val` but for a value that can be displayed in
+  ||| different ways.
+  export
+  valN :
+       (displays : a -> List String)
+    -> (act      : a -> Step1 q r s)
+    -> (value    : a)
+    -> List (RExp True, Step q r s)
+  valN displays act v =
+   let f := act v
+    in mapMaybe (exp f . unpack) (displays v)
+  where
+    exp : Step1 q r s -> List Char -> Maybe (RExp True, Step q r s)
+    exp f cs@(_::_)=
+     let 0 prf := charsConstSize cs
+      in Just $ cexpr (chars cs) (\t => f (%search # t))
+    exp f [] = Nothing
+
+  ||| Specialized version of `val` that writes the lexed value
   ||| to a predefined mutable field of the parser stack.
   export %inline
   writeVal :
@@ -401,7 +418,19 @@ parameters {auto pos : HasPosition s}
   writeVal display field res =
     val display (\v => \(x # t) => writeAs (field x) v res t)
 
-  ||| Applies `value` to a list of values.
+  ||| Specialized version of `valN` that writes the lexed value
+  ||| to a predefined mutable field of the parser stack.
+  export %inline
+  writeValN :
+       (displays : a -> List String)
+    -> (field    : s q -> Ref q a)
+    -> Index r
+    -> (value    : a)
+    -> List (RExp True, Step q r s)
+  writeValN displays field res =
+    valN displays (\v => \(x # t) => writeAs (field x) v res t)
+
+  ||| Applies `val` to a list of values.
   |||
   ||| Highly useful in combination with the `Finite` interface from
   ||| the idris2-finite library.
@@ -413,6 +442,19 @@ parameters {auto pos : HasPosition s}
     -> List (RExp True, Step q r s)
   vals display = mapMaybe . val display
 
+  ||| Like `vals` but for values that can be displayed in
+  ||| several ways.
+  |||
+  ||| Highly useful in combination with the `Finite` interface from
+  ||| the idris2-finite library.
+  export %inline
+  valsN :
+       (displays : a -> List String)
+    -> (act      : a -> Step1 q r s)
+    -> List a
+    -> List (RExp True, Step q r s)
+  valsN displays act vs = vs >>= valN displays act
+
   ||| Specialized version of `vals` that writes the lexed value
   ||| to a predefined mutable field of the parser stack.
   export %inline
@@ -423,6 +465,17 @@ parameters {auto pos : HasPosition s}
     -> List a
     -> List (RExp True, Step q r s)
   writeVals display field = mapMaybe . writeVal display field
+
+  ||| Specialized version of `valsN` that writes the lexed value
+  ||| to a predefined mutable field of the parser stack.
+  export %inline
+  writeValsN :
+       (displays : a -> List String)
+    -> (field    : s q -> Ref q a)
+    -> (res      : Index r)
+    -> List a
+    -> List (RExp True, Step q r s)
+  writeValsN displays field res vs = vs >>= writeValN displays field res
 
 --------------------------------------------------------------------------------
 -- String Terminals
