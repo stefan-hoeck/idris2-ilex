@@ -69,6 +69,10 @@ orF : RExpOf (b || False) t -> RExpOf b t
 orF x = replace {p = \b => RExpOf b t} (orFalseNeutral b) x
 
 public export
+orT : RExpOf (b || True) t -> RExpOf True t
+orT x = replace {p = \b => RExpOf b t} (orTrueTrue b) x
+
+public export
 toOrF : RExpOf b t -> RExpOf (b || False) t
 toOrF x = replace {p = \b => RExpOf b t} (sym $ orFalseNeutral b) x
 
