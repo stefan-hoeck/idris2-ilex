@@ -46,9 +46,14 @@ public export
 0 Step1 : (q : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type
 Step1 q r s = (1 sk : R1 q (s q)) -> R1 q (Index r)
 
-export %inline
-toState : Index r -> Step1 q r s
-toState v = \(_ # t) => v # t
+id1 : {auto 0 p : 0 < r} -> Step1 q r s
+id1 (s # t) = 0 # t
+
+public export
+data Tag : Type where
+  DONE  : Tag
+  BYTES : Tag
+  BOTM  : Tag
 
 public export
 data Transition :
@@ -58,11 +63,11 @@ data Transition :
   -> (s : Type -> Type)
   -> Type where
   Keep   : Transition n q r s
-  Done   : Step1 q r s -> Transition n q r s
-  DoneBS : Step1 q r s -> Transition n q r s
-  Move   : Fin (S n) -> Step1 q r s -> Transition n q r s
-  MoveE  : Fin (S n) -> Transition n q r s
-  Bottom : Transition n q r s
+  Done   : Tag -> Step1 q r s -> Transition n q r s
+  Move   : Fin (S n) -> Tag -> Step1 q r s -> Transition n q r s
+
+bottom : {auto 0 p : 0 < r} -> Transition n q r s
+bottom = Done BOTM id1
 
 ||| An array of arrays describing a lexer's state machine.
 public export
@@ -95,9 +100,10 @@ record DFA q r s where
 --------------------------------------------------------------------------------
 
 public export
-data Step : (q : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type where
-  Go  : Step1 q r s -> Step q r s
-  Rd  : Step1 q r s -> Step q r s
+record Step (q : Type) (r : Bits32) (s : Type -> Type) where
+  constructor S
+  tag  : Tag
+  step : Step1 q r s
 
 public export
 0 Steps : (q : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type
@@ -139,15 +145,11 @@ node terms index (ix, N me _ out) =
       case lookup tgt terms of
         Nothing        => case tgt == me of
           True  => Just (cast b, Keep)
-          False => ((cast b,) . MoveE) <$> lookup tgt index
-        Just (Left $ Go f)  => Just (cast b, Done f)
-        Just (Left $ Rd f)  => Just (cast b, DoneBS f)
-        Just (Right $ Go f) => case tgt == me of
+          False => (\ => (cast b,Move x BOTM id1)) <$> lookup tgt index
+        Just (Left $ S t f)  => Just (cast b, Done t f)
+        Just (Right $ S t f) => case tgt == me of
           True  => Just (cast b, Keep)
-          False => ((cast b,) . (`Move` f)) <$> lookup tgt index
-        Just (Right $ Rd f) => case tgt == me of
-          True  => Just (cast b, Keep)
-          False => ((cast b,) . (`Move` f)) <$> lookup tgt index
+          False => (\x => (cast b, Move x t f)) <$> lookup tgt index
 
 ||| A DFA operating on raw bytes.
 export

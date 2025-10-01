@@ -57,17 +57,17 @@ interface HasStack (0 s : Type -> Type) (0 a : Type) | s where
 
 export %inline
 go : a -> (s q => F1 q (Index r)) -> (a,Step q r s)
-go x f = (x,Go $ \(x # t) => f t)
+go x f = (x,S CONST $ \(x # t) => f t)
 
 export %inline
 goBS : HasBytes s => a -> (s q => ByteString -> F1 q (Index r)) -> (a,Step q r s)
-goBS x f = (x, Rd $ \(x # t) => let bs # t := read1 (bytes x) t in f bs t)
+goBS x f = (x, S BYTES $ \(x # t) => let bs # t := read1 (bytes x) t in f bs t)
 
 export %inline
 goStr : HasBytes s => a -> (s q => String -> F1 q (Index r)) -> (a,Step q r s)
 goStr x f =
   ( x
-  , Rd $ \(x # t) =>
+  , S BYTES $ \(x # t) =>
      let bs # t := read1 (bytes x) t
          s      := toString bs
       in f s t
@@ -513,7 +513,7 @@ parameters (x        : RExp True)
   read' : Index r -> (RExp True, Step q r s)
   read' v =
     ( x
-    , Rd $ \(sk # t) =>
+    , S BYTES $ \(sk # t) =>
       let bs # t := read1 (bytes sk) t
           _  # t := inccol (length $ toString bs) t
        in v # t
@@ -548,7 +548,7 @@ parameters (x        : RExp True)
   conv' : Index r -> (RExp True, Step q r s)
   conv' v =
     ( x
-    , Rd $ \(sk # t) =>
+    , S BYTES $ \(sk # t) =>
        let bs # t := read1 (bytes sk) t
            _  # t := inccol (size bs) t
         in v # t
@@ -562,7 +562,7 @@ parameters (x        : RExp True)
   multiline' : Index r -> (RExp True, Step q r s)
   multiline' v =
     ( x
-    , Rd $ \(sk # t) =>
+    , S BYTES $ \(sk # t) =>
        let bs # t := read1 (bytes sk) t
            _  # t := incML bs t
         in v # t
