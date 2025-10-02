@@ -264,6 +264,14 @@ public export %inline
 dot : RExp True
 dot = Ch printable
 
+public export %inline
+dots : RExp False
+dots = star dot
+
+public export %inline
+dots1 : RExp True
+dots1 = plus dot
+
 --------------------------------------------------------------------------------
 -- Integers
 --------------------------------------------------------------------------------
