@@ -138,6 +138,23 @@ export %inline
 pushStackAs : HasStack s (SnocList a) => (sk : s q) => a -> v -> F1 q v
 pushStackAs v res = pushStack v >> pure res
 
+||| A small utility for counting down a parser and returning one
+||| of two possible outcomes.
+export %inline
+countdown : Ref q Nat -> (ifSucc, ifZero : a) -> F1 q a
+countdown ref s z t =
+ let S k # t := read1 ref t | Z # t => z # t
+  in writeAs ref k s t
+
+||| A small utility for counting down a parser and returning one
+||| of two possible actions.
+export %inline
+countdownAct : Ref q Nat -> (ifSucc, ifZero : F1 q a) -> F1 q a
+countdownAct ref s z t =
+ let S k # t := read1 ref t | Z # t => z t
+     _   # t := write1 ref k t
+  in s t
+
 --------------------------------------------------------------------------------
 -- String Literals
 --------------------------------------------------------------------------------
