@@ -201,6 +201,12 @@ parameters {auto sk  : s q}
   inccol : Nat -> F1 q ()
   inccol n = let c := col sk in read1 c >>= write1 c . (n+)
 
+  ||| Increases the text column of some mutable state implementing
+  ||| `HasPosition` by the given amount.
+  export %inline
+  setcol : Nat -> F1 q ()
+  setcol n = write1 (col sk) n
+
   ||| Increases the line of some mutable state implementing
   ||| `HasPosition` by the given amount. The column field is
   ||| reset to zero.
@@ -275,11 +281,41 @@ parameters {auto pos : HasPosition s}
   newline : RExp True -> (v : s q => F1 q (Index r)) -> (RExp True, Step q r s)
   newline x f = go x $ f <* incline 1
 
-  ||| Recognizes the given expression and invokes `incline` before
-  ||| returning the given result.
+  ||| Convenience alias for `newline x (pure v)`.
   export %inline
   newline' : RExp True -> (v : Index r) -> (RExp True, Step q r s)
   newline' x v = go x $ incline 1 >> pure v
+
+  ||| Recognizes the given expression and invokes `incline n` before
+  ||| returning the given result.
+  export %inline
+  newlines :
+       Nat
+    -> RExp True
+    -> (v : s q => F1 q (Index r))
+    -> (RExp True, Step q r s)
+  newlines n x f = go x $ f <* incline n
+
+  ||| Convenience alias for `newlines n x (pure v)`.
+  export %inline
+  newlines' : Nat -> RExp True -> (v : Index r) -> (RExp True, Step q r s)
+  newlines' n x v = go x $ incline n >> pure v
+
+  ||| Recognizes the given expression, increasing the line count by the given
+  ||| number and setting the current column to the given value *after* invoming
+  ||| the given action.
+  export
+  linecol :
+       (line,col : Nat)
+    -> RExp True
+    -> (v : s q => F1 q (Index r))
+    -> (RExp True, Step q r s)
+  linecol l c x f = go x $ f <* incline l <* setcol c
+
+  ||| Convenience alias for `linecol line col x (pure v)`.
+  export
+  linecol' : (line,col : Nat) -> RExp True -> Index r -> (RExp True, Step q r s)
+  linecol' l c x v = go x $ incline l >> setcol c >> pure v
 
 parameters {auto hae : HasError s e}
 
