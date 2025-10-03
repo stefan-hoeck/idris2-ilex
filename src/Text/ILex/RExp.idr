@@ -89,6 +89,16 @@ public export %inline
 fromChar : Char -> RExp True
 fromChar = chr
 
+||| Case insensitive version of `chr`.
+public export
+charLike : Char -> RExp True
+charLike c =
+  case isLower c of
+    True  => Or (chr c) (chr $ toUpper c)
+    False => case isUpper c of
+      True  => Or (chr c) (chr $ toLower c)
+      False => chr c
+
 parameters {auto bnd : WithBounds t}
            {auto neg : Neg t}
 
@@ -126,18 +136,32 @@ public export %inline
 opt : RExpOf True t -> RExpOf False t
 opt = (`Or` eps)
 
+||| Exactly matches the given sequence of characters
 public export
 chars : (cs : List Char) -> (0 p : NonEmpty cs) => RExp True
 chars [c]            = chr c
 chars (c::cs@(_::_)) = chr c >> chars cs
 
+||| Case-insensitive version of `chars`
+public export
+charsLike : (cs : List Char) -> (0 p : NonEmpty cs) => RExp True
+charsLike [c]            = charLike c
+charsLike (c::cs@(_::_)) = charLike c >> charsLike cs
+
+||| Exactly matches the given string.
 public export
 str : (s : String) -> (0 p : NonEmpty (unpack s)) => RExp True
 str s = chars (unpack s)
 
+||| Utility for using string literals with regular expressions.
 public export %inline
 fromString : (s : String) -> (0 p : NonEmpty (unpack s)) => RExp True
 fromString = str
+
+||| Case-insensitive version of `str`
+public export
+like : (s : String) -> (0 p : NonEmpty (unpack s)) => RExp True
+like s = charsLike (unpack s)
 
 public export
 pre : (s : String) -> (0 p : NonEmpty (unpack s)) => RExp b -> RExp True
@@ -331,9 +355,9 @@ integer = opt '-' >> decimal
 public export
 natural : RExp True
 natural =
-  pre "0b" binary      <|>
-  pre "0o" octal       <|>
-  pre "0x" hexadecimal <|>
+  (like "0b" >> binary)      <|>
+  (like "0o" >> octal)       <|>
+  (like "0x" >> hexadecimal) <|>
   decimal
 
 --------------------------------------------------------------------------------
