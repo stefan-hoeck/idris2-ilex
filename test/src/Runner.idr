@@ -13,24 +13,26 @@ toErr : Position -> Position -> String -> InnerError e -> Either (ParseError e) 
 toErr strt end s x = Left (PE Virtual (BS strt end) (BS strt end) (Just s) x)
 
 public export
-data AorB : Type where
-  MA : AorB
-  A  : AorB
-  B  : AorB
-  C  : AorB
+data Val : Type where
+  MA  : Val
+  A   : Val
+  B   : Val
+  C   : Val
+  Foo : Val
 
-%runElab derive "AorB" [Show,Eq]
+%runElab derive "Val" [Show,Eq]
 
 export
-Interpolation AorB where interpolate = show
+Interpolation Val where interpolate = show
 
-aOrB : L1 q Void 1 AorB
-aOrB =
+val : L1 q Void 1 Val
+val =
   lexer $ jsonSpaced Ini
     [ convTok ('A' >> plus 'a') (const MA)
     , ctok 'A' A
-    , convTok (plus ('B' <|> 'b')) (const B)
+    , convTok (plus $ charLike 'B') (const B)
     , ctok "Ccc" C
+    , ctok (like "Foo") Foo
     ]
 
 space : Nat -> Gen String
@@ -42,27 +44,27 @@ genSpace = space 1
 genOptSpace : Gen String
 genOptSpace = space 0
 
-genA : Gen (AorB, String)
+genA : Gen (Val, String)
 genA = map (\s => (A, "A" ++ s)) genOptSpace
 
-genMA : Gen (AorB, String)
+genMA : Gen (Val, String)
 genMA = [| combine (string (linear 1 10) (pure 'a')) genOptSpace |]
   where
-    combine : String -> String -> (AorB, String)
+    combine : String -> String -> (Val, String)
     combine bs space = (MA, "A" ++ bs ++ space)
 
-genB : Gen (AorB, String)
+genB : Gen (Val, String)
 genB = [| combine (string (linear 1 10) (element ['b', 'B'])) genSpace |]
   where
-    combine : String -> String -> (AorB, String)
+    combine : String -> String -> (Val, String)
     combine bs space = (B, bs ++ space)
 
-genC : Gen (AorB, String)
+genC : Gen (Val, String)
 genC = pure (C, "Ccc")
 
 
-aOrBs : Gen (AorB, String)
-aOrBs = choice [genA, genMA, genB, genC]
+vals : Gen (Val, String)
+vals = choice [genA, genMA, genB, genC]
 
 export
 lexBounds : Parser1 (BoundedErr e) r s a -> String -> Either (ParseError e) a
@@ -82,9 +84,9 @@ lexNoBounds lex = map (map val) . lexBounds lex
 prop_lexAorB : Property
 prop_lexAorB =
   property $ do
-    abs <- forAll $ list (linear 0 10) aOrBs
+    abs <- forAll $ list (linear 0 10) vals
     let s := fastConcat $ map snd abs
-    Right (map fst abs) === lexNoBounds aOrB s
+    Right (map fst abs) === lexNoBounds val s
 
 prop_boundsAOnly : Property
 prop_boundsAOnly =
@@ -92,7 +94,7 @@ prop_boundsAOnly =
         Right
           [ B A $ BS (P 0 0) (P 0 1)
           ]
-    === lexBounds aOrB "A"
+    === lexBounds val "A"
 
 prop_boundsAsOnly : Property
 prop_boundsAsOnly =
@@ -100,7 +102,19 @@ prop_boundsAsOnly =
         Right
           [ B MA $ BS (P 0 1) (P 0 5)
           ]
-    === lexBounds aOrB " Aaaa"
+    === lexBounds val " Aaaa"
+
+prop_boundsFoo : Property
+prop_boundsFoo =
+  property1 $ do
+    res === lexBounds val " foo"
+    res === lexBounds val " fOo"
+    res === lexBounds val " FOO"
+    res === lexBounds val " Foo"
+    res === lexBounds val " fOO"
+  where
+    res : Either a (List $ Bounded Val)
+    res = Right [B Foo $ BS (P 0 1) (P 0 4)]
 
 prop_boundsMany : Property
 prop_boundsMany =
@@ -116,37 +130,37 @@ prop_boundsMany =
           , B C  $ BS (P 0 24) (P 0 27)
           , B MA $ BS (P 0 29) (P 0 31)
           ]
-    === lexBounds aOrB " Aaaa   Bb Bbbb A  AaaABCcc  Aa"
+    === lexBounds val " Aaaa   Bb bbBb A  AaaABCcc  Aa"
 
 prop_boundsExpectedErr : Property
 prop_boundsExpectedErr =
   property1 $
         toErr (P 0 4) (P 0 5) " AaaD" (Expected [] "D")
-    === lexBounds aOrB " AaaD"
+    === lexBounds val " AaaD"
 
 prop_boundsExpectedErr2 : Property
 prop_boundsExpectedErr2 =
   property1 $
         toErr (P 0 0) (P 0 3) "CcD" (Expected [] "CcD")
-    === lexBounds aOrB "CcD"
+    === lexBounds val "CcD"
 
 prop_boundsEoiErr : Property
 prop_boundsEoiErr =
   property1 $
         toErr (P 0 4) (P 0 6) " AaaCc" (Expected [] "Cc")
-    === lexBounds aOrB " AaaCc"
+    === lexBounds val " AaaCc"
 
 prop_boundsByteErr : Property
 prop_boundsByteErr =
   property1 $
         toErr (P 0 5) (P 0 6) " Aaaa\65533" (InvalidByte 0b1001_0011)
-    === lexBytes aOrB (" Aaaa" <+> pack [0b1001_0011])
+    === lexBytes val (" Aaaa" <+> pack [0b1001_0011])
 
 prop_boundsByteErr2 : Property
 prop_boundsByteErr2 =
   property1 $
         toErr (P 0 5) (P 0 6) " Aaaaä" (InvalidByte 0xc3)
-    === lexBounds aOrB " Aaaaä"
+    === lexBounds val " Aaaaä"
 
 export
 props : Group
@@ -155,6 +169,7 @@ props =
     [ ("prop_lexAorB", prop_lexAorB)
     , ("prop_boundsAOnly", prop_boundsAOnly)
     , ("prop_boundsAsOnly", prop_boundsAsOnly)
+    , ("prop_boundsFoo", prop_boundsFoo)
     , ("prop_boundsMany", prop_boundsMany)
     , ("prop_boundsExpectedErr", prop_boundsExpectedErr)
     , ("prop_boundsExpectedErr2", prop_boundsExpectedErr2)
