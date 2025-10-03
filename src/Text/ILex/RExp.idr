@@ -244,30 +244,46 @@ public export %inline
 alphaNum : RExp True
 alphaNum = Ch alphaNum
 
+||| Accepts a binary digit ('0' or '1').
 public export
 bindigit : RExp True
 bindigit = chr '0' <|> chr '1'
 
+||| Accepts an octal digit.
 public export
 octdigit : RExp True
 octdigit = range '0' '7'
 
+||| Accepts a hexadecimal digit.
+|||
+||| Letters can be upper or lower case.
 public export
 hexdigit : RExp True
 hexdigit = range '0' '9' <|> range 'a' 'f' <|> range 'A' 'F'
 
+||| Accepts a single unicode control codepoint.
+|||
+||| Control characters are unicode codepoints in the ranges
+||| 0x00 to 0x1f (`'\NUL'` to `'\US'`) and
+||| 0x71 to 0x9f (`'\DEL'` to `'\159'`).
+|||
+||| Among these, the most commonly used are tab (`'\t'`, 0x09),
+||| line feed (`'\r'`, 0x0d) and carriage return (`'\n'`, 0x0a).
 public export %inline
 control : RExp True
 control = Ch control
 
+||| Accepts a non-control unicode codepoint.
 public export %inline
 dot : RExp True
 dot = Ch printable
 
+||| Accepts an arbitrary number of printable unicode codepoints.
 public export %inline
 dots : RExp False
 dots = star dot
 
+||| Accepts a non-empty number of printable unicode codepoints.
 public export %inline
 dots1 : RExp True
 dots1 = plus dot
@@ -276,22 +292,42 @@ dots1 = plus dot
 -- Integers
 --------------------------------------------------------------------------------
 
+||| Recognizes a non-empty string of binary digits.
 public export
 binary : RExp True
 binary = plus bindigit
 
+||| Recognizes a non-empty string of octal digits.
 public export
 octal : RExp True
 octal = plus octdigit
 
+||| Recognizes a non-empty string of decimal digits.
+|||
+||| In this case, no leading zeroes are allowed: "0" is recognized
+||| but "01" is not.
 public export
 decimal : RExp True
 decimal = chr '0' <|> (posdigit >> star digit)
 
+||| Recognizes a non-empty string of hexadecimal digits.
+|||
+||| Letters can be upper or lower case.
 public export
 hexadecimal : RExp True
 hexadecimal = plus hexdigit
 
+||| Accepts a decimal number (like `decimal`: no leading zeroes)
+||| prefixed with an optional "minus" sign.
+public export
+integer : RExp True
+integer = opt '-' >> decimal
+
+||| Accepts a natural number in binary, octal, decimal (no leading zeroes),
+||| or hexadecimal form.
+|||
+||| Non-decimal forms must be prefixed with "0b" (binary), "0o" (octal), or
+||| "0x" (hexadecimal), just like in Idris.
 public export
 natural : RExp True
 natural =
