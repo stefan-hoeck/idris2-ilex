@@ -662,7 +662,7 @@ parameters {auto he  : HasError s e}
                 False => pure (B (InvalidByte b) bnds1)
          bs =>
           let str  := toString bs
-              bnds := BS ps (addCol (length str) ps)
+              bnds := BS ps (incBytes bs ps)
            in pure (B (Expected strs str) bnds)
 
   export
