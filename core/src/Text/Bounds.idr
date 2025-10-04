@@ -23,6 +23,20 @@ record Position where
   ||| The current column in a string (0-based)
   col  : Nat
 
+||| Appends the second position to the first.
+|||
+||| If the second is on a single line, the column is added.
+||| Otherwise, the line is added and the column of the second
+||| is used.
+export
+Semigroup Position where
+  P l1 c1 <+> P 0  c2 = P l1 (c1+c2)
+  P l1 c1 <+> P l2 c2 = P (l1+l2) c2
+
+export
+Monoid Position where
+  neutral = P 0 0
+
 ||| The beginning of a string. This is an alias for `P 0 0`.
 public export
 begin : Position
@@ -121,7 +135,6 @@ namespace Bounds
   relativeTo NoBounds _ = NoBounds
   relativeTo (BS s e) p = BS (s `relativeTo` p) (e `relativeTo` p)
 
-namespace Bounds
   ||| Convert a single `Position` to a range one character wide.
   public export %inline
   oneChar : Position -> Bounds
@@ -176,6 +189,11 @@ bind : Bounded a -> (a -> Bounded b) -> Bounded b
 bind (B va b1) f =
   let B vb b2 = f va
    in B vb (b1 <+> b2)
+
+export
+fromPosition : Bounded a -> Position -> Bounded a
+fromPosition (B v $ BS s e) y = B v $ BS (y <+> s) (y <+> e)
+fromPosition (B v NoBounds) y = B v $ BS y (incCol y)
 
 public export
 Functor Bounded where
