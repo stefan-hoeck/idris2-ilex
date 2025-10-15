@@ -138,6 +138,12 @@ quotes x xs  = go x xs
     go s []        = "or \{quote s}"
     go s (y :: ys) = "\{quote s}, " ++ go y ys
 
+||| Converts a value in the range `[0..15]` to a hexadecimal
+||| lower-case character.
+|||
+||| For simplicity, this function assumes the range has been checked.
+||| Therefore, values `>= 15` will return `'f'`.
+export
 hexChar : Bits8 -> Char
 hexChar 0  = '0'
 hexChar 1  = '1'
