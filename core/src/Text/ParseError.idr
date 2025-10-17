@@ -143,7 +143,7 @@ quotes x xs  = go x xs
 |||
 ||| For simplicity, this function assumes the range has been checked.
 ||| Therefore, values `>= 15` will return `'f'`.
-export
+public export
 hexChar : Bits8 -> Char
 hexChar 0  = '0'
 hexChar 1  = '1'

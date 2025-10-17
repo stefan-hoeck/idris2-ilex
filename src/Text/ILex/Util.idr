@@ -158,32 +158,6 @@ integer : ByteString -> Integer
 integer (BS n bv) = integerBV bv n
 
 --------------------------------------------------------------------------------
--- Encodings
---------------------------------------------------------------------------------
-
-||| Converts an integer to a hexadecimal digit.
-|||
-||| This assumes that the integer is already in the range 0 - 15.
-public export
-hexChar : Integer -> Char
-hexChar 0 = '0'
-hexChar 1 = '1'
-hexChar 2 = '2'
-hexChar 3 = '3'
-hexChar 4 = '4'
-hexChar 5 = '5'
-hexChar 6 = '6'
-hexChar 7 = '7'
-hexChar 8 = '8'
-hexChar 9 = '9'
-hexChar 10 = 'a'
-hexChar 11 = 'b'
-hexChar 12 = 'c'
-hexChar 13 = 'd'
-hexChar 14 = 'e'
-hexChar _  = 'f'
-
---------------------------------------------------------------------------------
 -- Operator Precedence
 --------------------------------------------------------------------------------
 
