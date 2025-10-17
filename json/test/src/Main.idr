@@ -6,8 +6,16 @@ import JSON.Parser
 
 %default total
 
+jsonChar : Gen Char
+jsonChar =
+  frequency
+    [ (55296, charc '\0' '\55295')
+    , (7935, charc '\57344' '\65278')
+    , (256,  charc '\65280' '\65535')
+    ]
+
 key : Gen String
-key = string (linear 1 10) unicodeAll
+key = string (linear 1 10) jsonChar
 
 prim : Gen JSON
 prim = frequency
@@ -22,7 +30,7 @@ prim = frequency
             0x100000000000000000000000000000000
           )
     )
-  , (5, JString <$> string (linear 0 10) unicodeAll)
+  , (5, JString <$> string (linear 0 10) jsonChar)
   ]
 
 json_ : (depth : Nat) -> Gen JSON

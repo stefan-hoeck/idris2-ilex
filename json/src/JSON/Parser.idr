@@ -37,10 +37,10 @@ escape sc c =
   if isControl c
     then
       let x  := the Integer $ cast c
-          d1 := hexChar $ cast $ shiftR x 12
-          d2 := hexChar $ cast $ shiftR x 8
-          d3 := hexChar $ cast $ shiftR x 4
-          d4 := hexChar $ cast x
+          d1 := hexChar $ cast $ (shiftR x 12 .&. 0xf)
+          d2 := hexChar $ cast $ (shiftR x 8 .&. 0xf)
+          d3 := hexChar $ cast $ (shiftR x 4 .&. 0xf)
+          d4 := hexChar $ cast (x .&. 0xf)
        in sc :< '\\' :< 'u' :< d1 :< d2 :< d3 :< d4
     else sc :< c
 
