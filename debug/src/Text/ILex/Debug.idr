@@ -117,7 +117,7 @@ prettyDFA tm = putPretty $ machine $ toDFA tm
 --------------------------------------------------------------------------------
 
 prettyByte : {d : _} -> Nat -> Doc d
-prettyByte n = line "\{pre} \{toHex $ cast n}"
+prettyByte n = line "\{pre} 0x\{toHex $ cast n}"
   where
     pre : String
     pre =
