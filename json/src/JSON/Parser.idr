@@ -1,5 +1,6 @@
 module JSON.Parser
 
+import Data.Bits
 import Data.Buffer
 import Data.Linear.Ref1
 import Derive.Prelude
@@ -36,10 +37,10 @@ escape sc c =
   if isControl c
     then
       let x  := the Integer $ cast c
-          d1 := hexChar $ x `div` 0x1000
-          d2 := hexChar $ (x `mod` 0x1000) `div` 0x100
-          d3 := hexChar $ (x `mod` 0x100)  `div` 0x10
-          d4 := hexChar $ x `mod` 0x10
+          d1 := hexChar $ cast $ shiftR x 12
+          d2 := hexChar $ cast $ shiftR x 8
+          d3 := hexChar $ cast $ shiftR x 4
+          d4 := hexChar $ cast x
        in sc :< '\\' :< 'u' :< d1 :< d2 :< d3 :< d4
     else sc :< c
 
