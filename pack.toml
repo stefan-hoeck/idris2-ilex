@@ -45,20 +45,8 @@ path = "toml"
 ipkg = "ilex-toml.ipkg"
 test = "test/test.ipkg"
 
-[custom.all.ref1]
+[custom.all.literal]
 type   = "github"
-url    = "https://github.com/stefan-hoeck/idris2-ref1"
+url    = "https://github.com/stefan-hoeck/idris2-literal"
 commit = "latest:main"
-ipkg   = "ref1.ipkg"
-
-[custom.all.parser]
-type   = "github"
-url    = "https://github.com/stefan-hoeck/idris2-parser"
-commit = "latest:main"
-ipkg   = "parser.ipkg"
-
-[custom.all.parser-show]
-type   = "github"
-url    = "https://github.com/stefan-hoeck/idris2-parser"
-commit = "latest:main"
-ipkg   = "show/parser-show.ipkg"
+ipkg   = "literal.ipkg"

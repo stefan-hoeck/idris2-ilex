@@ -3,6 +3,7 @@ version   = 0.1.0
 authors   = "stefan-hoeck"
 sourcedir = "src"
 depends   = ilex
+          , literal
           , refined
 
 brief     = "Stack-safe and efficient parser for the TOML config file language"
