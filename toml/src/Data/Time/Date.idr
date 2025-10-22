@@ -3,7 +3,8 @@ module Data.Time.Date
 import Data.String
 import Data.Refined.Integer
 import Derive.Prelude
-import Derive.Refined
+import Derive.Literal
+import public Literal
 
 %default total
 %language ElabReflection
@@ -18,7 +19,7 @@ record Year where
   year : Integer
   {auto 0 valid : FromTo 0 9999 year}
 
-%runElab derive "Year" [Show, Eq, Ord, RefinedInteger]
+%runElab derive "Year" [Show, Eq, Ord, IntegerLit]
 
 export
 Interpolation Year where
@@ -102,14 +103,10 @@ refineDay n = case hdec0 {p = FromTo 1 (DaysInMonth m)} n of
   Nothing0 => Nothing
   Just0 v  => Just $ D n
 
-namespace Day
-  public export
-  fromInteger :
-       {m : _}
-    -> (n : Integer)
-    -> {auto 0 p : IsJust (refineDay {m} $ cast n)}
-    -> Day m
-  fromInteger n = fromJust $ refineDay (cast n)
+public export %inline
+{m : _} -> IntegerLit (Day m) where
+  IntegerPred n = IsJust0 $ hdec0 {p = FromTo 1 (DaysInMonth m)} n
+  fromInteger n = D n @{fromJust0 $hdec0 {p = FromTo 1 (DaysInMonth m)} n}
 
 export
 Interpolation (Day m) where
