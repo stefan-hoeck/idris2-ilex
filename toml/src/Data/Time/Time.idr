@@ -6,7 +6,7 @@ import public Data.Time.Date
 import public Data.Refined.Integer
 import Data.String
 import Derive.Prelude
-import Derive.Literal
+import Derive.Refined
 
 %default total
 %language ElabReflection
@@ -21,11 +21,12 @@ record Hour where
   hour : Integer
   {auto 0 valid : FromTo 0 23 hour}
 
-%runElab derive "Hour" [Show, Eq, Ord, IntegerLit]
+namespace Hour
+  %runElab derive "Hour" [Show, Eq, Ord, RefinedInteger]
 
-export
-Interpolation Hour where
-  interpolate (H h) = padLeft 2 '0' $ show h
+  export
+  Interpolation Hour where
+    interpolate (H h) = padLeft 2 '0' $ show h
 
 --------------------------------------------------------------------------------
 --          Minute
@@ -37,11 +38,12 @@ record Minute where
   minute : Integer
   {auto 0 valid : FromTo 0 59 minute}
 
-%runElab derive "Minute" [Show, Eq, Ord, IntegerLit]
+namespace Minute
+  %runElab derive "Minute" [Show, Eq, Ord, RefinedInteger]
 
-export
-Interpolation Minute where
-  interpolate (M m) = padLeft 2 '0' $ show m
+  export
+  Interpolation Minute where
+    interpolate (M m) = padLeft 2 '0' $ show m
 
 --------------------------------------------------------------------------------
 --          Second
@@ -53,11 +55,12 @@ record Second where
   second : Integer
   {auto 0 valid : FromTo 0 60 second}
 
-%runElab derive "Second" [Show, Eq, Ord, IntegerLit]
+namespace Second
+  %runElab derive "Second" [Show, Eq, Ord, RefinedInteger]
 
-export
-Interpolation Second where
-  interpolate (S s) = padLeft 2 '0' $ show s
+  export
+  Interpolation Second where
+    interpolate (S s) = padLeft 2 '0' $ show s
 
 --------------------------------------------------------------------------------
 --          MicroSecond
@@ -69,11 +72,12 @@ record MicroSecond where
   us : Integer
   {auto 0 valid : FromTo 0 999_999 us}
 
-%runElab derive "MicroSecond" [Show, Eq, Ord, IntegerLit]
+namespace MicroSecond
+  %runElab derive "MicroSecond" [Show, Eq, Ord, RefinedInteger]
 
-export
-Interpolation MicroSecond where
-  interpolate (MS n) = padLeft 6 '0' $ show n
+  export
+  Interpolation MicroSecond where
+    interpolate (MS n) = padLeft 6 '0' $ show n
 
 --------------------------------------------------------------------------------
 --          LocalTime
@@ -200,7 +204,7 @@ extraCheckDate at =
 
 export
 Interpolation AnyTime where
-  interpolate (ATLocalDate x)      = interpolate x
+  interpolate (ATLocalDate x)       = interpolate x
   interpolate (ATLocalTime x)      = interpolate x
   interpolate (ATLocalDateTime x)  = interpolate x
   interpolate (ATOffsetDateTime x) = interpolate x
