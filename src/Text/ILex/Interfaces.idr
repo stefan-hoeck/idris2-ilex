@@ -128,6 +128,11 @@ export %inline
 putStackAs : HasStack s a => (sk : s q) => a -> v -> F1 q v
 putStackAs = writeAs (stack sk)
 
+||| Reads and updates the stack.
+export %inline
+modStackAs : (0 s : _) -> HasStack s a => (sk : s q) => (a -> a) -> v -> F1 q v
+modStackAs _ f v = getStack >>= \x => putStackAs (f x) v
+
 ||| Appends a value to some mutable state implementing `HasStack`.
 export %inline
 pushStack : HasStack s (SnocList a) => (sk : s q) => a -> F1' q

@@ -165,10 +165,6 @@ parameters {auto sk : SK q}
      p      => part (JString s) p
 
   %inline
-  begin : (Part -> Part) -> JST -> F1 q JST
-  begin f st = getStack >>= \p => putStackAs (f p) st
-
-  %inline
   closeVal : F1 q JST
   closeVal =
     getStack >>= \case
@@ -200,8 +196,8 @@ valTok x ts =
     , cexpr "false" (onVal $ JBool False)
     , conv (opt '-' >> decimal) (onVal . JInteger . integer)
     , read jsonDouble (onVal . JDouble . jdouble)
-    , copen '{' (begin (`PO` [<]) ONew)
-    , copen '[' (begin (`PA` [<]) ANew)
+    , copen '{' (modStackAs SK (`PO` [<]) ONew)
+    , copen '[' (modStackAs SK (`PA` [<]) ANew)
     , copen' '"' Str
     ] ++ ts
 
