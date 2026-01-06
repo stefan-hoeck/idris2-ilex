@@ -367,7 +367,7 @@ natural =
 ||| Proof that regular expression `x` consists of a constant number
 ||| (`n`) of characters.
 public export
-data ConstSize : (n : Nat) -> (x : RExp b) -> Type where
+data ConstSize : (n : Nat) -> (x : RExpOf b t) -> Type where
   [search x]
   ||| The epsilon expression trivially matches zero characters.
   CS0   : ConstSize 0 Eps
@@ -387,7 +387,7 @@ data ConstSize : (n : Nat) -> (x : RExp b) -> Type where
 ||| Decides if the given expression matches a constant number of
 ||| characters.
 export
-constSize : (x : RExp b) -> Maybe (Subset Nat (`ConstSize` x))
+constSize : (x : RExpOf b t) -> Maybe (Subset Nat (`ConstSize` x))
 constSize Eps       = Just (Element 0 CS0)
 constSize (Ch x)    = Just (Element 1 CSC)
 constSize (And x y) = do

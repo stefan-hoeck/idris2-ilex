@@ -300,12 +300,12 @@ parameters {auto pos : HasPosition s}
   ||| Recognizes the given expression and invokes `incline` before
   ||| returning the given result.
   export %inline
-  newline : RExp True -> (v : s q => F1 q (Index r)) -> (RExp True, Step q r s)
+  newline : RExpOf True b -> (v : s q => F1 q (Index r)) -> (RExpOf True b, Step q r s)
   newline x f = go x $ f <* incline 1
 
   ||| Convenience alias for `newline x (pure v)`.
   export %inline
-  newline' : RExp True -> (v : Index r) -> (RExp True, Step q r s)
+  newline' : RExpOf True b -> (v : Index r) -> (RExpOf True b, Step q r s)
   newline' x v = go x $ incline 1 >> pure v
 
   ||| Recognizes the given expression and invokes `incline n` before
@@ -313,14 +313,14 @@ parameters {auto pos : HasPosition s}
   export %inline
   newlines :
        Nat
-    -> RExp True
+    -> RExpOf True b
     -> (v : s q => F1 q (Index r))
-    -> (RExp True, Step q r s)
+    -> (RExpOf True b, Step q r s)
   newlines n x f = go x $ f <* incline n
 
   ||| Convenience alias for `newlines n x (pure v)`.
   export %inline
-  newlines' : Nat -> RExp True -> (v : Index r) -> (RExp True, Step q r s)
+  newlines' : Nat -> RExpOf True b -> (v : Index r) -> (RExpOf True b, Step q r s)
   newlines' n x v = go x $ incline n >> pure v
 
   ||| Recognizes the given expression, increasing the line count by the given
@@ -329,14 +329,14 @@ parameters {auto pos : HasPosition s}
   export
   linecol :
        (line,col : Nat)
-    -> RExp True
+    -> RExpOf True b
     -> (v : s q => F1 q (Index r))
-    -> (RExp True, Step q r s)
+    -> (RExpOf True b, Step q r s)
   linecol l c x f = go x $ f <* incline l <* setcol c
 
   ||| Convenience alias for `linecol line col x (pure v)`.
   export
-  linecol' : (line,col : Nat) -> RExp True -> Index r -> (RExp True, Step q r s)
+  linecol' : (line,col : Nat) -> RExpOf True b -> Index r -> (RExpOf True b, Step q r s)
   linecol' l c x v = go x $ incline l >> setcol c >> pure v
 
 parameters {auto hae : HasError s e}
@@ -360,7 +360,7 @@ parameters {auto hae : HasError s e}
 -- Constant-Size Terminals
 --------------------------------------------------------------------------------
 
-parameters (x          : RExp True)
+parameters (x          : RExpOf True b)
            {n          : Nat}
            {auto 0 prf : ConstSize n x}
            {auto   pos : HasPosition s}
@@ -370,12 +370,12 @@ parameters (x          : RExp True)
   |||
   ||| The current column is increased by `n` *before* invoking `f`.
   export %inline
-  cexpr : (s q => F1 q (Index r)) -> (RExp True, Step q r s)
+  cexpr : (s q => F1 q (Index r)) -> (RExpOf True b, Step q r s)
   cexpr f = go x $ inccol n >> f
 
   ||| Convenience alias for `cexpr . pure`.
   export %inline
-  cexpr' : Index r -> (RExp True, Step q r s)
+  cexpr' : Index r -> (RExpOf True b, Step q r s)
   cexpr' v = cexpr $ pure v
 
   ||| Recognizes the given character(s)
@@ -385,12 +385,12 @@ parameters (x          : RExp True)
   ||| The current column is increased by one, and a new entry is pushed onto
   ||| the stack of bounds.
   export %inline
-  copen : (s q => F1 q (Index r)) -> (RExp True, Step q r s)
+  copen : (s q => F1 q (Index r)) -> (RExpOf True b, Step q r s)
   copen f = go x $ pushPosition >> inccol n >> f
 
   ||| Convenience alias for `copen . pure`.
   export %inline
-  copen' : Index r -> (RExp True, Step q r s)
+  copen' : Index r -> (RExpOf True b, Step q r s)
   copen' v = copen $ pure v
 
   ||| Recognizes the given character(s) and uses it to update the parser state
@@ -399,7 +399,7 @@ parameters (x          : RExp True)
   ||| The current column is increased by `n`, and one `Position` entry
   ||| is popped from the stack.
   export %inline
-  cclose : (s q => F1 q (Index r)) -> (RExp True, Step q r s)
+  cclose : (s q => F1 q (Index r)) -> (RExpOf True b, Step q r s)
   cclose f = go x $ inccol n >> popPosition >> f
 
   ||| Recognizes the given character(s) and uses it to
@@ -411,7 +411,7 @@ parameters (x          : RExp True)
   ccloseStr :
        {auto hap : HasStringLits s}
     -> (s q => String -> F1 q (Index r))
-    -> (RExp True, Step q r s)
+    -> (RExpOf True b, Step q r s)
   ccloseStr f = cclose $ getStr >>= f
 
   ||| Recognizes the given character(s) and uses it to update the parser state
@@ -420,7 +420,7 @@ parameters (x          : RExp True)
   ||| The current column is increased by one, and on `Bounds` entry
   ||| is popped from the stack.
   export %inline
-  ccloseWithBounds : (s q => Bounds -> F1 q (Index r)) -> (RExp True, Step q r s)
+  ccloseWithBounds : (s q => Bounds -> F1 q (Index r)) -> (RExpOf True b, Step q r s)
   ccloseWithBounds f = go x $ inccol {q} n >> closeBounds >>= f
 
   ||| Recognizes the given character(s) and uses it to
@@ -432,7 +432,7 @@ parameters (x          : RExp True)
   ccloseBoundedStr :
        {auto hap : HasStringLits s}
     -> (s q => Bounded String -> F1 q (Index r))
-    -> (RExp True, Step q r s)
+    -> (RExpOf True b, Step q r s)
   ccloseBoundedStr f = ccloseWithBounds $ \bs => getStr >>= \s => f (B s bs)
 
 parameters {auto pos : HasPosition s}
@@ -549,26 +549,26 @@ parameters {auto pos : HasPosition s}
 -- String Terminals
 --------------------------------------------------------------------------------
 
-parameters (x        : RExp True)
+parameters (x        : RExpOf True b)
            {auto pos : HasPosition s}
            {auto pos : HasBytes s}
 
   ||| Converts the recognized token to a `String`, increases the
   ||| current column by its length and invokes the given state transformer.
   export %inline
-  read : (s q => String -> F1 q (Index r)) -> (RExp True, Step q r s)
+  read : (s q => String -> F1 q (Index r)) -> (RExpOf True b, Step q r s)
   read f = goStr x $ \s => f s <* inccol (length s)
 
   ||| Increases the current line by one after invoking the given
   ||| state transformer.
   export %inline
-  readline : (s q => String -> F1 q (Index r)) -> (RExp True, Step q r s)
+  readline : (s q => String -> F1 q (Index r)) -> (RExpOf True b, Step q r s)
   readline f = goStr x $ \s => f s <* incline 1
 
   ||| Convenience alias for `read . pure`
   ||| current column by its length after invoking the given state transformer.
   export %inline
-  read' : Index r -> (RExp True, Step q r s)
+  read' : Index r -> (RExpOf True b, Step q r s)
   read' v =
     ( x
     , Rd $ \(sk # t) =>
@@ -580,13 +580,13 @@ parameters (x        : RExp True)
   ||| Increases the current column by the length of the byte string
   ||| and invokes the given state transformer.
   export %inline
-  conv : (s q => ByteString -> F1 q (Index r)) -> (RExp True, Step q r s)
+  conv : (s q => ByteString -> F1 q (Index r)) -> (RExpOf True b, Step q r s)
   conv f = goBS x $ \bs => f bs <* inccol (size bs)
 
   ||| Increases the current line by one after invoking the given
   ||| state transformer.
   export %inline
-  convline : (s q => ByteString -> F1 q (Index r)) -> (RExp True, Step q r s)
+  convline : (s q => ByteString -> F1 q (Index r)) -> (RExpOf True b, Step q r s)
   convline f = goBS x $ \bs => f bs <* incline 1
 
   ||| Like `conv` but can handle byte sequence with an unknown number
@@ -598,12 +598,12 @@ parameters (x        : RExp True)
   |||       lexems into those which consist of no line breaks and those which
   |||       consist of a predefine (typically only one) number of line breaks.
   export %inline
-  multiline : (s q => ByteString -> F1 q (Index r)) -> (RExp True, Step q r s)
+  multiline : (s q => ByteString -> F1 q (Index r)) -> (RExpOf True b, Step q r s)
   multiline f = goBS x $ \bs => f bs <* incML bs
 
   ||| Convenience alias for `conv . pure`.
   export %inline
-  conv' : Index r -> (RExp True, Step q r s)
+  conv' : Index r -> (RExpOf True b, Step q r s)
   conv' v =
     ( x
     , Rd $ \(sk # t) =>
@@ -617,7 +617,7 @@ parameters (x        : RExp True)
   ||| Please not, that the same performance considerations as for `convML`
   ||| apply.
   export %inline
-  multiline' : Index r -> (RExp True, Step q r s)
+  multiline' : Index r -> (RExpOf True b, Step q r s)
   multiline' v =
     ( x
     , Rd $ \(sk # t) =>
