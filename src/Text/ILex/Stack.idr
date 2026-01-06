@@ -110,8 +110,8 @@ bytes : (ByteString -> a) -> Tok e a
 bytes f = Bytes (Right . f)
 
 toStep :
-     (RExp True, Tok e a)
-  -> (RExp True, Step q VSz (Stack e (Maybe a) VSz))
+     (RExpOf True b, Tok e a)
+  -> (RExpOf True b, Step q VSz (Stack e (Maybe a) VSz))
 toStep (x,c) =
   case c of
     Ignore  => conv' x VIni
@@ -126,8 +126,8 @@ toStep (x,c) =
         Left e  => failHere (Custom e) VErr
 
 ignore :
-     (RExp True, Tok e a)
-  -> Maybe (RExp True, Step q VSz (Stack e (Maybe a) VSz))
+     (RExpOf True b, Tok e a)
+  -> Maybe (RExpOf True b, Step q VSz (Stack e (Maybe a) VSz))
 ignore (x,Ignore) = Just $ conv' x VDone
 ignore _          = Nothing
 
@@ -177,7 +177,7 @@ parameters {0 r      : Bits32}
     push1 (stack sk) (B tok bs)
     pure Ini
 
-parameters (x          : RExp True)
+parameters (x          : RExpOf True b)
            {auto pos   : HasPosition s}
            {auto stk   : HasStack s (SnocList $ Bounded a)}
            {auto 0 lt  : 0 < r}
@@ -187,19 +187,19 @@ parameters (x          : RExp True)
   |||
   ||| The current column is increased by one *after* invoking `f`.
   export %inline
-  ctok : {n : _} -> (0 prf : ConstSize n x) => a -> (RExp True, Step q r s)
+  ctok : {n : _} -> (0 prf : ConstSize n x) => a -> (RExpOf True b, Step q r s)
   ctok v = go x $ lexPush n v
 
   export %inline
-  readTok : HasBytes s => (String -> a) -> (RExp True, Step q r s)
+  readTok : HasBytes s => (String -> a) -> (RExpOf True b, Step q r s)
   readTok f = goStr x $ \s => lexPush (length s) (f s)
 
   export %inline
-  convTok : HasBytes s => (ByteString -> a) -> (RExp True, Step q r s)
+  convTok : HasBytes s => (ByteString -> a) -> (RExpOf True b, Step q r s)
   convTok f = goBS x $ \bs => lexPush bs.size (f bs)
 
   export %inline
-  nltok : HasBytes s => a -> (RExp True, Step q r s)
+  nltok : HasBytes s => a -> (RExpOf True b, Step q r s)
   nltok v = goBS x $ \bs => lexPushNL bs.size v
 
 export
