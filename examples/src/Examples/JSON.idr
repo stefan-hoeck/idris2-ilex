@@ -35,6 +35,14 @@ streamVals pths =
   |> C.count
   |> foreach (\x => stdoutLn "\{show x} values streamed.")
 
+parStreamVals : Prog String () -> Prog Void ()
+parStreamVals pths =
+     flatMap pths readBytes
+  |> lines
+  |> parMapI 32 (traverse $ parseBytes json Virtual)
+  |> C.count
+  |> foreach (\x => stdoutLn "\{show x} values streamed.")
+
 covering
 main : IO ()
-main = runProg $ streamVals (P.tail args)
+main = runProg $ parStreamVals (P.tail args)
