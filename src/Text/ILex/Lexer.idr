@@ -81,7 +81,7 @@ public export
 record DFA q r s where
   constructor L
   ||| Number of non-zero states in the automaton.
-  0 states : Nat
+  states : Nat
 
   ||| State transitions matrix.
   |||

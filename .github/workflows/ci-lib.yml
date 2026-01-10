@@ -44,3 +44,5 @@ jobs:
         run: pack typecheck ilex-toml
       - name: Test ilex-toml
         run: pack --no-prompt test ilex-toml
+      - name: Build debug
+        run: pack --no-prompt typecheck ilex-debug
