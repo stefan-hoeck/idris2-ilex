@@ -92,6 +92,13 @@ dmod res f t =
   in writeAs sk.stack_ (f st) res t
 
 export %inline
+dmodAs : Cast (Stack s []) a => (sk : DStack s e q) => StateTrans s -> F1 q a
+dmodAs f t =
+ let st # t := read1 sk.stack_ t
+     st2    := f st
+  in writeAs sk.stack_ st2 (cast st2) t
+
+export %inline
 dput : (sk : DStack s e q) =>  Stack s [] -> a -> F1 q a
 dput st v = writeAs sk.stack_ st v
 
