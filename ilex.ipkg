@@ -25,6 +25,7 @@ modules = Text.ILex
         , Text.ILex.Internal.Runner
         , Text.ILex.Internal.Types
 
+        , Text.ILex.DStack
         , Text.ILex.Interfaces
         , Text.ILex.Lexer
         , Text.ILex.Parser
