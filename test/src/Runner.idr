@@ -27,7 +27,7 @@ Interpolation Val where interpolate = show
 
 val : L1 q Void 1 Val
 val =
-  lexer $ jsonSpaced Ini
+  lexer $ jsonSpaced (Ini {n = 1})
     [ convTok ('A' >> plus 'a') (const MA)
     , ctok 'A' A
     , convTok (plus $ charLike 'B') (const B)
