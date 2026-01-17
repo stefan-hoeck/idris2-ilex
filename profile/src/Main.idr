@@ -1,6 +1,6 @@
 module Main
 
-import JSON.Parser
+import DJSON as DJ
 import Data.Buffer
 import Data.ByteString
 import Data.List
@@ -47,6 +47,9 @@ ultraBS = (_ ** fromString ultra)
 lexBS : (n ** IBuffer n) -> Either (ParseError Void) JSON.Parser.JSON
 lexBS (n ** buf) = parse json Virtual buf
 
+lexDBS : (n ** IBuffer n) -> Either (ParseError Void) JSON.Parser.JSON
+lexDBS (n ** buf) = parse djson Virtual buf
+
 -- This profiles our JSON lexer against the one from parser-json
 -- to know what we are up against.
 bench : Benchmark Void
@@ -56,6 +59,11 @@ bench = Group "JSON" [
   , Single "extra"      (basic lexBS extraBS)
   , Single "maxi"       (basic lexBS maxiBS)
   , Single "ultra"      (basic lexBS ultraBS)
+  , Single "short dep"  (basic lexDBS shortBS)
+  , Single "long dep"   (basic lexDBS longBS)
+  , Single "extra dep"  (basic lexDBS extraBS)
+  , Single "maxi dep"   (basic lexDBS maxiBS)
+  , Single "ultra dep"  (basic lexDBS ultraBS)
   , Single "short ctr"  (basic JSON.parse short)
   , Single "long ctr"   (basic JSON.parse long)
   , Single "extra ctr"  (basic JSON.parse extra)
