@@ -23,7 +23,7 @@ Interpolation ABC where interpolate = show
 
 abc : L1 q Void 1 ABC
 abc =
-  lexer $ jsonSpaced Ini
+  lexer $ jsonSpaced (Ini {n = 1})
     [ readTok ('A' >> repeat  4 'a') (const A)
     , readTok ('B' >> atmost  3 'b') (const B)
     , readTok ('C' >> atleast 3 'c') (const C)

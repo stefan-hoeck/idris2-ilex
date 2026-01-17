@@ -59,6 +59,7 @@ import Text.ILex.FS
 %default total
 %language ElabReflection
 %hide Data.Linear.(.)
+%hide Language.Reflection.TT.Str
 
 pretty :
      {auto ie : Interpolation e}

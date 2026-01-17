@@ -128,6 +128,11 @@ export %inline
 putStackAs : HasStack s a => (sk : s q) => a -> v -> F1 q v
 putStackAs = writeAs (stack sk)
 
+||| Like `putStack` but returns the given result.
+export %inline
+putStackAsC : Cast b v => HasStack s a => (sk : s q) => a -> b -> F1 q v
+putStackAsC res = putStackAs res . cast
+
 ||| Reads and updates the stack.
 export %inline
 modStackAs : (0 s : _) -> HasStack s a => (sk : s q) => (a -> a) -> v -> F1 q v
@@ -184,21 +189,21 @@ parameters {auto sk  : s q}
   ||| Appends the given string to the `strings` field of some mutable
   ||| state implementing `HasStringLits` and returns the given result.
   export %inline
-  pushStr : v -> String -> F1 q v
+  pushStr : Cast t (Index r) => t -> String -> F1 q (Index r)
   pushStr res str = T1.do
     push1 (strings sk) str
-    pure res
+    pure (cast res)
 
   ||| Appends the given character to the `strings` field of some mutable
   ||| state implementing `HasStringLits` and returns the given result.
   export %inline
-  pushChar : v -> Char -> F1 q v
+  pushChar : Cast t (Index r) => t -> Char -> F1 q (Index r)
   pushChar res = pushStr res . singleton
 
   ||| Appends the given unicode code point to the `strings` field of some mutable
   ||| state implementing `HasStringLits` and returns the given result.
   export %inline
-  pushBits32 : v -> Bits32 -> F1 q v
+  pushBits32 : Cast t (Index r) => t -> Bits32 -> F1 q (Index r)
   pushBits32 res = pushChar res . cast
 
 --------------------------------------------------------------------------------
@@ -305,8 +310,8 @@ parameters {auto pos : HasPosition s}
 
   ||| Convenience alias for `newline x (pure v)`.
   export %inline
-  newline' : RExpOf True b -> (v : Index r) -> (RExpOf True b, Step q r s)
-  newline' x v = go x $ incline 1 >> pure v
+  newline' : Cast t (Index r) => RExpOf True b -> t -> (RExpOf True b, Step q r s)
+  newline' x v = go x $ incline 1 >> pure (cast v)
 
   ||| Recognizes the given expression and invokes `incline n` before
   ||| returning the given result.
@@ -375,8 +380,8 @@ parameters (x          : RExpOf True b)
 
   ||| Convenience alias for `cexpr . pure`.
   export %inline
-  cexpr' : Index r -> (RExpOf True b, Step q r s)
-  cexpr' v = cexpr $ pure v
+  cexpr' : Cast t (Index r) => t -> (RExpOf True b, Step q r s)
+  cexpr' v = cexpr $ pure (cast v)
 
   ||| Recognizes the given character(s)
   ||| and uses it to update the parser state
@@ -390,8 +395,8 @@ parameters (x          : RExpOf True b)
 
   ||| Convenience alias for `copen . pure`.
   export %inline
-  copen' : Index r -> (RExpOf True b, Step q r s)
-  copen' v = copen $ pure v
+  copen' : Cast t (Index r) => t -> (RExpOf True b, Step q r s)
+  copen' v = copen $ pure (cast v)
 
   ||| Recognizes the given character(s) and uses it to update the parser state
   ||| as specified by `f`.
@@ -568,13 +573,13 @@ parameters (x        : RExpOf True b)
   ||| Convenience alias for `read . pure`
   ||| current column by its length after invoking the given state transformer.
   export %inline
-  read' : Index r -> (RExpOf True b, Step q r s)
+  read' : Cast t (Index r) => t -> (RExpOf True b, Step q r s)
   read' v =
     ( x
     , Rd $ \(sk # t) =>
       let bs # t := read1 (bytes sk) t
           _  # t := inccol (length $ toString bs) t
-       in v # t
+       in cast v # t
     )
 
   ||| Increases the current column by the length of the byte string
@@ -603,13 +608,13 @@ parameters (x        : RExpOf True b)
 
   ||| Convenience alias for `conv . pure`.
   export %inline
-  conv' : Index r -> (RExpOf True b, Step q r s)
+  conv' : Cast t (Index r) => t -> (RExpOf True b, Step q r s)
   conv' v =
     ( x
     , Rd $ \(sk # t) =>
        let bs # t := read1 (bytes sk) t
            _  # t := inccol (size bs) t
-        in v # t
+        in cast v # t
     )
 
   ||| Convenience alias for `convML . pure`.
@@ -627,7 +632,13 @@ parameters (x        : RExpOf True b)
     )
 
 export %inline
-jsonSpaced : HasPosition s => HasBytes s => Index r -> Steps q r s -> Steps q r s
+jsonSpaced :
+     {auto hp : HasPosition s}
+  -> {auto hb : HasBytes s}
+  -> {auto cs : Cast b (Index r)}
+  -> b
+  -> Steps q r s
+  -> Steps q r s
 jsonSpaced v xs =
   [ conv' (plus $ oneof [' ','\t']) v
   , newline' ('\n' <|> '\r' <|> "\r\n") v
