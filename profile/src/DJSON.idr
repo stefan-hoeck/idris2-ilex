@@ -133,41 +133,37 @@ strTok =
 -- Parsers
 --------------------------------------------------------------------------------
 
-%inline
-de : Cast a (Index r) => a -> b -> Entry r b
-de = E . cast
-
 jsonTrans : Lex1 q DSz DSK
 jsonTrans =
   lex1
-    [ de JInit $ valTok JInit []
-    , de JVal  $ spaced JVal  []
+    [ entry JInit $ valTok JInit []
+    , entry JVal  $ spaced JVal  []
 
-    , de JArr  $ valTok JArr [cclose ']' $ dact carr]
-    , de JArrV $ spaced JArrV [cexpr' ',' JArrS, cclose ']' $ dact carr]
-    , de JArrS $ valTok JArrS []
+    , entry JArr  $ valTok JArr [cclose ']' $ dact carr]
+    , entry JArrV $ spaced JArrV [cexpr' ',' JArrS, cclose ']' $ dact carr]
+    , entry JArrS $ valTok JArrS []
 
-    , de JObj  $ spaced JObj [cclose '}' $ dact cobj, copen' '"' JStr]
-    , de JObjL $ spaced JObjL [cexpr' ':' JObjC]
-    , de JObjC $ valTok JObjC []
-    , de JObjV $ spaced JObjV [cclose '}' $ dact cobj, cexpr' ',' JObjS]
-    , de JObjS $ spaced JObjS [copen' '"' JStr]
+    , entry JObj  $ spaced JObj [cclose '}' $ dact cobj, copen' '"' JStr]
+    , entry JObjL $ spaced JObjL [cexpr' ':' JObjC]
+    , entry JObjC $ valTok JObjC []
+    , entry JObjV $ spaced JObjV [cclose '}' $ dact cobj, cexpr' ',' JObjS]
+    , entry JObjS $ spaced JObjS [copen' '"' JStr]
 
-    , de JStr strTok
+    , entry JStr strTok
     ]
 
 jsonErr : Arr32 DSz (DSK q -> F1 q (BoundedErr Void))
 jsonErr =
   errs
-    [ de JArr  $ unclosedIfEOI "[" []
-    , de JArrV $ unclosedIfEOI "[" [",", "]"]
-    , de JArrS $ unclosedIfEOI "[" []
-    , de JObj  $ unclosedIfEOI "{" ["\"", "}"]
-    , de JObjL $ unclosedIfEOI "{" [",", "}"]
-    , de JObjC $ unclosedIfEOI "{" ["\""]
-    , de JObjV $ unclosedIfEOI "{" [":"]
-    , de JObjS $ unclosedIfEOI "{" [":"]
-    , de JStr  $ unclosedIfNLorEOI "\"" []
+    [ entry JArr  $ unclosedIfEOI "[" []
+    , entry JArrV $ unclosedIfEOI "[" [",", "]"]
+    , entry JArrS $ unclosedIfEOI "[" []
+    , entry JObj  $ unclosedIfEOI "{" ["\"", "}"]
+    , entry JObjL $ unclosedIfEOI "{" [",", "}"]
+    , entry JObjC $ unclosedIfEOI "{" ["\""]
+    , entry JObjV $ unclosedIfEOI "{" [":"]
+    , entry JObjS $ unclosedIfEOI "{" [":"]
+    , entry JStr  $ unclosedIfNLorEOI "\"" []
     ]
 
 jsonEOI : Index DSz -> DSK q -> F1 q (Either (BoundedErr Void) JSON)
