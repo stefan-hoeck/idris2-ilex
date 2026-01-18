@@ -52,6 +52,10 @@ record Entry (n : Bits32) (a : Type) where
   index : Index n
   value : a
 
+export %inline
+entry : Cast t (Index n) => t -> a -> Entry n a
+entry x v = E (cast x) v
+
 export
 arr32 : (n : Bits32) -> (dflt : a) -> List (Entry n a) -> Arr32 n a
 arr32 n dflt es =
