@@ -26,7 +26,7 @@ import Text.ParseError
 ||| For concrete usage examples, see ilex-json and ilex-toml, which both
 ||| make use of this type as their mutable parser state.
 |||
-||| I you are writing a parser for something complex such as a programming
+||| If you are writing a parser for something complex such as a programming
 ||| language, you're probably going to need quite a few custom fields, so
 ||| feel free to come up with your own.
 public export
