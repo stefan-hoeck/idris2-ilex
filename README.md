@@ -360,7 +360,7 @@ fastUnquote bs =
 ## Under the Hood: Context-sensitive Lexers
 
 In this section we are going to write a context-sensitive lexer.
-The techniques we learn hear are going to be used in the next section,
+The techniques we learn here are going to be used in the next section,
 where we'll write a proper CSV-parser.
 
 Before we continue, please note that ilex uses thread-local mutable
