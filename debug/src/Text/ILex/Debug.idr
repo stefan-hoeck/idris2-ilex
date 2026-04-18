@@ -161,16 +161,15 @@ prettyLexer dfa = putPretty dfa
 
 export
 prettyParser :
-     {r : _}
-  -> {default False details : Bool}
-  -> (Index r -> String)
-  -> P1 World e r s a
+     {default False details : Bool}
+  -> (p : P1 World e a)
+  -> (PIx p -> String)
   -> IO ()
-prettyParser shw p = go 0 0
+prettyParser p shw = go 0 0
   where
     go : Nat -> Bits32 -> IO ()
     go tot v =
-      case lt v r of
+      case lt v p.states of
         Just0 prf =>
           let lx := p.lex `at` I v
            in case details of

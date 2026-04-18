@@ -80,7 +80,7 @@ Lex1 q r s = Arr32 r (DFA q r s)
 public export
 record P1 (q,e : Type) (a : Type) where
   constructor P
-  {0 states  : Bits32}
+  {states    : Bits32}
   {0 state   : Type -> Type}
   init       : Index states
   stck       : F1 q (state q)
