@@ -150,7 +150,7 @@ value mv m =
  let iniSteps  := E VIni $ dfa (map toStep m)
      doneSteps := E VDone $ dfa (mapMaybe ignore m)
      states    := lex1 [iniSteps, doneSteps]
-  in P _ _ VIni (init mv) states noChunk (errs []) valEOI
+  in P VIni (init mv) states noChunk (errs []) valEOI
 
 --------------------------------------------------------------------------------
 -- Lexer
@@ -232,4 +232,4 @@ lexer :
   -> Steps q r (Stack e (SnocList $ Bounded a) r)
   -> L1 q e a
 lexer m =
-  P _ _ Ini (init [<]) (lex1 [E Ini $ dfa m]) snocChunk (errs []) lexEOI
+  P Ini (init [<]) (lex1 [E Ini $ dfa m]) snocChunk (errs []) lexEOI

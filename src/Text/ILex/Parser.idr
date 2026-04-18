@@ -80,14 +80,14 @@ Lex1 q r s = Arr32 r (DFA q r s)
 public export
 record P1 (q,e : Type) (a : Type) where
   constructor P
-  0 states : Bits32
-  0 state  : Type -> Type
-  init   : Index states
-  stck   : F1 q (state q)
-  lex    : Lex1 q states state
-  chunk  : state q -> F1 q (Maybe a)
-  err    : Arr32 states (state q -> F1 q e)
-  eoi    : Index states -> state q -> F1 q (Either e a)
+  {0 states  : Bits32}
+  {0 state   : Type -> Type}
+  init       : Index states
+  stck       : F1 q (state q)
+  lex        : Lex1 q states state
+  chunk      : state q -> F1 q (Maybe a)
+  err        : Arr32 states (state q -> F1 q e)
+  eoi        : Index states -> state q -> F1 q (Either e a)
   {auto hasb : HasBytes state}
 
 public export

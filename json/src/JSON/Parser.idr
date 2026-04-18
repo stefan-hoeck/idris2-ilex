@@ -279,7 +279,7 @@ jsonEOI sk s t =
       _    # t => Right JNull # t
 
 export
-json : P1 q (BoundedErr Void) JSz SK JSON
+json : P1 q (BoundedErr Void) JSON
 json = P JIni (init PI) jsonTrans (\x => (Nothing #)) jsonErr jsonEOI
 
 export %inline
@@ -319,7 +319,7 @@ arrEOI st sk t =
 ||| A parser that is capable of streaming a single large
 ||| array of JSON values.
 export
-jsonArray : P1 q (BoundedErr Void) JSz SK (List JSON)
+jsonArray : P1 q (BoundedErr Void) (List JSON)
 jsonArray = P JIni (init PI) jsonTrans arrChunk jsonErr arrEOI
 
 ||| Parser that is capable of streaming large amounts of
@@ -328,5 +328,5 @@ jsonArray = P JIni (init PI) jsonTrans arrChunk jsonErr arrEOI
 ||| Values need not be separated by whitespace but the longest
 ||| possible value will always be consumed.
 export
-jsonValues : P1 q (BoundedErr Void) JSz SK (List JSON)
+jsonValues : P1 q (BoundedErr Void) (List JSON)
 jsonValues = P JIni (init $ PV [<]) jsonTrans arrChunk jsonErr arrEOI
