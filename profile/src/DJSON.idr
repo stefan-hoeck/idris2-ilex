@@ -172,8 +172,8 @@ jsonEOI st sk =
     JVal:>v::_ => pure (Right v)
     _          => arrFail DSK jsonErr st sk
 
-export
-djson : P1 q (BoundedErr Void) DSz DSK JSON
+public export
+djson : P1 q (BoundedErr Void) JSON
 djson = P (cast JInit) (init $ JInit:>[]) jsonTrans (\x => (Nothing #)) jsonErr jsonEOI
 
 export %inline
