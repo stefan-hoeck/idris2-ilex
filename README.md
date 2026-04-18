@@ -64,7 +64,7 @@ import Text.ILex.FS
 pretty :
      {auto ie : Interpolation e}
   -> {auto ia : Interpolation a}
-  -> Parser1 (BoundedErr e) r s (List a)
+  -> Parser1 (BoundedErr e) (List a)
   -> String
   -> IO ()
 pretty p s =
@@ -113,9 +113,9 @@ tokens we can recognize in a (very basic) CSV
 file. Without further ado, here is our first CSV lexer:
 
 ```idris
-csv0 : L1 q Void 1 CSV0
+csv0 : L1 q Void CSV0
 csv0 =
-  lexer
+  lexer {r = 1}
     [ ctok ',' Comma0
     , nltok '\n' NL0
     , readTok (plus (dot && not ',')) Cell0
@@ -220,9 +220,9 @@ And here's the corresponding lexer:
 linebreak : RExp True
 linebreak = '\n' <|> "\n\r" <|> "\r\n" <|> '\r' <|> '\RS'
 
-csv1 : L1 q Void 1 CSV1
+csv1 : L1 q Void CSV1
 csv1 =
-  lexer
+  lexer {r = 1}
     [ ctok ',' Comma1
     , nltok linebreak NL1
     , ctok "true" (Bool1 True)
@@ -297,9 +297,9 @@ With this, we can enhance our lexer:
 ```idris
 unquote : ByteString -> String
 
-csv1_2 : L1 q Void 1 CSV1
+csv1_2 : L1 q Void CSV1
 csv1_2 =
-  lexer
+  lexer {r = 1}
     [ ctok ',' Comma1
     , nltok linebreak NL1
     , ctok "true" (Bool1 True)
@@ -339,9 +339,9 @@ faster than the above, but I suggest to profile this properly if it
 is used in performance critical code.
 
 ```idris
-lexUQ : L1 q Void 1 String
+lexUQ : L1 q Void String
 lexUQ =
-  lexer
+  lexer {r = 1}
     [ ctok #""""# "\""
     , ctok #""n"# "\n"
     , ctok #""r"# "\r"
@@ -528,7 +528,7 @@ We are going to have a look at the `lchunk` thing when we talk about
 streaming large amounts of data:
 
 ```idris
-csv1_3 : P1 q (BoundedErr Void) QSz QSTCK (List $ Bounded CSV1)
+csv1_3 : P1 q (BoundedErr Void) (List $ Bounded CSV1)
 csv1_3 = P Ini (init [<]) quotedTrans snocChunk quotedErr quotedEOI
 ```
 
@@ -776,7 +776,7 @@ csvEOI st x =
 And here's the final CSV parser:
 
 ```idris
-csv : P1 q (BoundedErr Void) CSz CSTCK Table
+csv : P1 q (BoundedErr Void) Table
 csv = P Ini cinit csvSteps snocChunk csvErr csvEOI
 ```
 
