@@ -11,17 +11,17 @@ import Text.ILex.Internal.Runner
 ||| the remainder of the previous chunk that marks
 ||| the beginning of the current token.
 public export
-record LexState (q,e : Type) (r : Bits32) (s : Type -> Type) where
+record LexState (p : P1 q e a) where
   constructor LST
   {0 sts  : Nat}
-  state   : Index r
-  stack   : s q
-  dfa     : Stepper sts q r s
-  cur     : ByteStep sts q r s
-  tok     : Maybe (Step1 q r s)
+  state   : PIx p
+  stack   : PST p
+  dfa     : PStepper sts p
+  cur     : PByteStep sts p
+  tok     : Maybe (PStep p)
 
 export
-init : P1 q e r s a -> F1 q (LexState q e r s)
+init : (p : P1 q e a) -> F1 q (LexState p)
 init p t =
  let stck # t := p.stck t
      L _ dfa  := p.lex `at` p.init
@@ -31,20 +31,20 @@ init p t =
 ||| till the end of a chunk of bytes, allowing for a remainder of
 ||| bytes that could not yet be identified as a tokens.
 public export
-0 PartRes : (q,e : Type) -> (r : Bits32) -> (s : Type -> Type) -> (a : Type) -> Type
-PartRes q e r s a = F1 q (Either e (LexState q e r s, Maybe a))
+0 PartRes : (p : P1 q e a) -> Type
+PartRes p = F1 q (Either e (LexState p, Maybe a))
 
 export
 pparseFrom :
-     (p      : P1 q e r s a)
-  -> (st     : LexState q e r s)
+     (p      : P1 q e a)
+  -> (st     : LexState p)
   -> (pos    : Nat)
   -> {auto x : Ix pos n}
   -> IBuffer n
-  -> PartRes q e r s a
+  -> PartRes p
 
 export
-pparseBytes : P1 q e r s a -> LexState q e r s -> ByteString -> PartRes q e r s a
+pparseBytes : (p : P1 q e a) -> LexState p -> ByteString -> PartRes p
 pparseBytes p st (BS s $ BV buf off lte) =
   pparseFrom p st s {x = offsetToIx off} (take (off+s) buf)
 
@@ -52,44 +52,42 @@ pparseBytes p st (BS s $ BV buf off lte) =
 -- Partial run loop
 --------------------------------------------------------------------------------
 
-parameters {0 s     : Type -> Type}
-           {0 r     : Bits32}
-           {0 q,e,a : Type}
+parameters {0 q,e,a : Type}
            {0 n     : Nat}
-           (stck    : s q)
-           (parser  : P1 q e r s a)
+           (parser  : P1 q e a)
+           (stck    : PST parser)
            (buf     : IBuffer n)
            (bytes   : Ref q ByteString)
 
   pstep :
-       (st          : Index r)
-    -> (dfa         : Stepper k q r s)            -- current finite automaton
-    -> (cur         : ByteStep k q r s)           -- current automaton state
+       (st          : PIx parser)
+    -> (dfa         : PStepper k parser)          -- current finite automaton
+    -> (cur         : PByteStep k parser)         -- current automaton state
     -> (prev        : ByteString)
     -> (from        : Ix m n)                     -- start of current token
     -> (pos         : Nat)                        -- reverse position in the byte array
     -> {auto x      : Ix pos n}                   -- position in the byte array
     -> {auto 0 lte2 : LTE (ixToNat from) (ixToNat x)}
-    -> PartRes q e r s a
+    -> PartRes parser
 
   psucc :
-       (st          : Index r)
-    -> (dfa         : Stepper k q r s)            -- current finite automaton
-    -> (cur         : ByteStep k q r s)           -- current automaton state
+       (st          : PIx parser)
+    -> (dfa         : PStepper k parser)          -- current finite automaton
+    -> (cur         : PByteStep k parser)         -- current automaton state
     -> (prev        : ByteString)
-    -> (last        : Step1 q r s)                -- last encountered terminal state
+    -> (last        : PStep parser)               -- last encountered terminal state
     -> (from        : Ix m n)                     -- start of current token
     -> (pos         : Nat)                        -- reverse position in the byte array
     -> {auto x      : Ix pos n}                   -- position in the byte array
     -> {auto 0 lte2 : LTE (ixToNat from) (ixToNat x)}
-    -> PartRes q e r s a
+    -> PartRes parser
 
   -- Accumulates lexemes by applying the maximum munch strategy:
   -- The largest matched lexeme is consumed and kept.
   -- This consumes at least one byte for the next token and
   -- immediately aborts with an error in case the current
   -- byte leads to the zero state.
-  ploop : Index r -> (pos : Nat) -> (x : Ix pos n) => PartRes q e r s a
+  ploop : PIx parser -> (pos : Nat) -> (x : Ix pos n) => PartRes parser
   ploop st 0     t =
    let mv  # t := P1.chunk parser stck t
        L _ dfa := parser.lex `at` st
@@ -158,15 +156,15 @@ pparseFrom p lst@(LST st sk dfa cur tok) pos buf t =
          prev # t := read1 bytes t
       in case cur `atByte` byte of
            Keep         => case tok of
-             Just f  => psucc sk p buf bytes st dfa cur prev f x k t
-             Nothing => pstep sk p buf bytes st dfa cur prev   x k t
-           Done   f     => let s2 # t := f (sk # t) in ploop sk p buf bytes s2 k t
+             Just f  => psucc p sk buf bytes st dfa cur prev f x k t
+             Nothing => pstep p sk buf bytes st dfa cur prev   x k t
+           Done   f     => let s2 # t := f (sk # t) in ploop p sk buf bytes s2 k t
            DoneBS f     =>
             let _  # t := writeBSP prev buf x k bytes t
                 s2 # t := f (sk # t)
-             in ploop sk p buf bytes s2 k t
-           Move   nxt f => psucc sk p buf bytes st dfa (dfa `at` nxt) prev f x k t
-           MoveE  nxt   => pstep sk p buf bytes st dfa (dfa `at` nxt) prev   x k t
+             in ploop p sk buf bytes s2 k t
+           Move   nxt f => psucc p sk buf bytes st dfa (dfa `at` nxt) prev f x k t
+           MoveE  nxt   => pstep p sk buf bytes st dfa (dfa `at` nxt) prev   x k t
            Bottom     => case tok of
-             Just f  => let s2 # t := f (sk # t) in ploop sk p buf bytes s2 (S k) t
+             Just f  => let s2 # t := f (sk # t) in ploop p sk buf bytes s2 (S k) t
              Nothing => fail p st sk t

@@ -278,7 +278,7 @@ jsonEOI sk s t =
       PF v # t => Right v # t
       _    # t => Right JNull # t
 
-export
+public export
 json : P1 q (BoundedErr Void) JSON
 json = P JIni (init PI) jsonTrans (\x => (Nothing #)) jsonErr jsonEOI
 
@@ -318,7 +318,7 @@ arrEOI st sk t =
 
 ||| A parser that is capable of streaming a single large
 ||| array of JSON values.
-export
+public export
 jsonArray : P1 q (BoundedErr Void) (List JSON)
 jsonArray = P JIni (init PI) jsonTrans arrChunk jsonErr arrEOI
 
@@ -327,6 +327,6 @@ jsonArray = P JIni (init PI) jsonTrans arrChunk jsonErr arrEOI
 |||
 ||| Values need not be separated by whitespace but the longest
 ||| possible value will always be consumed.
-export
+public export
 jsonValues : P1 q (BoundedErr Void) (List JSON)
 jsonValues = P JIni (init $ PV [<]) jsonTrans arrChunk jsonErr arrEOI
