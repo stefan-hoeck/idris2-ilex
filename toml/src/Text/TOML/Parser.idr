@@ -291,6 +291,6 @@ tomlEOI st sk =
     False => arrFail TSTCK tomlErr st sk
     True  => getStack >>= pure . toTable
 
-export
-toml : P1 q TErr TSz TSTCK TomlTable
+public export
+toml : P1 q TErr TomlTable
 toml = P TIni (init empty) tomlTrans (\x => (Nothing #)) tomlErr tomlEOI

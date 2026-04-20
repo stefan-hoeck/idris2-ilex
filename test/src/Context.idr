@@ -75,7 +75,7 @@ leoi sk s =
     True  => replace1 s.stack_ [<] >>= pure . Right . (<>> [])
 
 export
-lit : P1 q (BoundedErr Void) 2 SK (List $ Bounded Lit)
+lit : P1 q (BoundedErr Void) (List $ Bounded Lit)
 lit = P SLit (init [<]) lit1 (\x => (Nothing #)) litErr leoi
 
 space : Nat -> Gen String

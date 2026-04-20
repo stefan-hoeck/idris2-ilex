@@ -141,7 +141,7 @@ valEOI i sk =
 
 public export
 0 PVal1 : (q,e : Type) -> (a : Type) -> Type
-PVal1 q e a = P1 q (BoundedErr e) VSz (Stack e (Maybe a) VSz) a
+PVal1 q e a = P1 q (BoundedErr e) a
 
 ||| Parser for simple values based on regular expressions.
 export
@@ -218,24 +218,18 @@ lexEOI i sk =
      else unexpected [] sk >>= pure . Left
 
 public export
-0 L1 : (q,e : Type) -> Bits32 -> (a : Type) -> Type
-L1 q e r a =
-  P1
-    q
-    (BoundedErr e)
-    r
-    (Stack e (SnocList $ Bounded a) r)
-    (List $ Bounded a)
+0 L1 : (q,e : Type) -> (a : Type) -> Type
+L1 q e a = P1 q (BoundedErr e) (List $ Bounded a)
 
 public export
-0 Lexer : (e : Type) -> Bits32 -> Type -> Type
-Lexer e r a = {0 q : Type} -> L1 q e r a
+0 Lexer : (e : Type) -> Type -> Type
+Lexer e a = {0 q : Type} -> L1 q e a
 
 export
 lexer :
      {r : _}
   -> {auto 0 lt  : 0 < r}
   -> Steps q r (Stack e (SnocList $ Bounded a) r)
-  -> L1 q e r a
+  -> L1 q e a
 lexer m =
   P Ini (init [<]) (lex1 [E Ini $ dfa m]) snocChunk (errs []) lexEOI

@@ -25,9 +25,9 @@ data Val : Type where
 export
 Interpolation Val where interpolate = show
 
-val : L1 q Void 1 Val
+val : L1 q Void Val
 val =
-  lexer $ jsonSpaced (Ini {n = 1})
+  lexer {r = 1} $ jsonSpaced (Ini {n = 1})
     [ convTok ('A' >> plus 'a') (const MA)
     , ctok 'A' A
     , convTok (plus $ charLike 'B') (const B)
@@ -67,16 +67,16 @@ vals : Gen (Val, String)
 vals = choice [genA, genMA, genB, genC]
 
 export
-lexBounds : Parser1 (BoundedErr e) r s a -> String -> Either (ParseError e) a
+lexBounds : Parser1 (BoundedErr e) a -> String -> Either (ParseError e) a
 lexBounds lex = parseString lex Virtual
 
 export
-lexBytes : Parser1 (BoundedErr e) r s a -> ByteString -> Either (ParseError e) a
+lexBytes : Parser1 (BoundedErr e) a -> ByteString -> Either (ParseError e) a
 lexBytes lex = parseBytes lex Virtual
 
 export
 lexNoBounds :
-     Parser1 (BoundedErr e) r s (List $ Bounded a)
+     Parser1 (BoundedErr e) (List $ Bounded a)
   -> String
   -> Either (ParseError e) (List a)
 lexNoBounds lex = map (map val) . lexBounds lex

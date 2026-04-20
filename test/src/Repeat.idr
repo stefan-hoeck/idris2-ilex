@@ -21,9 +21,9 @@ data ABC : Type where
 export
 Interpolation ABC where interpolate = show
 
-abc : L1 q Void 1 ABC
+abc : L1 q Void ABC
 abc =
-  lexer $ jsonSpaced (Ini {n = 1})
+  lexer {r = 1} $ jsonSpaced (Ini {n = 1})
     [ readTok ('A' >> repeat  4 'a') (const A)
     , readTok ('B' >> atmost  3 'b') (const B)
     , readTok ('C' >> atleast 3 'c') (const C)

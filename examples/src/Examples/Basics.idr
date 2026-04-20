@@ -8,9 +8,9 @@ import Text.ILex
 %hide Data.Linear.(.)
 
 export
-aOrB : L1 q Void 1 AorB
+aOrB : L1 q Void AorB
 aOrB =
-  lexer $ jsonSpaced (Ini {n = 1})
+  lexer {r = 1} $ jsonSpaced (Ini {n = 1})
     [ convTok (plus ('A' <|> 'a')) (const A)
     , convTok (plus ('B' <|> 'b')) (const B)
     ]
@@ -33,9 +33,9 @@ identifier : RExp True
 identifier = plus $ alphaNum <|> '_'
 
 export
-ident : L1 q Void 1 Ident
+ident : L1 q Void Ident
 ident =
-  lexer $ jsonSpaced (Ini {n = 1})
+  lexer {r = 1} $ jsonSpaced (Ini {n = 1})
     [ ctok "else" Else
     , readTok identifier Id
     ]

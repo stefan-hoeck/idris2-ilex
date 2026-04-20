@@ -9,12 +9,12 @@ import Text.ILex.Runner1
 
 %default total
 
-parameters (p : P1 q e r s a)
+parameters (p : P1 q e a)
 
   ||| Tries to read the last token of an input stream and
   ||| append it to the already accumulated list of tokens.
   export
-  appLast : Index r -> s q -> Maybe (Step1 q r s) -> F1 q (Either e a)
+  appLast : PIx p -> PST p -> Maybe (PStep p) -> F1 q (Either e a)
   appLast st sk tok =
     read1 (bytes @{p.hasb} sk) >>= \case
       BS 0 _ => p.eoi st sk
@@ -33,16 +33,15 @@ export
 streamParse :
      {auto has : Has (ParseError e) es}
   -> {auto lft : ELift1 q f}
-  -> {auto hap : HasPosition s}
-  -> {auto hab : HasBytes s}
-  -> P1 q (BoundedErr e) r s a
+  -> (prs      : P1 q (BoundedErr e) a)
+  -> {auto hap : HasPosition prs.state}
   -> Origin
   -> Pull f ByteString es x
   -> Pull f a es x
 streamParse prs o pl = Prelude.do
   st      <- lift1 (init prs)
-  posprev <- lift1 (getPosition @{st.stack})
-  prev    <- readref (bytes st.stack)
+  posprev <- lift1 {s = q} (getPosition @{st.stack} @{hap})
+  prev    <- readref {s = q} (bytes @{prs.hasb} st.stack)
   go prev posprev empty st pl
 
   where
@@ -66,18 +65,18 @@ streamParse prs o pl = Prelude.do
          (prev0    : ByteString)
       -> (posprev0 : Position)
       -> (bs0      : ByteString)
-      -> LexState q (BoundedErr e) r s
+      -> LexState prs
       -> Pull f ByteString es x
       -> Pull f a es x
     go prev0 posprev0 bs0 st p =
       assert_total $ P.uncons p >>= \case
         Left res      =>
-          lift1 (appLast prs st.state st.stack st.tok) >>= \case
+          lift1 {s = q} (appLast prs st.state st.stack st.tok) >>= \case
             Left x  => throw (toErr prev0 posprev0 bs0 x)
             Right v => emit v $> res
         Right (bs1,p2) => Prelude.do
-          posprev1 <- lift1 (getPosition @{st.stack})
-          prev1    <- readref (bytes st.stack)
+          posprev1 <- lift1 {s = q} (getPosition @{st.stack} @{hap})
+          prev1    <- readref {s = q} (bytes @{prs.hasb} st.stack)
           lift1 (pparseBytes prs st bs1) >>= \case
             Left x        => throw (toErr prev0 posprev0 (bs0 <+> bs1) x)
             Right (st2,m) => consMaybe m (go prev1 posprev1 bs1 st2 p2)
@@ -86,10 +85,10 @@ export %inline
 streamVal :
      {auto has : Has (ParseError e) es}
   -> {auto lft : ELift1 q f}
-  -> {auto hap : HasPosition s}
-  -> {auto hab : HasBytes s}
   -> (dflts : Lazy a)
-  -> P1 q (BoundedErr e) r s a
+  -> (prs : P1 q (BoundedErr e) a)
+  -> {auto hap : HasPosition prs.state}
+  -> {auto hab : HasBytes prs.state}
   -> Origin
   -> Stream f es ByteString
   -> Pull f o es a

@@ -78,15 +78,39 @@ Lex1 q r s = Arr32 r (DFA q r s)
 ||| lexicographic token determines the next automaton
 ||| state plus lexer to use.
 public export
-record P1 (q,e : Type) (r : Bits32) (s : Type -> Type) (a : Type) where
+record P1 (q,e : Type) (a : Type) where
   constructor P
-  init  : Index r
-  stck  : F1 q (s q)
-  lex   : Lex1 q r s
-  chunk : s q -> F1 q (Maybe a)
-  err   : Arr32 r (s q -> F1 q e)
-  eoi   : Index r -> s q -> F1 q (Either e a)
-  {auto hasb : HasBytes s}
+  {states    : Bits32}
+  {0 state   : Type -> Type}
+  init       : Index states
+  stck       : F1 q (state q)
+  lex        : Lex1 q states state
+  chunk      : state q -> F1 q (Maybe a)
+  err        : Arr32 states (state q -> F1 q e)
+  eoi        : Index states -> state q -> F1 q (Either e a)
+  {auto hasb : HasBytes state}
+
+public export
+0 PST : (p : P1 q e a) -> Type
+PST p = p.state q
+
+public export
+0 PIx : (p : P1 q e a) -> Type
+PIx p = Index p.states
+
+public export
+0 PStep : (p : P1 q e a) -> Type
+PStep p = Step1 q p.states p.state
+
+||| An array of arrays describing a lexer's state machine.
+public export
+0 PByteStep : Nat -> (p : P1 q e a) -> Type
+PByteStep n p = IArray 256 (Transition n q p.states p.state)
+
+||| An array of arrays describing a lexer's state machine.
+public export
+0 PStepper : Nat -> (p : P1 q e a) -> Type
+PStepper n p = IArray (S n) (PByteStep n p)
 
 export
 arrFail :
@@ -101,19 +125,19 @@ arrFail s arr ix st t =
   in Left err # t
 
 export %inline
-fail : P1 q e r s a -> Index r -> s q -> F1 q (Either e x)
-fail = arrFail s . err
+fail : (p : P1 q e a) -> PIx p -> PST p -> F1 q (Either e x)
+fail p = arrFail p.state $ p.err
 
 export
-lastStep : P1 q e r s a -> Step1 q r s -> Index r -> s q -> F1 q (Either e a)
+lastStep : (p : P1 q e a) -> PStep p -> PIx p -> PST p -> F1 q (Either e a)
 lastStep p f st stck t =
   let r # t := f (stck # t)
       _ # t := write1 (bytes @{p.hasb} stck) "" t
    in p.eoi r stck t
 
 public export
-0 Parser1 : (e : Type) -> (r : Bits32) -> (s : Type -> Type) -> (a : Type) -> Type
-Parser1 e r s a = {0 q : _} -> P1 q e r s a
+0 Parser1 : (e : Type) -> (a : Type) -> Type
+Parser1 e a = {0 q : _} -> P1 q e a
 
 export %inline
 lex1 : {r : _} -> List (Entry r (DFA q r s)) -> Lex1 q r s
