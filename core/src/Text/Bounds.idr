@@ -219,3 +219,7 @@ Foldable Bounded where
 public export
 Traversable Bounded where
   traverse f (B v bs) = (`B` bs) <$> f v
+
+export %inline
+noBounds : Bounded t -> Bounded t
+noBounds = {bounds := NoBounds}
