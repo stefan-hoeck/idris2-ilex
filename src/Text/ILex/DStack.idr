@@ -105,8 +105,8 @@ parameters {auto sk : DStack s e q}
     in writeAs sk.stack_ (stck:>st) (cast st) t
 
   export %inline
-  dpush : t -> s [<t] -> Cast (s [<t]) a => F1 q a
-  dpush v st t =
+  dpush : s [<t] -> Cast (s [<t]) a => t -> F1 q a
+  dpush st v t =
    let stck # t := read1 sk.stack_ t
     in writeAs sk.stack_ (stck:<v:>st) (cast st) t
 
