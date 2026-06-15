@@ -124,6 +124,27 @@ HasPosition nms p =
     dfn : (impl : Name) -> Decl
     dfn impl = def impl [patClause (var impl) `(MkHP line_ col_ positions_)]
 
+||| Derives an implementation of `HasBytePos` for a record type with the
+||| following fields:
+|||
+||| ```idris
+||| pos_       : Ref q BytePos
+||| positions_ : Ref q (SnocList BytePos)
+||| ```
+export
+HasBytePos : List Name -> ParamTypeInfo -> Res (List TopLevel)
+HasBytePos nms p =
+ let impl := implName p "HasBytePos"
+  in Right [ TL (clm impl) (dfn impl) ]
+  where
+    clm : (impl : Name) -> Decl
+    clm impl =
+     let arg := unapply1 p.applied
+      in implClaimVis Export impl (ifaceType p $ var "HasBytePos" `app` arg)
+
+    dfn : (impl : Name) -> Decl
+    dfn impl = def impl [patClause (var impl) `(MkHBP pos_ positions_)]
+
 ||| Derives an implementation of `HasBytes` for a record type with the
 ||| following field:
 |||
@@ -209,6 +230,31 @@ HasError nms p =
     dfn : (impl : Name) -> Decl
     dfn impl = def impl [patClause (var impl) `(MkHE error_)]
 
+||| Derives an implementation of `HasBBEr` for a record type with the
+||| following field:
+|||
+||| ```idris
+||| error_     : Ref q (Maybe $ BBErr e)
+||| ```
+|||
+||| The error type `e` can be freely chosen (it can also be a parameter) and
+||| will be determined when deriving the implementation.
+export
+HasBBErr : List Name -> ParamTypeInfo -> Res (List TopLevel)
+HasBBErr nms p =
+ let impl := implName p "HasBBErr"
+     Right c := clm impl | Left x => Left x
+  in Right [TL c (dfn impl)]
+  where
+    clm : (impl : Name) -> Res Decl
+    clm impl =
+     let arg      := unapply1 p.applied
+         Right te := errType p | Left x => Left x
+      in Right $ implClaimVis Export impl (ifaceType p $ appAll "HasBBErr" [arg,te])
+
+    dfn : (impl : Name) -> Decl
+    dfn impl = def impl [patClause (var impl) `(MkBE error_)]
+
 stackErr : Res a
 stackErr = Left "HasStack can only be derived for a record type with a field name `stack_`"
 
@@ -265,5 +311,19 @@ FullStack nms p =
     , HasBytes nms p
     , HasStringLits nms p
     , HasError nms p
+    , HasStack nms p
+    ]
+
+||| Derives implementations of the following interfaces for a suitable
+||| record type: `HasBytePos`, `HasBytes`, `HasStringLits`, `HasBBErr`, and
+||| `HasStack`.
+export
+ByteStack : List Name -> ParamTypeInfo -> Res (List TopLevel)
+ByteStack nms p =
+  sequenceJoin
+    [ HasBytePos nms p
+    , HasBytes nms p
+    , HasStringLits nms p
+    , HasBBErr nms p
     , HasStack nms p
     ]
