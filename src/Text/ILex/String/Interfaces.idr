@@ -166,6 +166,10 @@ parameters {auto pos : HasPosition s}
   linecol' : (line,col : Nat) -> RExpOf True b -> Index r -> (RExpOf True b, Step q r s)
   linecol' l c x v = go x $ incline l >> setcol c >> pure v
 
+--------------------------------------------------------------------------------
+-- Error Handling
+--------------------------------------------------------------------------------
+
 parameters {auto hae : HasError s e}
 
   ||| Writes the given exception to the `error` field of some
