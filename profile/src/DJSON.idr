@@ -3,7 +3,8 @@ module DJSON
 import Data.String
 import Derive.Prelude
 import JSON.Parser
-import Text.ILex.String.DStack
+import Text.ILex.Bytes
+import Text.ILex.Bytes.DStack
 import Text.ILex.Util
 import Syntax.T1
 
@@ -91,14 +92,14 @@ codepoint = #"\u"# >> hexdigit >> hexdigit >> hexdigit >> hexdigit
 valTok : JState st -> Steps q DSz DSK -> DFA q DSz DSK
 valTok x ts =
   spaced x $
-    [ cexpr "null"  (dact $ jval JNull)
-    , cexpr "true"  (dact $ jval $ JBool True)
-    , cexpr "false" (dact $ jval $ JBool False)
-    , conv (opt '-' >> decimal) (dact . jval . JInteger . integer)
-    , read jsonDouble (dact . jval . JDouble . jdouble)
-    , copen '{' $ opn JObj
-    , copen '[' $ opn JArr
-    , copen' '"' JStr
+    [ step "null"  (dact $ jval JNull)
+    , step "true"  (dact $ jval $ JBool True)
+    , step "false" (dact $ jval $ JBool False)
+    , bytes (opt '-' >> decimal) (dact . jval . JInteger . integer)
+    , string jsonDouble (dact . jval . JDouble . jdouble)
+    , opn '{' $ opn JObj
+    , opn '[' $ opn JArr
+    , opn' '"' JStr
     ] ++ ts
 
 decode : ByteString -> String
@@ -116,17 +117,17 @@ jchar = range32 0x20 0x10ffff && not '"' && not '\\'
 strTok : DFA q DSz DSK
 strTok =
   dfa
-    [ ccloseStr '"' (dact . endstr)
-    , read (plus jchar) (pushStr JStr)
-    , cexpr #"\""# (pushStr JStr "\"")
-    , cexpr #"\n"# (pushStr JStr "\n")
-    , cexpr #"\f"# (pushStr JStr "\f")
-    , cexpr #"\b"# (pushStr JStr "\b")
-    , cexpr #"\r"# (pushStr JStr "\r")
-    , cexpr #"\t"# (pushStr JStr "\t")
-    , cexpr #"\\"# (pushStr JStr "\\")
-    , cexpr #"\/"# (pushStr JStr "\/")
-    , conv codepoint (pushStr JStr . decode)
+    [ closeStr '"' (dact . endstr)
+    , string (plus jchar) (pushStr JStr)
+    , step #"\""# (pushStr JStr "\"")
+    , step #"\n"# (pushStr JStr "\n")
+    , step #"\f"# (pushStr JStr "\f")
+    , step #"\b"# (pushStr JStr "\b")
+    , step #"\r"# (pushStr JStr "\r")
+    , step #"\t"# (pushStr JStr "\t")
+    , step #"\\"# (pushStr JStr "\\")
+    , step #"\/"# (pushStr JStr "\/")
+    , bytes codepoint (pushStr JStr . decode)
     ]
 
 --------------------------------------------------------------------------------
@@ -139,20 +140,20 @@ jsonTrans =
     [ entry JInit $ valTok JInit []
     , entry JVal  $ spaced JVal  []
 
-    , entry JArr  $ valTok JArr [cclose ']' $ dact carr]
-    , entry JArrV $ spaced JArrV [cexpr' ',' JArrS, cclose ']' $ dact carr]
+    , entry JArr  $ valTok JArr [close ']' $ dact carr]
+    , entry JArrV $ spaced JArrV [step' ',' JArrS, close ']' $ dact carr]
     , entry JArrS $ valTok JArrS []
 
-    , entry JObj  $ spaced JObj [cclose '}' $ dact cobj, copen' '"' JStr]
-    , entry JObjL $ spaced JObjL [cexpr' ':' JObjC]
+    , entry JObj  $ spaced JObj [close '}' $ dact cobj, opn' '"' JStr]
+    , entry JObjL $ spaced JObjL [step' ':' JObjC]
     , entry JObjC $ valTok JObjC []
-    , entry JObjV $ spaced JObjV [cclose '}' $ dact cobj, cexpr' ',' JObjS]
-    , entry JObjS $ spaced JObjS [copen' '"' JStr]
+    , entry JObjV $ spaced JObjV [close '}' $ dact cobj, step' ',' JObjS]
+    , entry JObjS $ spaced JObjS [opn' '"' JStr]
 
     , entry JStr strTok
     ]
 
-jsonErr : Arr32 DSz (DSK q -> F1 q (BoundedErr Void))
+jsonErr : Arr32 DSz (DSK q -> F1 q (BBErr Void))
 jsonErr =
   errs
     [ entry JArr  $ unclosedIfEOI "[" []
@@ -166,19 +167,19 @@ jsonErr =
     , entry JStr  $ unclosedIfNLorEOI "\"" []
     ]
 
-jsonEOI : Index DSz -> DSK q -> F1 q (Either (BoundedErr Void) JSON)
+jsonEOI : Index DSz -> DSK q -> F1 q (Either (BBErr Void) JSON)
 jsonEOI st sk =
   read1 sk.stack_ >>= \case
     _:<v:>JVal => pure (Right v)
     _          => arrFail DSK jsonErr st sk
 
 public export
-djson : P1 q (BoundedErr Void) JSON
+djson : P1 q (BBErr Void) JSON
 djson = P (cast JInit) (init $ [<]:>JInit) jsonTrans (\x => (Nothing #)) jsonErr jsonEOI
 
 export %inline
 dparseJSON : Origin -> String -> Either (ParseError Void) JSON
-dparseJSON = parseString djson
+dparseJSON = parseStringBB djson
 
 export
 testDJSON : String -> IO ()

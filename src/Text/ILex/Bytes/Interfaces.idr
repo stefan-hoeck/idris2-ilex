@@ -121,8 +121,8 @@ parameters {auto hbp : HasBytePos s}
       in res # t
 
   export %inline
-  step' : Index r -> (a,Step q r s)
-  step' x = step (pure x)
+  step' : Cast t (Index r) => t -> (a,Step q r s)
+  step' x = step (pure $ cast x)
 
   export %inline
   bytes : (s q => ByteString -> F1 q (Index r)) -> (a,Step q r s)
@@ -320,7 +320,7 @@ jsonSpaced :
   -> b
   -> Steps q r s
   -> Steps q r s
-jsonSpaced v xs = step' jsonSpaces (cast v) :: xs
+jsonSpaced v xs = step' jsonSpaces v :: xs
 
 --------------------------------------------------------------------------------
 -- Error handling
