@@ -33,6 +33,8 @@ modules = Text.ILex
         , Text.ILex.Runner
         , Text.ILex.Util
 
+        , Text.ILex.Bytes.Interfaces
+
         , Text.ILex.String
         , Text.ILex.String.DStack
         , Text.ILex.String.Interfaces

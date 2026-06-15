@@ -20,13 +20,6 @@ import Text.ParseError
 -- Interfaces
 --------------------------------------------------------------------------------
 
-||| An interface for mutable parser stacks `s` that allow us to
-||| register custom errors, which will then be raised during parsing.
-public export
-interface HasError (0 s : Type -> Type) (0 e : Type) | s where
-  constructor MkHE
-  error     : s q -> Ref q (Maybe $ BoundedErr e)
-
 ||| An interface for mutable parser stacks `s` that facilitates
 ||| parsing string tokens containing escape sequences.
 public export
@@ -195,14 +188,6 @@ parameters {auto sk  : s q}
   export %inline
   pushBits32 : Cast t (Index r) => t -> Bits32 -> F1 q (Index r)
   pushBits32 res = pushChar res . cast
-
-parameters {auto hae : HasError s e}
-
-  ||| Writes the given exception to the `error` field of some
-  ||| mutable state and returns the given result.
-  export %inline
-  failWith : (sk : s q) => BoundedErr e -> v -> F1 q v
-  failWith = writeAs (error sk) . Just
 
 --------------------------------------------------------------------------------
 -- Streaming

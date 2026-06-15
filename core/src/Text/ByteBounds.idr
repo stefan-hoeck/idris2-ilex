@@ -27,6 +27,10 @@ public export %inline
 Interpolation BytePos where
   interpolate = show . pos
 
+export
+inc : Nat -> BytePos -> BytePos
+inc n (BP p) = BP (n+p)
+
 --------------------------------------------------------------------------------
 --          ByteBounds
 --------------------------------------------------------------------------------
@@ -157,10 +161,14 @@ parameters {auto pm : PositionMap}
   toBounded : ByteBounded a -> Bounded a
   toBounded (B v bs) = B v $ toBounds bs
 
+public export
+0 BBErr : Type -> Type
+BBErr e = ByteBounded (InnerError e)
+
 ||| Converts an error with byte bounds to a `ParseError` by pairing it with
 ||| an origin and the parsed string.
 export
-toParseError : Origin -> String -> ByteBounded (InnerError e) -> ParseError e
+toParseError : Origin -> String -> BBErr e -> ParseError e
 toParseError o s err =
  let mp := stringPositionMap s
   in toParseError o s (toBounded err)

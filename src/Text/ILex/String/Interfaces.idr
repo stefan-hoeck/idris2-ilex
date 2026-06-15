@@ -11,6 +11,13 @@ import Text.ILex.Parser
 
 import public Text.ILex.Interfaces
 
+||| An interface for mutable parser stacks `s` that allow us to
+||| register custom errors, which will then be raised during parsing.
+public export
+interface HasError (0 s : Type -> Type) (0 e : Type) | s where
+  constructor MkHE
+  error     : s q -> Ref q (Maybe $ BoundedErr e)
+
 ||| An interface for mutable parser stacks `s` that allows us to keep
 ||| track of the current position (line and column) in the currently
 ||| parsed string.
@@ -160,6 +167,12 @@ parameters {auto pos : HasPosition s}
   linecol' l c x v = go x $ incline l >> setcol c >> pure v
 
 parameters {auto hae : HasError s e}
+
+  ||| Writes the given exception to the `error` field of some
+  ||| mutable state and returns the given result.
+  export %inline
+  failWith : (sk : s q) => BoundedErr e -> v -> F1 q v
+  failWith = writeAs (error sk) . Just
 
   ||| Like `failWith`, but generates the bounds of the error from the
   ||| current position and the bytes read until the error occurred.
