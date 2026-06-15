@@ -1,5 +1,7 @@
 module Text.Bounds
 
+import Data.Array.Core
+import Data.Array.Mutable
 import Data.Bits
 import Data.ByteString
 import Derive.Prelude
@@ -81,6 +83,21 @@ incString s (P l c) = go l c (unpack s)
     go l c ('\n' :: xs) = go (S l) 0 xs
     go l c (x    :: xs) = go l (S c) xs
 
+%inline
+isStartByte : Bits8 -> Bool
+isStartByte b = (b .&. 128) == 0 || (b .&. 0b1100_0000) == 0b1100_0000
+
+||| Advances the given text position by one byte in a UTF-8 string.
+|||
+||| A line feed character (byte '0x0a') increases the line by one and
+||| resets the column to zero. The first byte of any other UTF-8 character
+||| increases the column by one. Any other UTF-8 byte leaves the
+||| position unchanged.
+export
+incByte : Bits8 -> Position -> Position
+incByte 0x0a p = incLine p
+incByte b    p = if isStartByte b then incCol p else p
+
 ||| Advances the given text position by the bytes encountered
 ||| in the given string.
 |||
@@ -97,9 +114,51 @@ incBytes (BS n bv) (P l c) = go l c n
     go l c (S k) =
       case bv `ix` k of
         0x0a => go (S l) 0 k
-        b    => case b < 128 || b .&. 0b1100_0000 == 0b1100_000 of
+        b    => case isStartByte b of
           True => go l (S c) k
           _    => go l c k
+
+parameters (bv : ByteVect n)
+           (m  : MArray s n Position)
+
+  skip : (k : Nat) -> (ix : Ix k n) => Position -> F1 s (IArray n Position)
+
+  fillMap : (k : Nat) -> (ix : Ix k n) => Position -> F1 s (IArray n Position)
+  fillMap 0     p t = unsafeFreeze m t
+  fillMap (S k) p t =
+   let _ # t := setIx m k p t
+    in case ByteVect.ix bv k of
+         0x0a => fillMap k (incLine p) t
+         b    => case b < 128 of
+           True  => fillMap k (incCol p) t
+           False => skip k p t
+
+  skip 0     p t = unsafeFreeze m t
+  skip (S k) p t =
+   let _ # t := setIx m k p t
+    in if isStartByte (ByteVect.ix bv k)
+          then fillMap (S k) (incCol p) t
+          else skip k p t
+
+||| From a byte vector, generates an array that maps each
+||| byte index to the corresponding text position (line and column),
+||| starting from the given start position.
+|||
+||| The line number is increased after a line feed (`'\n'`) character.
+export
+positionMapFrom : {n : _} -> Position -> ByteVect n -> IArray n Position
+positionMapFrom p bv =
+  run1 $ \t =>
+   let m # t := marray1 n p t
+    in fillMap bv m n p t
+
+||| From a byte vector, generates an array that maps each
+||| byte index to the corresponding text position (line and column).
+|||
+||| The line number is increased after a line feed (`'\n'`) character.
+export %inline
+positionMap : {n : _} -> ByteVect n -> IArray n Position
+positionMap = positionMapFrom (P 0 0)
 
 ||| Adjusts the current position by one character.
 |||
