@@ -3,7 +3,7 @@ module DJSON
 import Data.String
 import Derive.Prelude
 import JSON.Parser
-import Text.ILex.DStack
+import Text.ILex.String.DStack
 import Text.ILex.Util
 import Syntax.T1
 

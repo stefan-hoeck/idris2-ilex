@@ -1,10 +1,10 @@
 ||| This module provides an experimental alternative
 ||| to `Text.ILex.Stack` with a correctly typed parser
 ||| stack.
-module Text.ILex.DStack
+module Text.ILex.Bytes.DStack
 
 import Syntax.T1
-import Text.ILex.Interfaces
+import Text.ILex.Bytes.Interfaces
 import Text.ILex.Parser
 
 %default total
@@ -34,39 +34,36 @@ public export
 record DStack (s : SnocList Type -> Type) (e : Type) (q : Type) where
   [search q]
   constructor S
-  line_      : Ref q Nat
-  col_       : Ref q Nat
-  positions_ : Ref q (SnocList Position)
+  pos_       : Ref q BytePos
+  positions_ : Ref q (SnocList BytePos)
   strings_   : Ref q (SnocList String)
   stack_     : Ref q (Stack True s [<])
-  error_     : Ref q (Maybe $ BoundedErr e)
+  error_     : Ref q (Maybe $ BBErr e)
   bytes_     : Ref q ByteString
 
 ||| Initializes a new parser stack.
 export
 init : Stack True s [<] -> F1 q (DStack s e q)
 init st = T1.do
-  ln <- ref1 Z
-  cl <- ref1 Z
+  bp <- ref1 (BP Z)
   ps <- ref1 [<]
   ss <- ref1 [<]
   sk <- ref1 st
   er <- ref1 Nothing
   bs <- ref1 empty
-  pure (S ln cl ps ss sk er bs)
+  pure (S bp ps ss sk er bs)
 
 export %inline
 HasStack (DStack s e) (Stack True s [<]) where
   stack = stack_
 
 export %inline
-HasError (DStack s e) e where
+HasBBErr (DStack s e) e where
   error = error_
 
 export %inline
-HasPosition (DStack s e) where
-  line = line_
-  col  = col_
+HasBytePos (DStack s e) where
+  pos = pos_
   positions = positions_
 
 export %inline

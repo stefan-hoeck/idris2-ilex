@@ -9,7 +9,7 @@ import Derive.Pretty
 import Language.Reflection.Pretty
 
 import Text.ILex.Char.UTF8
-import Text.ILex.Stack
+import Text.ILex.String.Stack
 import Text.ILex.Internal.DFA
 import Text.ILex.Internal.ENFA
 import Text.ILex.Internal.NFA
