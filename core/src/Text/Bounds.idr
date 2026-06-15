@@ -85,7 +85,7 @@ incString s (P l c) = go l c (unpack s)
 
 %inline
 isStartByte : Bits8 -> Bool
-isStartByte b = b .&. 128 == 0 || b .&. 0b1100_0000 == 0b1100_000
+isStartByte b = (b .&. 128) == 0 || (b .&. 0b1100_0000) == 0b1100_0000
 
 ||| Advances the given text position by one byte in a UTF-8 string.
 |||
@@ -118,18 +118,27 @@ incBytes (BS n bv) (P l c) = go l c n
           True => go l (S c) k
           _    => go l c k
 
-fillMap :
-     (k : Nat)
-  -> {auto ix : Ix k n}
-  -> ByteVect n
-  -> Position
-  -> MArray s n Position
-  -> F1 s (IArray n Position)
-fillMap 0     bv p m t = unsafeFreeze m t
-fillMap (S k) bv p m t =
- let _ # t := setIx m k p t
-     b     := ByteVect.ix bv k @{ix}
-  in fillMap k bv (incByte b p) m t
+parameters (bv : ByteVect n)
+           (m  : MArray s n Position)
+
+  skip : (k : Nat) -> (ix : Ix k n) => Position -> F1 s (IArray n Position)
+
+  fillMap : (k : Nat) -> (ix : Ix k n) => Position -> F1 s (IArray n Position)
+  fillMap 0     p t = unsafeFreeze m t
+  fillMap (S k) p t =
+   let _ # t := setIx m k p t
+    in case ByteVect.ix bv k of
+         0x0a => fillMap k (incLine p) t
+         b    => case b < 128 of
+           True  => fillMap k (incCol p) t
+           False => skip k p t
+
+  skip 0     p t = unsafeFreeze m t
+  skip (S k) p t =
+   let _ # t := setIx m k p t
+    in if isStartByte (ByteVect.ix bv k)
+          then fillMap (S k) (incCol p) t
+          else skip k p t
 
 ||| From a byte vector, generates an array that maps each
 ||| byte index to the corresponding text position (line and column),
@@ -140,8 +149,8 @@ export
 positionMapFrom : {n : _} -> Position -> ByteVect n -> IArray n Position
 positionMapFrom p bv =
   run1 $ \t =>
-   let m # t := marray1 n (P 0 0) t
-    in fillMap n bv p m t
+   let m # t := marray1 n p t
+    in fillMap bv m n p t
 
 ||| From a byte vector, generates an array that maps each
 ||| byte index to the corresponding text position (line and column).
