@@ -1,10 +1,10 @@
 ||| This module provides an experimental alternative
 ||| to `Text.ILex.Stack` with a correctly typed parser
 ||| stack.
-module Text.ILex.DStack
+module Text.ILex.String.DStack
 
 import Syntax.T1
-import Text.ILex.Interfaces
+import Text.ILex.String.Interfaces
 import Text.ILex.Parser
 
 %default total

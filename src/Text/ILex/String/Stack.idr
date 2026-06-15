@@ -1,10 +1,10 @@
-module Text.ILex.Stack
+module Text.ILex.String.Stack
 
 import Data.Linear.Ref1
 import Syntax.T1
 import Text.Bounds
 import Text.ILex.Derive
-import Text.ILex.Interfaces
+import Text.ILex.String.Interfaces
 import Text.ILex.Parser
 import Text.ILex.Util
 import Text.ParseError
