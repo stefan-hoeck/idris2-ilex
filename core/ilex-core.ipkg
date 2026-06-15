@@ -9,5 +9,6 @@ depends = elab-util
 sourcedir = "src"
 
 modules = Text.Bounds
+        , Text.ByteBounds
         , Text.FC
         , Text.ParseError
