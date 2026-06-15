@@ -8,6 +8,7 @@ import JSON.Parser
 import Language.JSON
 import Profile
 import Text.ILex
+import Text.ILex.Bytes
 
 %default total
 
@@ -48,7 +49,7 @@ lexBS : (n ** IBuffer n) -> Either (ParseError Void) JSON.Parser.JSON
 lexBS (n ** buf) = parse json Virtual buf
 
 lexDBS : (n ** IBuffer n) -> Either (ParseError Void) JSON.Parser.JSON
-lexDBS (n ** buf) = parse djson Virtual buf
+lexDBS (n ** buf) = parseBB djson Virtual buf
 
 -- This profiles our JSON lexer against the one from parser-json
 -- to know what we are up against.
