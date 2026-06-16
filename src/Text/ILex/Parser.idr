@@ -2,10 +2,11 @@ module Text.ILex.Parser
 
 import Derive.Prelude
 import Data.Buffer
+import Syntax.T1
 import public Data.Prim.Bits32
 import public Data.ByteString
 import public Data.Linear.Ref1
-import public Text.Bounds
+import public Text.ByteBounds
 import public Text.ParseError
 import public Text.ILex.RExp
 import public Text.ILex.Lexer
@@ -66,6 +67,28 @@ public export
 0 Lex1 : (q : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type
 Lex1 q r s = Arr32 r (DFA q r s)
 
+--------------------------------------------------------------------------------
+-- HasBytes Interface
+--------------------------------------------------------------------------------
+
+||| An interface for mutable parser stacks `s` that facilitates
+||| parsing string tokens containing escape sequences.
+public export
+interface HasBytes (0 s : Type -> Type) where
+  constructor MkHSL
+  prev : s q -> Ref q (Maybe ByteString)
+  full : s q -> Ref q ByteString
+  pos  : s q -> Ref q BytePos
+  len  : s q -> Ref q Nat
+
+export
+getBytes : HasBytes s => (sk : s q) => F1 q ByteString
+getBytes = T1.do
+  bs   <- read1 (full sk)
+  BP p <- read1 (pos sk)
+  l    <- read1 (len sk)
+  pure (substring p l bs)
+
 ||| A parser is a system of automata, where each
 ||| lexicographic token determines the next automaton
 ||| state plus lexer to use.
@@ -78,8 +101,9 @@ record P1 (q,e : Type) (a : Type) where
   stck       : F1 q (state q)
   lex        : Lex1 q states state
   chunk      : state q -> F1 q (Maybe a)
-  err        : Arr32 states (ByteString -> state q -> F1 q e)
-  eoi        : ByteString -> Index states -> state q -> F1 q (Either e a)
+  err        : Arr32 states (state q -> F1 q e)
+  eoi        : Index states -> state q -> F1 q (Either e a)
+  {auto hasb : HasBytes state}
 
 public export
 0 PST : (p : P1 q e a) -> Type
@@ -106,18 +130,17 @@ PStepper n p = IArray (S n) (PByteStep n p)
 export
 arrFail :
      (0 s : Type -> Type)
-  -> Arr32 r (ByteString -> s q -> F1 q e)
+  -> Arr32 r (s q -> F1 q e)
   -> Index r
-  -> ByteString
   -> s q
   -> F1 q (Either e x)
-arrFail s arr ix bs st t =
+arrFail s arr ix st t =
  let eo      := arr `at` ix
-     err # t := eo bs st t
+     err # t := eo st t
   in Left err # t
 
 export %inline
-fail : (p : P1 q e a) -> PIx p -> ByteString -> PST p -> F1 q (Either e x)
+fail : (p : P1 q e a) -> PIx p -> PST p -> F1 q (Either e x)
 fail p = arrFail p.state p.err
 
 export
@@ -125,12 +148,11 @@ lastStep :
      (p : P1 q e a)
   -> PStep p
   -> PIx p
-  -> ByteString
   -> PST p
   -> F1 q (Either e a)
-lastStep p f st bs stck t =
-  let r # t := f.run st bs stck t
-   in p.eoi "" r stck t
+lastStep p f st stck t =
+  let r # t := f.run st stck t
+   in p.eoi r stck t
 
 public export
 0 Parser1 : (e : Type) -> (a : Type) -> Type
