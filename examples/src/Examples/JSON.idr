@@ -21,12 +21,12 @@ prettyList (Left x)   = putStrLn $ interpolate x
 prettyList (Right vs) = traverse_ printLn vs
 
 0 Prog : Type -> Type -> Type
-Prog o r = AsyncPull Poll o [ParseError Void, Errno] r
+Prog o r = AsyncPull Poll o [BBErr Void, ParseError Void, Errno] r
 
 covering
 runProg : Prog Void () -> IO ()
 runProg prog =
- let handled := handle [stderrLn . interpolate, stderrLn . interpolate] prog
+ let handled := handle [stderrLn . interpolate, stderrLn . interpolate, stderrLn . interpolate] prog
   in epollApp $ mpull handled
 
 streamVals : Prog String () -> Prog Void ()

@@ -169,6 +169,10 @@ public export
 0 BBErr : Type -> Type
 BBErr e = ByteBounded (InnerError e)
 
+export
+Interpolation e => Interpolation (BBErr e) where
+  interpolate (B err bs) = "Error at byte(s) \{bs}: \{err}"
+
 ||| Converts an error with byte bounds to a `ParseError` by pairing it with
 ||| an origin and the parsed string.
 export
