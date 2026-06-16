@@ -100,7 +100,7 @@ PIx p = Index p.states
 
 public export
 0 PStep : (p : P1 q e a) -> Type
-PStep p = Step1 q p.states p.state
+PStep p = Step q p.states p.state
 
 ||| An array of arrays describing a lexer's state machine.
 public export
@@ -131,7 +131,7 @@ fail p = arrFail p.state $ p.err
 export
 lastStep : (p : P1 q e a) -> PStep p -> PIx p -> PST p -> F1 q (Either e a)
 lastStep p f st stck t =
-  let r # t := f (stck # t)
+  let r # t := f.run (stck # t)
       _ # t := write1 (bytes @{p.hasb} stck) "" t
    in p.eoi r stck t
 

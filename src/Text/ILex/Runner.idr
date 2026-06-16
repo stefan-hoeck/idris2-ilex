@@ -102,13 +102,12 @@ parameters {0 q,e,a : Type}
    let L _ dfa := parser.lex `at` st
        cur     := dfa `at` 0
     in case cur `atByte` (buf `ix` k) of
-         Done f       => let s2 # t := f (stck # t) in loop s2 k t
+         Done f     =>
+          let _  # t := writeBS buf x k bytes t
+              s2 # t := f.run (stck # t)
+           in loop s2 k t
          Move   nxt f => succ st dfa (dfa `at` nxt) f   x k t
          MoveE  nxt   => step st dfa (dfa `at` nxt)     x k t
-         DoneBS f     =>
-          let _  # t := writeBS buf x k bytes t
-              s2 # t := f (stck # t)
-           in loop s2 k t
          _            =>
           let _  # t := writeBS buf x k bytes t
            in fail parser st stck t
@@ -120,16 +119,15 @@ parameters {0 q,e,a : Type}
    let byte := buf `ix` k
     in case cur `atByte` byte of
          Keep         => succ st dfa cur f from k t
-         Done f       => let s2 # t := f (stck # t) in loop s2 k t
+         Done f       =>
+          let _  # t := writeBS buf from k bytes t
+              s2 # t := f.run (stck # t)
+           in loop s2 k t
          Move   nxt f => succ st dfa (dfa `at` nxt) f from k t
          MoveE  nxt   => step st dfa (dfa `at` nxt)   from k t
-         DoneBS f     =>
-          let _  # t := writeBS buf from k bytes t
-              s2 # t := f (stck # t)
-           in loop s2 k t
          Bottom       =>
           let _  # t := writeBS buf from (S k) bytes t
-              s2 # t := f (stck # t)
+              s2 # t := f.run (stck # t)
            in loop s2 (S k) t
 
   step st dfa cur from 0     t =
@@ -139,13 +137,12 @@ parameters {0 q,e,a : Type}
    let byte := buf `ix` k
     in case cur `atByte` byte of
          Keep         => step st dfa cur from k t
-         Done f       => let s2 # t := f (stck # t) in loop s2 k t
+         Done f       =>
+          let _  # t := writeBS buf from k bytes t
+              s2 # t := f.run (stck # t)
+           in loop s2 k t
          Move   nxt f => succ st dfa (dfa `at` nxt) f from k t
          MoveE  nxt   => step st dfa (dfa `at` nxt)   from k t
-         DoneBS f     =>
-          let _  # t := writeBS buf from k bytes t
-              s2 # t := f (stck # t)
-           in loop s2 k t
          Bottom       =>
           let _  # t := writeBS buf from k bytes t
            in fail parser st stck t

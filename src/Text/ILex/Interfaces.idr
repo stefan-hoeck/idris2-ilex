@@ -40,17 +40,17 @@ interface HasStack (0 s : Type -> Type) (0 a : Type) | s where
 
 export %inline
 go : a -> (s q => F1 q (Index r)) -> (a,Step q r s)
-go x f = (x,Go $ \(x # t) => f t)
+go x f = (x, ST $ \(x # t) => f t)
 
 export %inline
 goBS : HasBytes s => a -> (s q => ByteString -> F1 q (Index r)) -> (a,Step q r s)
-goBS x f = (x, Rd $ \(x # t) => let bs # t := read1 (bytes x) t in f bs t)
+goBS x f = (x, ST $ \(x # t) => let bs # t := read1 (bytes x) t in f bs t)
 
 export %inline
 goStr : HasBytes s => a -> (s q => String -> F1 q (Index r)) -> (a,Step q r s)
 goStr x f =
   ( x
-  , Rd $ \(x # t) =>
+  , ST $ \(x # t) =>
      let bs # t := read1 (bytes x) t
          s      := toString bs
       in f s t

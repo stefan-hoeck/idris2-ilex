@@ -1,0 +1,15 @@
+JSON/short                                           866.2 ns   915.1 ns 0.999
+JSON/long                                            8.580 μs   8.744 μs 0.999
+JSON/extra                                           88.48 μs   87.54 μs 0.999
+JSON/maxi                                            1.162 ms   1.186 ms 1.002
+JSON/ultra                                           17.43 ms   20.05 ms 1.052
+JSON/short dep                                       876.1 ns   945.0 ns 0.999
+JSON/long dep                                        8.779 μs   8.838 μs 0.999
+JSON/extra dep                                       92.01 μs   90.53 μs 0.986
+JSON/maxi dep                                        1.209 ms   1.256 ms 1.006
+JSON/ultra dep                                       17.29 ms   19.95 ms 1.052
+JSON/short ctr                                       37.36 μs   38.39 μs 0.999
+JSON/long ctr                                        380.6 μs   379.9 μs 0.999
+JSON/extra ctr                                       3.778 ms   4.213 ms 1.019
+JSON/maxi ctr                                        36.61 ms   49.66 ms 1.237
+JSON/ultra ctr                                       541.0 ms   558.2 ms 0.999
