@@ -256,7 +256,7 @@ jsonTrans =
     , E JStr strTok
     ]
 
-jsonErr : Arr32 JSz (SK q -> F1 q (BoundedErr Void))
+jsonErr : Arr32 JSz (ByteString -> SK q -> F1 q (BoundedErr Void))
 jsonErr =
   arr32 JSz (unexpected [])
     [ E ANew $ unclosedIfEOI "[" []
@@ -270,10 +270,10 @@ jsonErr =
     , E JStr $ unclosedIfNLorEOI "\"" []
     ]
 
-jsonEOI : JST -> SK q -> F1 q (Either (BoundedErr Void) JSON)
-jsonEOI sk s t =
+jsonEOI : ByteString -> JST -> SK q -> F1 q (Either (BoundedErr Void) JSON)
+jsonEOI bs sk s t =
   case sk == JDone of
-    False => arrFail SK jsonErr sk s t
+    False => arrFail SK jsonErr sk bs s t
     True  => case getStack t of
       PF v # t => Right v # t
       _    # t => Right JNull # t
@@ -305,13 +305,13 @@ arrChunk sk = T1.do
   let (p2,res) := extract p
   putStackAs p2 res
 
-arrEOI : JST -> SK q -> F1 q (Either (BoundedErr Void) (List JSON))
-arrEOI st sk t =
+arrEOI : ByteString -> JST -> SK q -> F1 q (Either (BoundedErr Void) (List JSON))
+arrEOI bs st sk t =
   case st == JIni of
     True  => case getStack t of
       PV sv # t => Right (sv <>> []) # t
       _     # t => Right [] # t
-    False => case jsonEOI st sk t of
+    False => case jsonEOI bs st sk t of
       Right (JArray vs) # t => Right vs # t
       Right _           # t => Right [] # t
       Left x            # t => Left x # t

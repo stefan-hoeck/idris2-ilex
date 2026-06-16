@@ -43,22 +43,29 @@ Ini : (0 prf : 0 < n) => Index n
 Ini = I 0
 
 public export
+record Env (q : Type) (s : Type -> Type) where
+  constructor E
+  bytes : ByteString
+  state : s q
+  1 tok : T1 q
+
+public export
 0 Step1 : (q : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type
 Step1 q r s = s q -> F1 q (Index r)
 
 public export
 data Step : (q : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type where
-  Run : ((1 sk : R1 q (s q)) -> R1 q (Index r)) -> Step q r s
-  Ign : ((1 sk : R1 q (s q)) -> R1 q ()) -> Step q r s
+  Run : ((1 sk : Env q s) -> R1 q (Index r)) -> Step q r s
+  Ign : ((1 sk : Env q s) -> R1 q ()) -> Step q r s
 
 export %inline
-(.run) : Step q r s -> Index r -> s q -> F1 q (Index r)
-(.run) (Run f) _ sk t = f (sk # t)
-(.run) (Ign f) v sk t = let _ # t := f (sk # t) in v # t
+(.run) : Step q r s -> Index r -> ByteString -> s q -> F1 q (Index r)
+(.run) (Run f) _ bs sk t = f (E bs sk t)
+(.run) (Ign f) v bs sk t = let _ # t := f (E bs sk t) in v # t
 
 export %inline
 toState : Index r -> Step q r s
-toState v = Run $ \(_ # t) => v # t
+toState v = Run $ \(E _ _ t) => v # t
 
 public export
 data Transition :

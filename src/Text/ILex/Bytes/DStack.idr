@@ -39,7 +39,6 @@ record DStack (s : SnocList Type -> Type) (e : Type) (q : Type) where
   strings_   : Ref q (SnocList String)
   stack_     : Ref q (Stack True s [<])
   error_     : Ref q (Maybe $ BBErr e)
-  bytes_     : Ref q ByteString
 
 ||| Initializes a new parser stack.
 export
@@ -50,8 +49,7 @@ init st = T1.do
   ss <- ref1 [<]
   sk <- ref1 st
   er <- ref1 Nothing
-  bs <- ref1 empty
-  pure (S bp ps ss sk er bs)
+  pure (S bp ps ss sk er)
 
 export %inline
 HasStack (DStack s e) (Stack True s [<]) where
@@ -65,10 +63,6 @@ export %inline
 HasBytePos (DStack s e) where
   pos = pos_
   positions = positions_
-
-export %inline
-HasBytes (DStack s e) where
-  bytes = bytes_
 
 export %inline
 HasStringLits (DStack s e) where

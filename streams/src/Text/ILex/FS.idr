@@ -1,5 +1,6 @@
 module Text.ILex.FS
 
+import Data.Buffer
 import public FS
 import public Text.ILex
 import Syntax.T1
@@ -14,13 +15,13 @@ parameters (p : P1 q e a)
   ||| Tries to read the last token of an input stream and
   ||| append it to the already accumulated list of tokens.
   export
-  appLast : PIx p -> PST p -> Maybe (PStep p) -> F1 q (Either e a)
-  appLast st sk tok =
-    read1 (bytes @{p.hasb} sk) >>= \case
-      BS 0 _ => p.eoi st sk
+  appLast : ByteString -> PIx p -> PST p -> Maybe (PStep p) -> F1 q (Either e a)
+  appLast bs st sk tok =
+    case bs of
+      BS 0 _ => p.eoi bs st sk
       _      => case tok of
-        Just f  => lastStep p f st sk
-        Nothing => fail p st sk
+        Just f  => lastStep p f st bs sk
+        Nothing => fail p st bs sk
 
 ||| Converts a stream of byte strings to a list of tokens of
 ||| type `a`.
@@ -41,8 +42,7 @@ streamParse :
 streamParse prs o pl = Prelude.do
   st      <- lift1 (init prs)
   posprev <- lift1 {s = q} (getPosition @{st.stack} @{hap})
-  prev    <- readref {s = q} (bytes @{prs.hasb} st.stack)
-  go prev posprev empty st pl
+  go "" posprev empty st pl
 
   where
     toErr : ByteString -> Position -> ByteString -> BoundedErr e -> ParseError e
@@ -71,15 +71,14 @@ streamParse prs o pl = Prelude.do
     go prev0 posprev0 bs0 st p =
       assert_total $ P.uncons p >>= \case
         Left res      =>
-          lift1 {s = q} (appLast prs st.state st.stack st.tok) >>= \case
+          lift1 {s = q} (appLast prs st.bytes st.state st.stack st.tok) >>= \case
             Left x  => throw (toErr prev0 posprev0 bs0 x)
             Right v => emit v $> res
         Right (bs1,p2) => Prelude.do
           posprev1 <- lift1 {s = q} (getPosition @{st.stack} @{hap})
-          prev1    <- readref {s = q} (bytes @{prs.hasb} st.stack)
           lift1 (pparseBytes prs st bs1) >>= \case
             Left x        => throw (toErr prev0 posprev0 (bs0 <+> bs1) x)
-            Right (st2,m) => consMaybe m (go prev1 posprev1 bs1 st2 p2)
+            Right (st2,m) => consMaybe m (go st.bytes posprev1 bs1 st2 p2)
 
 export %inline
 streamVal :
@@ -88,7 +87,6 @@ streamVal :
   -> (dflts : Lazy a)
   -> (prs : P1 q (BoundedErr e) a)
   -> {auto hap : HasPosition prs.state}
-  -> {auto hab : HasBytes prs.state}
   -> Origin
   -> Stream f es ByteString
   -> Pull f o es a

@@ -40,25 +40,19 @@ interface HasStack (0 s : Type -> Type) (0 a : Type) | s where
 
 export %inline
 go : a -> (s q => F1 q (Index r)) -> (a,Step q r s)
-go x f = (x, Run $ \(x # t) => f t)
+go x f = (x, Run $ \(E _ x t) => f t)
 
 export %inline
-ign : a -> (s q => F1 q ()) -> (a,Step q r s)
-ign x f = (x, Ign $ \(x # t) => f t)
+ign : a -> (s q => ByteString -> F1 q ()) -> (a,Step q r s)
+ign x f = (x, Ign $ \(E bs x t) => f bs t)
 
 export %inline
-goBS : HasBytes s => a -> (s q => ByteString -> F1 q (Index r)) -> (a,Step q r s)
-goBS x f = (x, Run $ \(x # t) => let bs # t := read1 (bytes x) t in f bs t)
+goBS : a -> (s q => ByteString -> F1 q (Index r)) -> (a,Step q r s)
+goBS x f = (x, Run $ \(E bs x t) => f bs t)
 
 export %inline
-goStr : HasBytes s => a -> (s q => String -> F1 q (Index r)) -> (a,Step q r s)
-goStr x f =
-  ( x
-  , Run $ \(x # t) =>
-     let bs # t := read1 (bytes x) t
-         s      := toString bs
-      in f s t
-  )
+goStr : a -> (s q => String -> F1 q (Index r)) -> (a,Step q r s)
+goStr x f = (x, Run $ \(E bs x t) => f (toString bs) t)
 
 ||| Writes a mutable reference and returns the given result.
 export %inline

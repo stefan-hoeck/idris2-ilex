@@ -1,5 +1,6 @@
 module Text.ILex.Bytes.Interfaces
 
+import Data.Buffer
 import Data.Linear.Ref1
 import Data.String
 import Syntax.T1
@@ -39,16 +40,13 @@ parameters {auto sk   : s q}
   bytePos = read1 (pos sk)
 
   export %inline
-  incPos : HasBytes s => F1' q
-  incPos = T1.do
-    bs <- read1 (bytes sk)
-    mod1 (pos sk) (inc bs.size)
+  incPos : ByteString -> F1' q
+  incPos bs = mod1 (pos sk) (inc bs.size)
 
   export %inline
-  byteBounds : HasBytes s => F1 q ByteBounds
-  byteBounds = T1.do
+  byteBounds : ByteString -> F1 q ByteBounds
+  byteBounds bs = T1.do
     s  <- bytePos
-    bs <- read1 (bytes sk)
     pure $ BB s (inc bs.size s)
 
   ||| Pushes the current byte position onto the position stack.
@@ -99,9 +97,9 @@ parameters {auto hae : HasBBErr s e}
   ||| Like `failWith`, but generates the bounds of the error from the
   ||| current position and the bytes read until the error occurred.
   export %inline
-  failHere : HasBytes s => HasBytePos s => (sk : s q) => InnerError e -> v -> F1 q v
-  failHere x res = T1.do
-    bs <- byteBounds
+  failHere : HasBytePos s => (sk : s q) => ByteString -> InnerError e -> v -> F1 q v
+  failHere bs x res = T1.do
+    bs <- byteBounds bs
     failWith (B x bs) res
 
 --------------------------------------------------------------------------------
@@ -109,12 +107,11 @@ parameters {auto hae : HasBBErr s e}
 --------------------------------------------------------------------------------
 
 parameters {auto hbp : HasBytePos s}
-           {auto hbs : HasBytes s}
            (x        : a)
 
   export %inline
   ignore : (s q => F1 q ()) -> (a,Step q r s)
-  ignore f = ign x $ \t => let _ # t := f t in incPos t
+  ignore f = ign x $ \bs,t => let _ # t := f t in incPos bs t
 
   export %inline
   ignore' : (a,Step q r s)
@@ -123,9 +120,9 @@ parameters {auto hbp : HasBytePos s}
   export %inline
   step : (s q => F1 q (Index r)) -> (a,Step q r s)
   step f =
-    go x $ \t =>
+    goBS x $ \bs,t =>
      let res # t := f t
-         _   # t := incPos t
+         _   # t := incPos bs t
       in res # t
 
   export %inline
@@ -202,7 +199,6 @@ parameters {auto hbp : HasBytePos s}
   closeBoundedStr f = closeWithBounds $ \bs => getStr >>= \s => f (B s bs)
 
 parameters {auto hbp : HasBytePos s}
-           {auto hbs : HasBytes s}
 
   ||| Lexes a single value based on its printed form. Returns
   ||| `Nothing` in case `display` returns the empty string.
@@ -321,11 +317,7 @@ jsonSpaces : RExp True
 jsonSpaces = plus jsonSpace
 
 export %inline
-jsonSpaced :
-     {auto hp : HasBytePos s}
-  -> {auto hb : HasBytes s}
-  -> Steps q r s
-  -> Steps q r s
+jsonSpaced : {auto hp : HasBytePos s} -> Steps q r s -> Steps q r s
 jsonSpaced xs = ignore' jsonSpaces :: xs
 
 --------------------------------------------------------------------------------
@@ -334,21 +326,19 @@ jsonSpaced xs = ignore' jsonSpaces :: xs
 
 parameters {auto he  : HasBBErr s e}
            {auto pos : HasBytePos s}
-           {auto pos : HasBytes s}
 
   export
-  raise : InnerError e -> Nat -> s q => v -> F1 q v
-  raise err n res = T1.do
+  raise : InnerError e -> Nat -> ByteString -> s q => v -> F1 q v
+  raise err n bs res = T1.do
     ps <- bytePos
     failWith (B err $ BB ps (inc n ps)) res
 
   export
-  unexpected : List String -> s q -> F1 q (BBErr e)
-  unexpected strs sk =
+  unexpected : List String -> ByteString -> s q -> F1 q (BBErr e)
+  unexpected strs bs sk =
     read1 (error sk) >>= \case
       Just x  => pure x
       Nothing => T1.do
-       bs <- read1 (bytes sk)
        ps <- bytePos
        let bnds1 := BB ps $ inc 1 ps
        case bs of
@@ -365,33 +355,30 @@ parameters {auto he  : HasBBErr s e}
            in pure (B (Expected strs str) bnds)
 
   export
-  unclosed : String -> s q -> F1 q (BBErr e)
-  unclosed str sk = T1.do
+  unclosed : String -> ByteString -> s q -> F1 q (BBErr e)
+  unclosed str bs sk = T1.do
     bnds <- popAndGetBounds (length str)
     pure $ B (Unclosed str) bnds
 
   ||| Fails with `unclosed` if this is the end of input, otherwise
   ||| invokes `unexpected`.
   export
-  unclosedIfEOI : String -> List String -> s q -> F1 q (BBErr e)
-  unclosedIfEOI s ss sk =
-    read1 (bytes sk) >>= \case
-      BS 0 _ => unclosed s sk
-      _      => unexpected ss sk
+  unclosedIfEOI : String -> List String -> ByteString -> s q -> F1 q (BBErr e)
+  unclosedIfEOI s ss (BS 0 _) sk = unclosed s "" sk
+  unclosedIfEOI s ss bs       sk = unexpected ss bs sk
 
   ||| Fails with `unclosed` if this is the end of input or
   ||| a linefeed character (`\n`, byte `0x0a`) was encountered,
   ||| otherwise, invokes `unexpected`.
   export
-  unclosedIfNLorEOI : String -> List String -> s q -> F1 q (BBErr e)
-  unclosedIfNLorEOI s ss sk =
-    read1 (bytes sk) >>= \case
-      BS 0 _ => unclosed s sk
-      bs     => if elem 0x0a bs then unclosed s sk else unexpected ss sk
+  unclosedIfNLorEOI : String -> List String -> ByteString -> s q -> F1 q (BBErr e)
+  unclosedIfNLorEOI s ss (BS 0 _) sk = unclosed s "" sk
+  unclosedIfNLorEOI s ss bs       sk =
+    if elem 0x0a bs then unclosed s bs sk else unexpected ss bs sk
 
   export %inline
   errs :
        {n : _}
-    -> List (Entry n $ s q -> F1 q (BBErr e))
-    -> Arr32 n (s q -> F1 q (BBErr e))
+    -> List (Entry n $ ByteString -> s q -> F1 q (BBErr e))
+    -> Arr32 n (ByteString -> s q -> F1 q (BBErr e))
   errs = arr32 n (unexpected [])

@@ -506,7 +506,7 @@ from the array and passed the parser stack and byte sequence
 parsed so far:
 
 ```idris
-quotedErr : Arr32 QSz (QSTCK q -> F1 q (BoundedErr Void))
+quotedErr : Arr32 QSz (ByteString -> QSTCK q -> F1 q (BoundedErr Void))
 quotedErr = arr32 QSz (unexpected []) [E InStr $ unclosedIfEOI "\"" []]
 ```
 
@@ -516,10 +516,14 @@ end in any state except within a quoted string) and either produce
 a result or fail with an error:
 
 ```idris
-quotedEOI : QST -> QSTCK q -> F1 q (Either (BoundedErr Void) (List $ Bounded CSV1))
-quotedEOI st x =
+quotedEOI :
+     ByteString
+  -> QST
+  -> QSTCK q
+  -> F1 q (Either (BoundedErr Void) (List $ Bounded CSV1))
+quotedEOI bs st x =
   case st == Ini of
-    False => arrFail QSTCK quotedErr st x
+    False => arrFail QSTCK quotedErr st bs x
     True  => getList x.stack_ >>= pure . Right
 ```
 
@@ -587,7 +591,6 @@ record CSTCK (q : Type) where
   err   : Ref q (Maybe $ BoundedErr Void)
   cells : Ref q (SnocList Cell)
   lines : Ref q (SnocList Line)
-  bytes : Ref q ByteString
 
 export %inline
 HasPosition CSTCK where
@@ -607,10 +610,6 @@ export %inline
 HasStack CSTCK (SnocList Line) where
   stack = lines
 
-export %inline
-HasBytes CSTCK where
-  bytes = CSTCK.bytes
-
 export
 cinit : F1 q (CSTCK q)
 cinit = T1.do
@@ -621,8 +620,7 @@ cinit = T1.do
   er <- ref1 Nothing
   cs <- ref1 [<]
   ls <- ref1 [<]
-  by <- ref1 ""
-  pure (C l c bs ss er cs ls by)
+  pure (C l c bs ss er cs ls)
 ```
 
 Next, we'll define the different parser states. We want to make
@@ -755,7 +753,7 @@ The only thing missing is error handling and the final assembling of
 the parser. States `Str`, `Val`, and `NL` throw custom errors:
 
 ```idris
-csvErr : Arr32 CSz (CSTCK q -> F1 q (BoundedErr Void))
+csvErr : Arr32 CSz (ByteString -> CSTCK q -> F1 q (BoundedErr Void))
 csvErr =
   arr32 CSz (unexpected [])
     [ E Str $ unclosedIfEOI "\"" []
@@ -763,10 +761,10 @@ csvErr =
     , E NL  $ unclosed "\""
     ]
 
-csvEOI : CST -> CSTCK q -> F1 q (Either (BoundedErr Void) Table)
-csvEOI st x =
+csvEOI : ByteString -> CST -> CSTCK q -> F1 q (Either (BoundedErr Void) Table)
+csvEOI bs st x =
   case st == Str || st == NL of
-    True  => arrFail CSTCK csvErr st x
+    True  => arrFail CSTCK csvErr st bs x
     False => T1.do
       _   <- onNL (st == Com)
       tbl <- getList x.lines

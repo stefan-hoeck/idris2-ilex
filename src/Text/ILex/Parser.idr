@@ -29,14 +29,6 @@ prim__machineGet : AnyPtr -> Bits32 -> AnyPtr
          "javascript:lambda:(x,i,w) => {x[i] = w}"
 prim__machineSet : AnyPtr -> Bits32 -> (val : AnyPtr) -> PrimIO ()
 
-||| An interface for mutable parser stacks `s` that allows
-||| the parse loop to register the byte string corresponding to
-||| the currently parsed token.
-public export
-interface HasBytes (0 s : Type -> Type) where
-  constructor MkHB
-  bytes : s q -> Ref q ByteString
-
 export
 record Arr32 (n : Bits32) (a : Type) where
   constructor A32
@@ -86,9 +78,8 @@ record P1 (q,e : Type) (a : Type) where
   stck       : F1 q (state q)
   lex        : Lex1 q states state
   chunk      : state q -> F1 q (Maybe a)
-  err        : Arr32 states (state q -> F1 q e)
-  eoi        : Index states -> state q -> F1 q (Either e a)
-  {auto hasb : HasBytes state}
+  err        : Arr32 states (ByteString -> state q -> F1 q e)
+  eoi        : ByteString -> Index states -> state q -> F1 q (Either e a)
 
 public export
 0 PST : (p : P1 q e a) -> Type
@@ -115,25 +106,31 @@ PStepper n p = IArray (S n) (PByteStep n p)
 export
 arrFail :
      (0 s : Type -> Type)
-  -> Arr32 r (s q -> F1 q e)
+  -> Arr32 r (ByteString -> s q -> F1 q e)
   -> Index r
+  -> ByteString
   -> s q
   -> F1 q (Either e x)
-arrFail s arr ix st t =
+arrFail s arr ix bs st t =
  let eo      := arr `at` ix
-     err # t := eo st t
+     err # t := eo bs st t
   in Left err # t
 
 export %inline
-fail : (p : P1 q e a) -> PIx p -> PST p -> F1 q (Either e x)
-fail p = arrFail p.state $ p.err
+fail : (p : P1 q e a) -> PIx p -> ByteString -> PST p -> F1 q (Either e x)
+fail p = arrFail p.state p.err
 
 export
-lastStep : (p : P1 q e a) -> PStep p -> PIx p -> PST p -> F1 q (Either e a)
-lastStep p f st stck t =
-  let r # t := f.run st stck t
-      _ # t := write1 (bytes @{p.hasb} stck) "" t
-   in p.eoi r stck t
+lastStep :
+     (p : P1 q e a)
+  -> PStep p
+  -> PIx p
+  -> ByteString
+  -> PST p
+  -> F1 q (Either e a)
+lastStep p f st bs stck t =
+  let r # t := f.run st bs stck t
+   in p.eoi "" r stck t
 
 public export
 0 Parser1 : (e : Type) -> (a : Type) -> Type

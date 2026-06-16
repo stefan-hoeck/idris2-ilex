@@ -83,7 +83,7 @@ parameters {auto sk : TSTCK q}
    let hex := cast {to = Bits32} $ hexadecimal (drop 2 bs)
     in case has unicode hex && not (has surrogate hex) of
          True  => inccol (size bs) >> pushBits32 res hex
-         False => unexpected [] sk >>= flip failWith Err
+         False => unexpected [] bs sk >>= flip failWith Err
 
   end : TST -> Either TErr TStack -> F1 q TST
   end x (Left y)  = failWith y Err
@@ -135,7 +135,7 @@ valE : a -> (ByteString -> AnyTime) -> (a, Step q TSz TSTCK)
 valE x f =
   goBS x $ \bs => case extraCheckDate (f bs) of
     Right v => inccol bs.size >> getStack >>= onval (TTime v)
-    Left  x => raise (Custom $ InvalidLeapDay x) (size bs) Err
+    Left  x => raise (Custom $ InvalidLeapDay x) (size bs) bs Err
 
 %inline
 val' : a -> TomlValue -> (a, Step q TSz TSTCK)
@@ -265,7 +265,7 @@ tomlTrans =
     , E EOL  $ tomlIgnore EOL TIni []
     ]
 
-tomlErr : Arr32 TSz (TSTCK q -> F1 q TErr)
+tomlErr : Arr32 TSz (ByteString -> TSTCK q -> F1 q TErr)
 tomlErr =
   arr32 TSz (unexpected [])
     [ E ANew $ unclosedIfEOI "[" []
@@ -285,10 +285,10 @@ tomlErr =
     , E ASep $ unclosedIfNLorEOI "[[" [".", "]]"]
     ]
 
-tomlEOI : TST -> TSTCK q -> F1 q (Either TErr TomlTable)
-tomlEOI st sk =
+tomlEOI : ByteString -> TST -> TSTCK q -> F1 q (Either TErr TomlTable)
+tomlEOI bs st sk =
   case st == TIni || st == EOL of
-    False => arrFail TSTCK tomlErr st sk
+    False => arrFail TSTCK tomlErr st bs sk
     True  => getStack >>= pure . toTable
 
 public export

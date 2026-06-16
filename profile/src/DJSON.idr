@@ -158,7 +158,7 @@ jsonTrans =
     , entry JStr strTok
     ]
 
-jsonErr : Arr32 DSz (DSK q -> F1 q (BBErr Void))
+jsonErr : Arr32 DSz (ByteString -> DSK q -> F1 q (BBErr Void))
 jsonErr =
   errs
     [ entry JArr  $ unclosedIfEOI "[" []
@@ -172,11 +172,11 @@ jsonErr =
     , entry JStr  $ unclosedIfNLorEOI "\"" []
     ]
 
-jsonEOI : Index DSz -> DSK q -> F1 q (Either (BBErr Void) JSON)
-jsonEOI st sk =
+jsonEOI : ByteString -> Index DSz -> DSK q -> F1 q (Either (BBErr Void) JSON)
+jsonEOI bs st sk =
   read1 sk.stack_ >>= \case
     _:<v:>JVal => pure (Right v)
-    _          => arrFail DSK jsonErr st sk
+    _          => arrFail DSK jsonErr st bs sk
 
 public export
 djson : P1 q (BBErr Void) JSON

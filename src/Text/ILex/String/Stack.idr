@@ -50,9 +50,6 @@ record Stack (e,a : Type) (r : Bits32) (q : Type) where
   -- Error handling
   error_     : Ref q (Maybe $ BoundedErr e)
 
-  -- Last lexed byte string
-  bytes_     : Ref q ByteString
-
 %runElab derive "Stack" [FullStack]
 
 ||| Initializes a new parser stack.
@@ -66,8 +63,7 @@ init v = T1.do
   st <- ref1 (I 0)
   ss <- ref1 [<]
   er <- ref1 Nothing
-  bs <- ref1 empty
-  pure (S ln cl ps sk st ss er bs)
+  pure (S ln cl ps sk st ss er)
 
 --------------------------------------------------------------------------------
 -- Values
@@ -119,11 +115,11 @@ toStep (x,c) =
     Txt f   =>
       read x $ \s => case f s of
         Right v => putStackAs (Just v) VDone
-        Left e  => failHere (Custom e) VErr
+        Left e  => failHere (fromString s) (Custom e) VErr
     Bytes f =>
       conv x $ \s => case f s of
         Right v => putStackAs (Just v) VDone
-        Left e  => failHere (Custom e) VErr
+        Left e  => failHere s (Custom e) VErr
 
 ignore :
      (RExpOf True b, Tok e a)
@@ -131,13 +127,13 @@ ignore :
 ignore (x,Ignore) = Just $ conv' x VDone
 ignore _          = Nothing
 
-valEOI : VST -> Stack e (Maybe a) VSz q -> F1 q (Either (BoundedErr e) a)
-valEOI i sk =
+valEOI : ByteString -> VST -> Stack e (Maybe a) VSz q -> F1 q (Either (BoundedErr e) a)
+valEOI bs i sk =
   if i == VDone || i == VIni
      then replace1 sk.stack_ Nothing >>= \case
             Just v  => pure (Right v)
-            Nothing => unexpected [] sk >>= pure . Left
-     else unexpected [] sk >>= pure . Left
+            Nothing => unexpected [] bs sk >>= pure . Left
+     else unexpected [] bs sk >>= pure . Left
 
 public export
 0 PVal1 : (q,e : Type) -> (a : Type) -> Type
@@ -191,15 +187,15 @@ parameters (x          : RExpOf True b)
   ctok v = go x $ lexPush n v
 
   export %inline
-  readTok : HasBytes s => (String -> a) -> (RExpOf True b, Step q r s)
+  readTok : (String -> a) -> (RExpOf True b, Step q r s)
   readTok f = goStr x $ \s => lexPush (length s) (f s)
 
   export %inline
-  convTok : HasBytes s => (ByteString -> a) -> (RExpOf True b, Step q r s)
+  convTok : (ByteString -> a) -> (RExpOf True b, Step q r s)
   convTok f = goBS x $ \bs => lexPush bs.size (f bs)
 
   export %inline
-  nltok : HasBytes s => a -> (RExpOf True b, Step q r s)
+  nltok : a -> (RExpOf True b, Step q r s)
   nltok v = goBS x $ \bs => lexPushNL bs.size v
 
 export
@@ -208,14 +204,14 @@ lexEOI :
   -> {auto pos : HasPosition s}
   -> {auto stk : HasStack s (SnocList a)}
   -> {auto err : HasError s e}
-  -> {auto bts : HasBytes s}
+  -> ByteString
   -> Index r
   -> s q
   -> F1 q (Either (BoundedErr e) $ List a)
-lexEOI i sk =
+lexEOI bs i sk =
   if i == Ini
      then getList (stack sk) >>= pure . Right
-     else unexpected [] sk >>= pure . Left
+     else unexpected [] bs sk >>= pure . Left
 
 public export
 0 L1 : (q,e : Type) -> (a : Type) -> Type

@@ -45,4 +45,4 @@ parStreamVals pths =
 
 covering
 main : IO ()
-main = runProg $ parStreamVals (P.tail args)
+main = runProg $ streamVals (P.tail args)
