@@ -44,11 +44,21 @@ Ini = I 0
 
 public export
 0 Step1 : (q : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type
-Step1 q r s = (1 sk : R1 q (s q)) -> R1 q (Index r)
+Step1 q r s = s q -> F1 q (Index r)
+
+public export
+data Step : (q : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type where
+  Run : ((1 sk : R1 q (s q)) -> R1 q (Index r)) -> Step q r s
+  Ign : ((1 sk : R1 q (s q)) -> R1 q ()) -> Step q r s
 
 export %inline
-toState : Index r -> Step1 q r s
-toState v = \(_ # t) => v # t
+(.run) : Step q r s -> Index r -> s q -> F1 q (Index r)
+(.run) (Run f) _ sk t = f (sk # t)
+(.run) (Ign f) v sk t = let _ # t := f (sk # t) in v # t
+
+export %inline
+toState : Index r -> Step q r s
+toState v = Run $ \(_ # t) => v # t
 
 public export
 data Transition :
@@ -58,9 +68,8 @@ data Transition :
   -> (s : Type -> Type)
   -> Type where
   Keep   : Transition n q r s
-  Done   : Step1 q r s -> Transition n q r s
-  DoneBS : Step1 q r s -> Transition n q r s
-  Move   : Fin (S n) -> Step1 q r s -> Transition n q r s
+  Done   : Step q r s -> Transition n q r s
+  Move   : Fin (S n) -> Step q r s -> Transition n q r s
   MoveE  : Fin (S n) -> Transition n q r s
   Bottom : Transition n q r s
 
@@ -93,11 +102,6 @@ record DFA q r s where
 --------------------------------------------------------------------------------
 -- Lexer Generator
 --------------------------------------------------------------------------------
-
-public export
-data Step : (q : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type where
-  Go  : Step1 q r s -> Step q r s
-  Rd  : Step1 q r s -> Step q r s
 
 public export
 0 Steps : (q : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type
@@ -140,12 +144,8 @@ node terms index (ix, N me _ out) =
         Nothing        => case tgt == me of
           True  => Just (cast b, Keep)
           False => ((cast b,) . MoveE) <$> lookup tgt index
-        Just (Left $ Go f)  => Just (cast b, Done f)
-        Just (Left $ Rd f)  => Just (cast b, DoneBS f)
-        Just (Right $ Go f) => case tgt == me of
-          True  => Just (cast b, Keep)
-          False => ((cast b,) . (`Move` f)) <$> lookup tgt index
-        Just (Right $ Rd f) => case tgt == me of
+        Just (Left f)  => Just (cast b, Done f)
+        Just (Right f) => case tgt == me of
           True  => Just (cast b, Keep)
           False => ((cast b,) . (`Move` f)) <$> lookup tgt index
 

@@ -284,7 +284,7 @@ parameters {auto pos : HasPosition s}
     in case unpack (display v) of
          cs@(_::_) =>
           let 0 prf := charsConstSize cs
-           in Just $ cexpr (chars cs) (\t => f (%search # t))
+           in Just $ cexpr (chars cs) (f %search)
          []        => Nothing
 
   ||| Like `val` but for a value that can be displayed in
@@ -302,7 +302,7 @@ parameters {auto pos : HasPosition s}
     exp : Step1 q r s -> List Char -> Maybe (RExp True, Step q r s)
     exp f cs@(_::_)=
      let 0 prf := charsConstSize cs
-      in Just $ cexpr (chars cs) (\t => f (%search # t))
+      in Just $ cexpr (chars cs) (f %search)
     exp f [] = Nothing
 
   ||| Specialized version of `val` that writes the lexed value
@@ -315,7 +315,7 @@ parameters {auto pos : HasPosition s}
     -> (value   : a)
     -> Maybe (RExp True, Step q r s)
   writeVal display field res =
-    val display (\v => \(x # t) => writeAs (field x) v res t)
+    val display (\v,x => writeAs (field x) v res)
 
   ||| Specialized version of `valN` that writes the lexed value
   ||| to a predefined mutable field of the parser stack.
@@ -327,7 +327,7 @@ parameters {auto pos : HasPosition s}
     -> (value    : a)
     -> List (RExp True, Step q r s)
   writeValN displays field res =
-    valN displays (\v => \(x # t) => writeAs (field x) v res t)
+    valN displays (\v,x => writeAs (field x) v res)
 
   ||| Applies `val` to a list of values.
   |||
@@ -402,7 +402,7 @@ parameters (x        : RExpOf True b)
   read' : Cast t (Index r) => t -> (RExpOf True b, Step q r s)
   read' v =
     ( x
-    , Rd $ \(sk # t) =>
+    , Run $ \(sk # t) =>
       let bs # t := read1 (bytes sk) t
           _  # t := inccol (length $ toString bs) t
        in cast v # t
@@ -437,7 +437,7 @@ parameters (x        : RExpOf True b)
   conv' : Cast t (Index r) => t -> (RExpOf True b, Step q r s)
   conv' v =
     ( x
-    , Rd $ \(sk # t) =>
+    , Run $ \(sk # t) =>
        let bs # t := read1 (bytes sk) t
            _  # t := inccol (size bs) t
         in cast v # t
@@ -451,7 +451,7 @@ parameters (x        : RExpOf True b)
   multiline' : Index r -> (RExpOf True b, Step q r s)
   multiline' v =
     ( x
-    , Rd $ \(sk # t) =>
+    , Run $ \(sk # t) =>
        let bs # t := read1 (bytes sk) t
            _  # t := incML bs t
         in v # t

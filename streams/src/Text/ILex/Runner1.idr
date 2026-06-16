@@ -97,13 +97,12 @@ parameters {0 q,e,a : Type}
    let L _ dfa := parser.lex `at` st
        cur     := dfa `at` 0
     in case cur `atByte` (buf `ix` k) of
-         Done f       => let s2 # t := f (stck # t) in ploop s2 k t
+         Done f       =>
+          let _  # t := writeBS buf x k bytes t
+              s2 # t := f.run st stck t
+           in ploop s2 k t
          Move   nxt f => psucc st dfa (dfa `at` nxt) empty f   x k t
          MoveE  nxt   => pstep st dfa (dfa `at` nxt) empty     x k t
-         DoneBS f     =>
-          let _  # t := writeBS buf x k bytes t
-              s2 # t := f (stck # t)
-           in ploop s2 k t
          _           =>
           let _  # t := writeBS buf x k bytes t
            in fail parser st stck t
@@ -116,16 +115,15 @@ parameters {0 q,e,a : Type}
    let byte := buf `ix` k
     in case cur `atByte` byte of
          Keep         => psucc st dfa cur prev f from k t
-         Done f       => let s2 # t := f (stck # t) in ploop s2 k t
+         Done f       =>
+          let _  # t := writeBSP prev buf from k bytes t
+              s2 # t := f.run st stck t
+           in ploop s2 k t
          Move   nxt f => psucc st dfa (dfa `at` nxt) prev f from k t
          MoveE  nxt   => pstep st dfa (dfa `at` nxt) prev   from k t
-         DoneBS f     =>
-          let _  # t := writeBSP prev buf from k bytes t
-              s2 # t := f (stck # t)
-           in ploop s2 k t
          Bottom       =>
           let _  # t := writeBSP prev buf from (S k) bytes t
-              s2 # t := f (stck # t)
+              s2 # t := f.run st stck t
            in ploop s2 (S k) t
 
   pstep st dfa cur prev from 0 t =
@@ -136,13 +134,12 @@ parameters {0 q,e,a : Type}
    let byte := buf `ix` k
     in case cur `atByte` byte of
          Keep         => pstep st dfa cur prev from k t
-         Done f       => let s2 # t := f (stck # t) in ploop s2 k t
+         Done f       =>
+          let _  # t := writeBSP prev buf from k bytes t
+              s2 # t := f.run st stck t
+           in ploop s2 k t
          Move   nxt f => psucc st dfa (dfa `at` nxt) prev f from k t
          MoveE  nxt   => pstep st dfa (dfa `at` nxt) prev   from k t
-         DoneBS f     =>
-          let _  # t := writeBSP prev buf from k bytes t
-              s2 # t := f (stck # t)
-           in ploop s2 k t
          Bottom       =>
           let _  # t := writeBSP prev buf from k bytes t
            in fail parser st stck t
@@ -158,13 +155,12 @@ pparseFrom p lst@(LST st sk dfa cur tok) pos buf t =
            Keep         => case tok of
              Just f  => psucc p sk buf bytes st dfa cur prev f x k t
              Nothing => pstep p sk buf bytes st dfa cur prev   x k t
-           Done   f     => let s2 # t := f (sk # t) in ploop p sk buf bytes s2 k t
-           DoneBS f     =>
+           Done f       =>
             let _  # t := writeBSP prev buf x k bytes t
-                s2 # t := f (sk # t)
+                s2 # t := f.run st sk t
              in ploop p sk buf bytes s2 k t
            Move   nxt f => psucc p sk buf bytes st dfa (dfa `at` nxt) prev f x k t
            MoveE  nxt   => pstep p sk buf bytes st dfa (dfa `at` nxt) prev   x k t
            Bottom     => case tok of
-             Just f  => let s2 # t := f (sk # t) in ploop p sk buf bytes s2 (S k) t
+             Just f  => let s2 # t := f.run st sk t in ploop p sk buf bytes s2 (S k) t
              Nothing => fail p st sk t
