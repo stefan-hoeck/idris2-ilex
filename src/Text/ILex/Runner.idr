@@ -104,7 +104,7 @@ parameters {0 q,e,a : Type}
     in case cur `atByte` (buf `ix` k) of
          Done f     =>
           let _  # t := writeBS buf x k bytes t
-              s2 # t := f.run (stck # t)
+              s2 # t := f.run st stck t
            in loop s2 k t
          Move   nxt f => succ st dfa (dfa `at` nxt) f   x k t
          MoveE  nxt   => step st dfa (dfa `at` nxt)     x k t
@@ -121,13 +121,13 @@ parameters {0 q,e,a : Type}
          Keep         => succ st dfa cur f from k t
          Done f       =>
           let _  # t := writeBS buf from k bytes t
-              s2 # t := f.run (stck # t)
+              s2 # t := f.run st stck t
            in loop s2 k t
          Move   nxt f => succ st dfa (dfa `at` nxt) f from k t
          MoveE  nxt   => step st dfa (dfa `at` nxt)   from k t
          Bottom       =>
           let _  # t := writeBS buf from (S k) bytes t
-              s2 # t := f.run (stck # t)
+              s2 # t := f.run st stck t
            in loop s2 (S k) t
 
   step st dfa cur from 0     t =
@@ -139,7 +139,7 @@ parameters {0 q,e,a : Type}
          Keep         => step st dfa cur from k t
          Done f       =>
           let _  # t := writeBS buf from k bytes t
-              s2 # t := f.run (stck # t)
+              s2 # t := f.run st stck t
            in loop s2 k t
          Move   nxt f => succ st dfa (dfa `at` nxt) f from k t
          MoveE  nxt   => step st dfa (dfa `at` nxt)   from k t

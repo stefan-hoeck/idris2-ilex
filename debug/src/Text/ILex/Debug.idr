@@ -145,7 +145,6 @@ prettyByteStep (x,bs) =
       case t of
         Keep       => Just (prettyByte byte <+> colon <++> line "stay")
         Done y     => Just (prettyByte byte <+> colon <++> line "done")
-        DoneBS y   => Just (prettyByte byte <+> colon <++> line "done with bytes")
         Move y z   => Just (prettyByte byte <+> colon <++> line "move (\{show y})")
         MoveE y    => Just (prettyByte byte <+> colon <++> line "move non-terminal (\{show y})")
         Bottom     => Nothing

@@ -82,16 +82,15 @@ parameters {auto sk : DSK q}
 --------------------------------------------------------------------------------
 
 %inline
-spaced : JState st -> Steps q DSz DSK -> DFA q DSz DSK
-spaced x = dfa . jsonSpaced x
+spaced : Steps q DSz DSK -> DFA q DSz DSK
+spaced = dfa . jsonSpaced
 
 codepoint : RExp True
 codepoint = #"\u"# >> hexdigit >> hexdigit >> hexdigit >> hexdigit
 
-%inline
-valTok : JState st -> Steps q DSz DSK -> DFA q DSz DSK
-valTok x ts =
-  spaced x $
+valTok : Steps q DSz DSK -> DFA q DSz DSK
+valTok ts =
+  spaced $
     [ step "null"  (dact $ jval JNull)
     , step "true"  (dact $ jval $ JBool True)
     , step "false" (dact $ jval $ JBool False)
@@ -101,6 +100,12 @@ valTok x ts =
     , opn '[' $ opn JArr
     , opn' '"' JStr
     ] ++ ts
+
+valTok' : DFA q DSz DSK
+valTok' = valTok []
+
+valTokC : DFA q DSz DSK
+valTokC = valTok [close ']' $ dact carr]
 
 decode : ByteString -> String
 decode (BS 6 bv) =
@@ -137,18 +142,18 @@ strTok =
 jsonTrans : Lex1 q DSz DSK
 jsonTrans =
   lex1
-    [ entry JInit $ valTok JInit []
-    , entry JVal  $ spaced JVal  []
+    [ entry JInit   valTok'
+    , entry JVal  $ spaced []
 
-    , entry JArr  $ valTok JArr [close ']' $ dact carr]
-    , entry JArrV $ spaced JArrV [step' ',' JArrS, close ']' $ dact carr]
-    , entry JArrS $ valTok JArrS []
+    , entry JArr    valTokC
+    , entry JArrV $ spaced [step' ',' JArrS, close ']' $ dact carr]
+    , entry JArrS   valTok'
 
-    , entry JObj  $ spaced JObj [close '}' $ dact cobj, opn' '"' JStr]
-    , entry JObjL $ spaced JObjL [step' ':' JObjC]
-    , entry JObjC $ valTok JObjC []
-    , entry JObjV $ spaced JObjV [close '}' $ dact cobj, step' ',' JObjS]
-    , entry JObjS $ spaced JObjS [opn' '"' JStr]
+    , entry JObj  $ spaced [close '}' $ dact cobj, opn' '"' JStr]
+    , entry JObjL $ spaced [step' ':' JObjC]
+    , entry JObjC   valTok'
+    , entry JObjV $ spaced [close '}' $ dact cobj, step' ',' JObjS]
+    , entry JObjS $ spaced [opn' '"' JStr]
 
     , entry JStr strTok
     ]

@@ -131,7 +131,7 @@ fail p = arrFail p.state $ p.err
 export
 lastStep : (p : P1 q e a) -> PStep p -> PIx p -> PST p -> F1 q (Either e a)
 lastStep p f st stck t =
-  let r # t := f.run (stck # t)
+  let r # t := f.run st stck t
       _ # t := write1 (bytes @{p.hasb} stck) "" t
    in p.eoi r stck t
 

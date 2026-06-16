@@ -113,6 +113,14 @@ parameters {auto hbp : HasBytePos s}
            (x        : a)
 
   export %inline
+  ignore : (s q => F1 q ()) -> (a,Step q r s)
+  ignore f = ign x $ \t => let _ # t := f t in incPos t
+
+  export %inline
+  ignore' : (a,Step q r s)
+  ignore' = ign x incPos
+
+  export %inline
   step : (s q => F1 q (Index r)) -> (a,Step q r s)
   step f =
     go x $ \t =>
@@ -204,7 +212,7 @@ parameters {auto hbp : HasBytePos s}
   export
   val :
        (display : a -> String)
-    -> (act     : a -> Step q r s)
+    -> (act     : a -> Step1 q r s)
     -> (value   : a)
     -> Maybe (RExp True, Step q r s)
   val display act v =
@@ -212,7 +220,7 @@ parameters {auto hbp : HasBytePos s}
     in case unpack (display v) of
          cs@(_::_) =>
           let 0 prf := charsConstSize cs
-           in Just $ step (chars cs) (\t => f.run (%search # t))
+           in Just $ step (chars cs) (f %search)
          []        => Nothing
 
   ||| Like `val` but for a value that can be displayed in
@@ -220,17 +228,17 @@ parameters {auto hbp : HasBytePos s}
   export
   valN :
        (displays : a -> List String)
-    -> (act      : a -> Step q r s)
+    -> (act      : a -> Step1 q r s)
     -> (value    : a)
     -> List (RExp True, Step q r s)
   valN displays act v =
    let f := act v
     in mapMaybe (exp f . unpack) (displays v)
   where
-    exp : Step q r s -> List Char -> Maybe (RExp True, Step q r s)
+    exp : Step1 q r s -> List Char -> Maybe (RExp True, Step q r s)
     exp f cs@(_::_)=
      let 0 prf := charsConstSize cs
-      in Just $ step (chars cs) (\t => f.run (%search # t))
+      in Just $ step (chars cs) (f %search)
     exp f [] = Nothing
 
   ||| Specialized version of `val` that writes the lexed value
@@ -243,7 +251,7 @@ parameters {auto hbp : HasBytePos s}
     -> (value   : a)
     -> Maybe (RExp True, Step q r s)
   writeVal display field res =
-    val display (\v => ST $ \(x # t) => writeAs (field x) v res t)
+    val display (\v,x => writeAs (field x) v res)
 
   ||| Specialized version of `valN` that writes the lexed value
   ||| to a predefined mutable field of the parser stack.
@@ -255,7 +263,7 @@ parameters {auto hbp : HasBytePos s}
     -> (value    : a)
     -> List (RExp True, Step q r s)
   writeValN displays field res =
-    valN displays (\v => ST $ \(x # t) => writeAs (field x) v res t)
+    valN displays (\v,x => writeAs (field x) v res)
 
   ||| Applies `val` to a list of values.
   |||
@@ -264,7 +272,7 @@ parameters {auto hbp : HasBytePos s}
   export %inline
   vals :
        (display : a -> String)
-    -> (act     : a -> Step q r s)
+    -> (act     : a -> Step1 q r s)
     -> List a
     -> List (RExp True, Step q r s)
   vals display = mapMaybe . val display
@@ -277,7 +285,7 @@ parameters {auto hbp : HasBytePos s}
   export %inline
   valsN :
        (displays : a -> List String)
-    -> (act      : a -> Step q r s)
+    -> (act      : a -> Step1 q r s)
     -> List a
     -> List (RExp True, Step q r s)
   valsN displays act vs = vs >>= valN displays act
@@ -316,11 +324,9 @@ export %inline
 jsonSpaced :
      {auto hp : HasBytePos s}
   -> {auto hb : HasBytes s}
-  -> {auto cs : Cast b (Index r)}
-  -> b
   -> Steps q r s
   -> Steps q r s
-jsonSpaced v xs = step' jsonSpaces v :: xs
+jsonSpaced xs = ignore' jsonSpaces :: xs
 
 --------------------------------------------------------------------------------
 -- Error handling
