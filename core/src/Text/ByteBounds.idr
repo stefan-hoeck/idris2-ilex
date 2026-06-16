@@ -141,21 +141,25 @@ export %inline
 stringPositionMap : String -> PositionMap
 stringPositionMap = bytePositionMap . fromString
 
+lastPos : PositionMap => Maybe Position
+lastPos @{PM (S k) arr} = Just $ incCol $ at arr Fin.last
+lastPos                 = Nothing
+
 parameters {auto pm : PositionMap}
   export %inline
   position : BytePos -> Maybe Position
   position (BP n) =
     case tryLT n of
       Just0 x  => Just $ atNat pm.arr n @{x}
-      Nothing0 => Nothing
+      Nothing0 => lastPos
 
   export
   toBounds : ByteBounds -> Bounds
   toBounds NoBB               = NoBounds
-  toBounds (BB (BP x) (BP y)) =
-   let Just0 px := tryLT {n = pm.size} x | _ => NoBounds
-       Just0 py := tryLT {n = pm.size} y | _ => NoBounds
-    in BS (atNat pm.arr x) (atNat pm.arr y)
+  toBounds (BB x y) =
+   let Just px := position x | _ => NoBounds
+       Just py := position y | _ => NoBounds
+    in BS px py
 
   export
   toBounded : ByteBounded a -> Bounded a

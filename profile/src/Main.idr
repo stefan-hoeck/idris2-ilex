@@ -46,7 +46,7 @@ ultraBS : (n ** IBuffer n)
 ultraBS = (_ ** fromString ultra)
 
 lexBS : (n ** IBuffer n) -> Either (ParseError Void) JSON.Parser.JSON
-lexBS (n ** buf) = parse json Virtual buf
+lexBS (n ** buf) = parseBB json Virtual buf
 
 lexDBS : (n ** IBuffer n) -> Either (ParseError Void) JSON.Parser.JSON
 lexDBS (n ** buf) = parseBB djson Virtual buf
