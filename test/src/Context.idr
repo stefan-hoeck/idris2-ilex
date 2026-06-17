@@ -35,13 +35,13 @@ SLit = 0
 SStr = 1
 
 0 SK : Type -> Type
-SK = Stack Void (SnocList $ Bounded Lit) 2
+SK = Stack Void (SnocList $ ByteBounded Lit) 2
 
 --------------------------------------------------------------------------------
 -- Transformations
 --------------------------------------------------------------------------------
 
-closeStr : (x : SK q) => Bounds -> F1 q (Index 2)
+closeStr : (x : SK q) => ByteBounds -> F1 q (Index 2)
 closeStr bs = T1.do
   s  <- getStr
   push1 x.stack_ (B (SL s) bs)
@@ -53,29 +53,29 @@ chars = plus $ dot && not '"' && not '\\'
 lit1 : Lex1 q 2 SK
 lit1 =
   lex1
-    [ E SLit $ dfa $ jsonSpaced SLit
-        [ readTok decimal (Context.Num . cast)
-        , copen' '"' SStr
+    [ E SLit $ dfa $ jsonSpaced
+        [ stringTok decimal (Context.Num . cast)
+        , opn' '"' SStr
         ]
     , E SStr $ dfa
-        [ read chars $ pushStr SStr
-        , cexpr #"\\"# $ pushStr SStr #"\"#
-        , cexpr #"\""# $ pushStr SStr #"""#
-        , ccloseWithBounds '"' closeStr
+        [ string chars $ pushStr SStr
+        , step #"\\"# $ pushStr SStr #"\"#
+        , step #"\""# $ pushStr SStr #"""#
+        , closeWithBounds '"' closeStr
         ]
     ]
 
-litErr : Arr32 2 (ByteString -> SK q -> F1 q (BoundedErr Void))
+litErr : Arr32 2 (SK q -> F1 q (BBErr Void))
 litErr = errs [E SStr $ unclosedIfEOI "\"" []]
 
-leoi : ByteString -> Index 2 -> SK q -> F1 q (Either (BoundedErr Void) $ List (Bounded Lit))
-leoi bs sk s =
+leoi : Index 2 -> SK q -> F1 q (Either (BBErr Void) $ List (ByteBounded Lit))
+leoi sk s =
   case sk == SLit of
-    False => arrFail SK litErr sk bs s
+    False => arrFail SK litErr sk s
     True  => replace1 s.stack_ [<] >>= pure . Right . (<>> [])
 
 export
-lit : P1 q (BoundedErr Void) (List $ Bounded Lit)
+lit : P1 q (BBErr Void) (List $ ByteBounded Lit)
 lit = P SLit (init [<]) lit1 (\x => (Nothing #)) litErr leoi
 
 space : Nat -> Gen String
@@ -122,36 +122,36 @@ prop_lexEmptyStr =
 prop_boundsNum : Property
 prop_boundsNum =
   property1 $
-        Right [B (Num 1234) $ BS (P 0 0) (P 0 4)]
+        Right [B (Num 1234) $ BS (P 0 0) (P 0 3)]
     === lexBounds lit "1234"
 
 prop_boundsStr : Property
 prop_boundsStr =
   property1 $
-        Right [B (SL "foo") $ BS (P 0 0) (P 0 5)]
+        Right [B (SL "foo") $ BS (P 0 0) (P 0 4)]
     === lexBounds lit #""foo""#
 
 prop_boundsQuote : Property
 prop_boundsQuote =
   property1 $
-        Right [B (SL #"""#) $ BS (P 0 0) (P 0 4)]
+        Right [B (SL #"""#) $ BS (P 0 0) (P 0 3)]
     === lexBounds lit #""\"""#
 
 prop_boundsEsc : Property
 prop_boundsEsc =
-  property1 $ Right [B (SL #"\"#) $ BS (P 0 0) (P 0 4)]
+  property1 $ Right [B (SL #"\"#) $ BS (P 0 0) (P 0 3)]
     === lexBounds lit #""\\""#
 
 prop_boundsEscErr : Property
 prop_boundsEscErr =
   property1 $
-        toErr (P 0 3) (P 0 5) #""ab\D""# (Expected [] #"\D"#)
+        toErr (P 0 3) (P 0 4) #""ab\D""# (Expected [] #"\D"#)
     === lexBounds lit #""ab\D""#
 
 prop_unclosedErr : Property
 prop_unclosedErr =
   property1 $
-        toErr (P 0 0) (P 0 1) #""abc d"# (Unclosed #"""#)
+        toErr (P 0 0) (P 0 0) #""abc d"# (Unclosed #"""#)
     === lexBounds lit #""abc d"#
 
 export

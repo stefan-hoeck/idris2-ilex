@@ -68,3 +68,60 @@ init v = T1.do
   ss <- ref1 [<]
   er <- ref1 Nothing
   pure (S pr fl bp ll ps sk st ss er)
+
+--------------------------------------------------------------------------------
+-- Lexer
+--------------------------------------------------------------------------------
+
+parameters {auto hb   : HasBytes s}
+           {auto hs   : HasStack s (SnocList $ ByteBounded a)}
+           (x         : RExp True)
+           {auto 0 lt : 0 < r}
+
+  export %inline
+  pushBounded : s q => a -> F1 q (Index r)
+  pushBounded v = bounded' v >>= \b => pushStackAs b 0
+
+  export %inline
+  tok : a -> (RExp True, Step q r s)
+  tok v = step x (pushBounded v)
+
+  export %inline
+  byteTok : (ByteString -> a) -> (RExp True, Step q r s)
+  byteTok f = bytes x (pushBounded . f)
+
+  export %inline
+  stringTok : (String -> a) -> (RExp True, Step q r s)
+  stringTok f = string x (pushBounded . f)
+
+export
+lexEOI :
+     {auto 0 lt : 0 < r}
+  -> {auto pos : HasBytePos s}
+  -> {auto stk : HasStack s (SnocList a)}
+  -> {auto err : HasBBErr s e}
+  -> {auto bts : HasBytes s}
+  -> Index r
+  -> s q
+  -> F1 q (Either (BBErr e) $ List a)
+lexEOI i sk =
+  if i == Ini
+     then getList (stack sk) >>= pure . Right
+     else unexpected [] sk >>= pure . Left
+
+public export
+0 L1 : (q,e : Type) -> (a : Type) -> Type
+L1 q e a = P1 q (BBErr e) (List $ ByteBounded a)
+
+public export
+0 Lexer : (e : Type) -> Type -> Type
+Lexer e a = {0 q : Type} -> L1 q e a
+
+export
+lexer :
+     {r : _}
+  -> {auto 0 lt  : 0 < r}
+  -> Steps q r (Stack e (SnocList $ ByteBounded a) r)
+  -> L1 q e a
+lexer m =
+  P Ini (init [<]) (lex1 [E Ini $ dfa m]) snocChunk (errs []) lexEOI

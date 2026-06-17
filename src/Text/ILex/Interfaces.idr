@@ -221,14 +221,27 @@ parameters {auto sk   : s q}
   endPos = T1.do
     s  <- startPos
     l  <- read1 (len sk)
-    pure (inc l s)
+    pure (incLen l s)
 
   export %inline
   bounds : F1 q ByteBounds
   bounds = T1.do
     s  <- startPos
     l  <- read1 (len sk)
-    pure $ BB s (inc l s)
+    pure $ BB s (incLen l s)
+
+  export %inline
+  bounded : F1 q a -> F1 q (ByteBounded a)
+  bounded f t =
+   let bs # t := Interfaces.bounds t
+       v  # t := f t
+    in B v bs # t
+
+  export %inline
+  bounded' : a -> F1 q (ByteBounded a)
+  bounded' v t =
+   let bs # t := Interfaces.bounds t
+    in B v bs # t
 
   ||| Pushes the current byte position onto the position stack.
   |||
@@ -249,7 +262,7 @@ parameters {auto sk   : s q}
   popAndGetBounds : HasBytePos s => Nat -> F1 q ByteBounds
   popAndGetBounds n =
     read1 (positions sk) >>= \case
-      sb:<b => writeAs (positions sk) sb (BB b $ inc n b)
+      sb:<b => writeAs (positions sk) sb (BB b $ incLen n b)
       [<]   => pure NoBB
 
   ||| Returns the bounds from start to end of some "enclosed" or
@@ -502,7 +515,7 @@ parameters {auto he  : HasBBErr s e}
   raise : InnerError e -> Nat -> s q => v -> F1 q v
   raise err n res = T1.do
     ps <- startPos
-    failWith (B err $ BB ps (inc n ps)) res
+    failWith (B err $ BB ps (incLen n ps)) res
 
   export
   unexpected : List String -> s q -> F1 q (BBErr e)

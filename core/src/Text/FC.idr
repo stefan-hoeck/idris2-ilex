@@ -104,10 +104,9 @@ printFC fc@(FC _ $ BS (P so _) (P eo _)) (BS (P sr sc) (P er ec)) ls =
      False =>
        lineNumbers [<"",head] nsize so (range sr (min er $ sr+5) ls) <>> []
      True  =>
-       let -- In case of end-of-input errors, we sometimes get `ec == sc`.
-           -- We want to make sure we still print at least one emphasis character
-           -- in those cases.
-           cemph := max 1 $ ec `minus` sc
+       let -- We expect bounds to be exact: The positions of the first and
+           -- last character of a substring.
+           cemph := S $ ec `minus` sc
            emph  := indent (nsize + sc + 4) (replicate cemph '^')
            fr    := er `minus` 4 -- first row
            begin := so `minus` (er `minus` fr)

@@ -27,9 +27,12 @@ public export %inline
 Interpolation BytePos where
   interpolate = show . pos
 
+||| Increases the position by the given length
+||| of a byte sequence.
 export
-inc : Nat -> BytePos -> BytePos
-inc n (BP p) = BP (n+p)
+incLen : Nat -> BytePos -> BytePos
+incLen (S n) (BP p) = BP (n+p)
+incLen _     p      = p
 
 --------------------------------------------------------------------------------
 --          ByteBounds

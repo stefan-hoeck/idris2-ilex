@@ -14,11 +14,11 @@ import Unicode
 main : IO ()
 main =
   test
-    [ Range.props
-    , Repeat.props
-    , Set.props
+    [ Runner.props
     , FC.props
-    , Runner.props
-    , Context.props
+    , Set.props
     , Unicode.props
+    , Context.props
+    , Range.props
+    , Repeat.props
     ]
