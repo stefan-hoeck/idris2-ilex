@@ -75,7 +75,7 @@ Lex1 q r s = Arr32 r (DFA q r s)
 ||| parsing string tokens containing escape sequences.
 public export
 interface HasBytes (0 s : Type -> Type) where
-  constructor MkHSL
+  constructor MkHB
   prev : s q -> Ref q (Maybe ByteString)
   full : s q -> Ref q ByteString
   pos  : s q -> Ref q BytePos

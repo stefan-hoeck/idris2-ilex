@@ -25,20 +25,12 @@ modules = Text.ILex
         , Text.ILex.Internal.Runner
         , Text.ILex.Internal.Types
 
+        , Text.ILex.DStack
         , Text.ILex.Interfaces
         , Text.ILex.Lexer
         , Text.ILex.Parser
         , Text.ILex.RExp
         , Text.ILex.RExp.Unicode
         , Text.ILex.Runner
+        , Text.ILex.Stack
         , Text.ILex.Util
-
-        , Text.ILex.Bytes
-        , Text.ILex.Bytes.DStack
-        , Text.ILex.Bytes.Interfaces
-        , Text.ILex.Bytes.Stack
-
-        , Text.ILex.String
-        , Text.ILex.String.DStack
-        , Text.ILex.String.Interfaces
-        , Text.ILex.String.Stack

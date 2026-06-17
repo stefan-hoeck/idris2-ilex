@@ -120,7 +120,9 @@ parameters {0 q,e,a : Type}
          _            => let _ # t := end 1 t in fail parser st stck t
 
   succ st dfa cur f len 0     t =
-    ?lststp -- lastStep parser f st (toBS buf len 0) stck t
+   let s2  # t := stp st f 0 len t
+       _   # t := end 0 t
+    in parser.eoi s2 stck t
   succ st dfa cur f len (S k) t =
    let byte := buf `ix` k
     in case cur `atByte` byte of
@@ -149,10 +151,15 @@ parameters {0 q,e,a : Type}
          Bottom       =>
           let _ # t := end (S len) t
            in fail parser st stck t
---
--- runFrom p pos buf = run1 (go p)
---   where
---     go : P1 q e a -> F1 q (Either e a)
---     go p t =
---      let x # t := stck p t
---       in loop p x buf p.init pos t
+
+runFrom p pos buf = run1 (go p)
+  where
+    go : P1 q e a -> F1 q (Either e a)
+    go p t =
+     let sk # t := stck p t
+         ppos   := Parser.pos @{p.hasb} sk
+         plen   := Parser.len @{p.hasb} sk
+         _  # t := write1 (full @{p.hasb} sk) (cast buf) t
+         _  # t := write1 ppos (BP $ ixToNat x) t
+         _  # t := write1 plen 0 t
+      in loop p sk buf ppos plen p.init pos t

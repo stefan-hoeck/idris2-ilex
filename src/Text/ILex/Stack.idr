@@ -1,10 +1,10 @@
-module Text.ILex.Bytes.Stack
+module Text.ILex.Stack
 
 import Data.Linear.Ref1
 import Syntax.T1
 import Text.ByteBounds
 import Text.ILex.Derive
-import Text.ILex.Bytes.Interfaces
+import Text.ILex.Interfaces
 import Text.ILex.Parser
 import Text.ILex.Util
 import Text.ParseError
@@ -34,7 +34,10 @@ record Stack (e,a : Type) (r : Bits32) (q : Type) where
   [search q]
   constructor S
   -- Position and token bounds
+  prev_      : Ref q (Maybe ByteString)
+  full_      : Ref q ByteString
   pos_       : Ref q BytePos
+  len_       : Ref q Nat
   positions_ : Ref q (SnocList BytePos)
 
   -- Custom stack type
@@ -49,20 +52,19 @@ record Stack (e,a : Type) (r : Bits32) (q : Type) where
   -- Error handling
   error_     : Ref q (Maybe $ BBErr e)
 
-  -- Last lexed byte string
-  bytes_     : Ref q ByteString
-
-%runElab derive "Stack" [ByteStack]
+%runElab derive "Stack" [FullStack]
 
 ||| Initializes a new parser stack.
 export
 init : (0 p : 0 < r) => a -> F1 q (Stack e a r q)
 init v = T1.do
+  pr <- ref1 Nothing
+  fl <- ref1 empty
   bp <- ref1 (BP Z)
+  ll <- ref1 Z
   ps <- ref1 [<]
   sk <- ref1 v
   st <- ref1 (I 0)
   ss <- ref1 [<]
   er <- ref1 Nothing
-  bs <- ref1 empty
-  pure (S bp ps sk st ss er bs)
+  pure (S pr fl bp ll ps sk st ss er)
