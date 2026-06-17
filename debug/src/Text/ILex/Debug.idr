@@ -9,7 +9,6 @@ import Derive.Pretty
 import Language.Reflection.Pretty
 
 import Text.ILex.Char.UTF8
-import Text.ILex.String.Stack
 import Text.ILex.Internal.DFA
 import Text.ILex.Internal.ENFA
 import Text.ILex.Internal.NFA
@@ -124,13 +123,6 @@ prettyByte n = line "\{pre} 0x\{toHex $ cast n}"
      case n >= 128 || Prelude.isControl (cast n) of
        True  => "   "
        False => "'\{String.singleton $ cast n}'"
-
-export
-Pretty a => Pretty (Tok e a) where
-  prettyPrec _ Ignore    = line "<ignore>"
-  prettyPrec _ (Const x) = pretty x
-  prettyPrec _ (Txt   f) = line "<Txt>"
-  prettyPrec _ (Bytes f) = line "<Bytes>"
 
 prettyByteStep : {d : _} -> (Nat, ByteStep n q r s) -> Doc d
 prettyByteStep (x,bs) =

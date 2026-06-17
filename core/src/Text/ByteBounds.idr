@@ -49,7 +49,7 @@ data ByteBounds : Type where
 
 export
 Interpolation ByteBounds where
-  interpolate (BB s e) = "\{s}--\{e}"
+  interpolate (BB s e) = if s == e then "\{s}" else "\{s}--\{e}"
   interpolate NoBB     = ""
 
 public export

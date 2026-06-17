@@ -201,7 +201,7 @@ namespace Bounds
 
 export
 Interpolation Bounds where
-  interpolate (BS s e) = "\{s}--\{e}"
+  interpolate (BS s e) = if s == e then "\{s}" else "\{s}--\{e}"
   interpolate NoBounds = ""
 
 public export

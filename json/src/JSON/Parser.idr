@@ -6,9 +6,7 @@ import Data.Linear.Ref1
 import Derive.Prelude
 import Syntax.T1
 import Text.ILex.Derive
-import Text.ILex.Util
-
-import public Text.ILex.Bytes
+import Text.ILex
 
 %default total
 %hide Data.Linear.(.)
@@ -258,7 +256,7 @@ jsonTrans =
     , E JStr strTok
     ]
 
-jsonErr : Arr32 JSz (ByteString -> SK q -> F1 q (BBErr Void))
+jsonErr : Arr32 JSz (SK q -> F1 q (BBErr Void))
 jsonErr =
   arr32 JSz (unexpected [])
     [ E ANew $ unclosedIfEOI "[" []
@@ -272,10 +270,10 @@ jsonErr =
     , E JStr $ unclosedIfNLorEOI "\"" []
     ]
 
-jsonEOI : ByteString -> JST -> SK q -> F1 q (Either (BBErr Void) JSON)
-jsonEOI bs sk s t =
+jsonEOI : JST -> SK q -> F1 q (Either (BBErr Void) JSON)
+jsonEOI sk s t =
   case sk == JDone of
-    False => arrFail SK jsonErr sk bs s t
+    False => arrFail SK jsonErr sk s t
     True  => case getStack t of
       PF v # t => Right v # t
       _    # t => Right JNull # t
@@ -286,7 +284,7 @@ json = P JIni (init PI) jsonTrans (\x => (Nothing #)) jsonErr jsonEOI
 
 export %inline
 parseJSON : Origin -> String -> Either (ParseError Void) JSON
-parseJSON = parseStringBB json
+parseJSON = parseString json
 
 --------------------------------------------------------------------------------
 -- Streaming
@@ -307,13 +305,13 @@ arrChunk sk = T1.do
   let (p2,res) := extract p
   putStackAs p2 res
 
-arrEOI : ByteString -> JST -> SK q -> F1 q (Either (BBErr Void) (List JSON))
-arrEOI bs st sk t =
+arrEOI : JST -> SK q -> F1 q (Either (BBErr Void) (List JSON))
+arrEOI st sk t =
   case st == JIni of
     True  => case getStack t of
       PV sv # t => Right (sv <>> []) # t
       _     # t => Right [] # t
-    False => case jsonEOI bs st sk t of
+    False => case jsonEOI st sk t of
       Right (JArray vs) # t => Right vs # t
       Right _           # t => Right [] # t
       Left x            # t => Left x # t
