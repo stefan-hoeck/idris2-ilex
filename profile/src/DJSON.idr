@@ -3,9 +3,8 @@ module DJSON
 import Data.String
 import Derive.Prelude
 import JSON.Parser
-import Text.ILex.Bytes
-import Text.ILex.Bytes.DStack
-import Text.ILex.Util
+import Text.ILex.DStack
+import Text.ILex
 import Syntax.T1
 
 %default total
@@ -158,7 +157,7 @@ jsonTrans =
     , entry JStr strTok
     ]
 
-jsonErr : Arr32 DSz (ByteString -> DSK q -> F1 q (BBErr Void))
+jsonErr : Arr32 DSz (DSK q -> F1 q (BBErr Void))
 jsonErr =
   errs
     [ entry JArr  $ unclosedIfEOI "[" []
@@ -172,11 +171,11 @@ jsonErr =
     , entry JStr  $ unclosedIfNLorEOI "\"" []
     ]
 
-jsonEOI : ByteString -> Index DSz -> DSK q -> F1 q (Either (BBErr Void) JSON)
-jsonEOI bs st sk =
+jsonEOI : Index DSz -> DSK q -> F1 q (Either (BBErr Void) JSON)
+jsonEOI st sk =
   read1 sk.stack_ >>= \case
     _:<v:>JVal => pure (Right v)
-    _          => arrFail DSK jsonErr st bs sk
+    _          => arrFail DSK jsonErr st sk
 
 public export
 djson : P1 q (BBErr Void) JSON
@@ -184,7 +183,7 @@ djson = P (cast JInit) (init $ [<]:>JInit) jsonTrans (\x => (Nothing #)) jsonErr
 
 export %inline
 dparseJSON : Origin -> String -> Either (ParseError Void) JSON
-dparseJSON = parseStringBB djson
+dparseJSON = parseString djson
 
 export
 testDJSON : String -> IO ()
