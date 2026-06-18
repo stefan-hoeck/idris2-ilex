@@ -65,6 +65,7 @@ HasBytes (DStack s e) where
   full = full_
   pos  = pos_
   len  = len_
+  positions = positions_
 
 export %inline
 HasStack (DStack s e) (Stack True s [<]) where
@@ -73,10 +74,6 @@ HasStack (DStack s e) (Stack True s [<]) where
 export %inline
 HasBBErr (DStack s e) e where
   error = error_
-
-export %inline
-HasBytePos (DStack s e) where
-  positions = positions_
 
 export %inline
 HasStringLits (DStack s e) where

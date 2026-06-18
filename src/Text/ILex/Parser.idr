@@ -76,10 +76,11 @@ Lex1 q r s = Arr32 r (DFA q r s)
 public export
 interface HasBytes (0 s : Type -> Type) where
   constructor MkHB
-  prev : s q -> Ref q ByteString
-  full : s q -> Ref q ByteString
-  pos  : s q -> Ref q BytePos
-  len  : s q -> Ref q Nat
+  prev      : s q -> Ref q ByteString
+  full      : s q -> Ref q ByteString
+  pos       : s q -> Ref q BytePos
+  len       : s q -> Ref q Nat
+  positions : s q -> Ref q (SnocList BytePos)
 
 export %inline
 getBytes : HasBytes s => (sk : s q) => F1 q ByteString

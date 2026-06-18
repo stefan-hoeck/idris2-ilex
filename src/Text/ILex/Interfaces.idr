@@ -27,13 +27,6 @@ interface HasBBErr (0 s : Type -> Type) (0 e : Type) | s where
   constructor MkBE
   error     : s q -> Ref q (Maybe $ BBErr e)
 
-||| An interface for mutable parser stacks `s` that allows us to keep
-||| track of the current byte position.
-public export
-interface HasBytePos (0 s : Type -> Type) where
-  constructor MkHBP
-  positions : s q -> Ref q (SnocList BytePos)
-
 ||| An interface for mutable parser stacks `s` that facilitates
 ||| parsing string tokens containing escape sequences.
 public export
@@ -208,14 +201,12 @@ parameters {auto sk  : s q}
 parameters {auto sk   : s q}
            {auto hb   : HasBytes s}
 
-  ||| Gets the current text position (line and column) from some
-  ||| mutable state implementing `HasBytePos`.
+  ||| Gets the position of the first byte of the current token.
   export %inline
   startPos : F1 q BytePos
   startPos = read1 (pos sk)
 
-  ||| Gets the current text position (line and column) from some
-  ||| mutable state implementing `HasBytePos`.
+  ||| Gets the position of the last byte of the current token.
   export %inline
   endPos : F1 q BytePos
   endPos = T1.do
@@ -251,15 +242,15 @@ parameters {auto sk   : s q}
   ||| we typically want to fail with an error that lists the position
   ||| of the unclosed token.
   export %inline
-  pushPosition : HasBytePos s => F1' q
+  pushPosition : F1' q
   pushPosition = startPos >>= push1 (positions sk)
 
   ||| Discards the latest entry from the positions stack.
   export %inline
-  popPosition : HasBytePos s => F1' q
+  popPosition : F1' q
   popPosition = pop1 (positions sk)
 
-  popAndGetBounds : HasBytePos s => Nat -> F1 q ByteBounds
+  popAndGetBounds : Nat -> F1 q ByteBounds
   popAndGetBounds n =
     read1 (positions sk) >>= \case
       sb:<b => writeAs (positions sk) sb (BB b $ incLen n b)
@@ -269,7 +260,7 @@ parameters {auto sk   : s q}
   ||| quoted region of text such as an expression in parantheses
   ||| or some text in quotes.
   export %inline
-  closeBounds : HasBytePos s => F1 q ByteBounds
+  closeBounds : F1 q ByteBounds
   closeBounds = T1.do
     pe <- endPos
     read1 (positions sk) >>= \case
@@ -334,12 +325,12 @@ parameters {auto hbp : HasBytes s}
   ||| The current column is increased by one, and a new entry is pushed onto
   ||| the stack of bounds.
   export %inline
-  opn : HasBytePos s => (s q => F1 q (Index r)) -> (a, Step q r s)
+  opn : (s q => F1 q (Index r)) -> (a, Step q r s)
   opn f = step $ pushPosition >> f
 
   ||| Convenience alias for `copen . pure`.
   export %inline
-  opn' : HasBytePos s => Cast t (Index r) => t -> (a, Step q r s)
+  opn' : Cast t (Index r) => t -> (a, Step q r s)
   opn' v = opn $ pure (cast v)
 
   ||| Recognizes the given character(s) and uses it to update the parser state
@@ -348,7 +339,7 @@ parameters {auto hbp : HasBytes s}
   ||| The current column is increased by `n`, and one `Position` entry
   ||| is popped from the stack.
   export %inline
-  close : HasBytePos s => (s q => F1 q (Index r)) -> (a, Step q r s)
+  close : (s q => F1 q (Index r)) -> (a, Step q r s)
   close f = step $ popPosition >> f
 
   ||| Recognizes the given character(s) and uses it to
@@ -359,7 +350,6 @@ parameters {auto hbp : HasBytes s}
   export %inline
   closeStr :
        {auto hap : HasStringLits s}
-    -> {auto hp  : HasBytePos s}
     -> (s q => String -> F1 q (Index r))
     -> (a, Step q r s)
   closeStr f = close $ getStr >>= f
@@ -370,7 +360,7 @@ parameters {auto hbp : HasBytes s}
   ||| The current column is increased by one, and on `Bounds` entry
   ||| is popped from the stack.
   export %inline
-  closeWithBounds : HasBytePos s => (s q => ByteBounds -> F1 q (Index r)) -> (a, Step q r s)
+  closeWithBounds : (s q => ByteBounds -> F1 q (Index r)) -> (a, Step q r s)
   closeWithBounds f = step $ closeBounds >>= f
 
   ||| Recognizes the given character(s) and uses it to
@@ -381,7 +371,6 @@ parameters {auto hbp : HasBytes s}
   export %inline
   closeBoundedStr :
        {auto hap : HasStringLits s}
-    -> {auto hp  : HasBytePos s}
     -> (s q => ByteBounded String -> F1 q (Index r))
     -> (a, Step q r s)
   closeBoundedStr f = closeWithBounds $ \bs => getStr >>= \s => f (B s bs)
@@ -536,7 +525,7 @@ parameters {auto he  : HasBBErr s e}
          _ => pure (B (Expected strs (toString bs)) bb)
 
   export
-  unclosed : HasBytePos s => String -> s q -> F1 q (BBErr e)
+  unclosed : String -> s q -> F1 q (BBErr e)
   unclosed str sk = T1.do
     bnds <- popAndGetBounds (length str)
     pure $ B (Unclosed str) bnds
@@ -544,7 +533,7 @@ parameters {auto he  : HasBBErr s e}
   ||| Fails with `unclosed` if this is the end of input, otherwise
   ||| invokes `unexpected`.
   export
-  unclosedIfEOI : HasBytePos s => String -> List String -> s q -> F1 q (BBErr e)
+  unclosedIfEOI : String -> List String -> s q -> F1 q (BBErr e)
   unclosedIfEOI s ss sk =
     getBytes >>= \case
       BS 0 _ => unclosed s sk
@@ -554,7 +543,7 @@ parameters {auto he  : HasBBErr s e}
   ||| a linefeed character (`\n`, byte `0x0a`) was encountered,
   ||| otherwise, invokes `unexpected`.
   export
-  unclosedIfNLorEOI : HasBytePos s => String -> List String -> s q -> F1 q (BBErr e)
+  unclosedIfNLorEOI : String -> List String -> s q -> F1 q (BBErr e)
   unclosedIfNLorEOI s ss sk =
     getBytes >>= \case
       BS 0 _ => unclosed s sk

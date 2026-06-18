@@ -97,7 +97,6 @@ parameters {auto hb   : HasBytes s}
 export
 lexEOI :
      {auto 0 lt : 0 < r}
-  -> {auto pos : HasBytePos s}
   -> {auto stk : HasStack s (SnocList a)}
   -> {auto err : HasBBErr s e}
   -> {auto bts : HasBytes s}
