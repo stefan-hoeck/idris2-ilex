@@ -34,7 +34,7 @@ record Stack (e,a : Type) (r : Bits32) (q : Type) where
   [search q]
   constructor S
   -- Position and token bounds
-  prev_      : Ref q (Maybe ByteString)
+  prev_      : Ref q ByteString
   full_      : Ref q ByteString
   pos_       : Ref q BytePos
   len_       : Ref q Nat
@@ -58,7 +58,7 @@ record Stack (e,a : Type) (r : Bits32) (q : Type) where
 export
 init : (0 p : 0 < r) => a -> F1 q (Stack e a r q)
 init v = T1.do
-  pr <- ref1 Nothing
+  pr <- ref1 empty
   fl <- ref1 empty
   bp <- ref1 (BP Z)
   ll <- ref1 Z

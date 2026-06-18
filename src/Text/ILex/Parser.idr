@@ -76,18 +76,20 @@ Lex1 q r s = Arr32 r (DFA q r s)
 public export
 interface HasBytes (0 s : Type -> Type) where
   constructor MkHB
-  prev : s q -> Ref q (Maybe ByteString)
+  prev : s q -> Ref q ByteString
   full : s q -> Ref q ByteString
   pos  : s q -> Ref q BytePos
   len  : s q -> Ref q Nat
 
-export
+export %inline
 getBytes : HasBytes s => (sk : s q) => F1 q ByteString
 getBytes = T1.do
   bs   <- read1 (full sk)
   BP p <- read1 (pos sk)
   l    <- read1 (len sk)
-  pure (substring p l bs)
+  case p of
+    0 => read1 (prev sk) >>= \pre => pure (pre <+> take l bs)
+    _ => pure (substring p l bs)
 
 ||| A parser is a system of automata, where each
 ||| lexicographic token determines the next automaton

@@ -35,7 +35,7 @@ record DStack (s : SnocList Type -> Type) (e : Type) (q : Type) where
   [search q]
   constructor S
   -- Position and token bounds
-  prev_      : Ref q (Maybe ByteString)
+  prev_      : Ref q ByteString
   full_      : Ref q ByteString
   pos_       : Ref q BytePos
   len_       : Ref q Nat
@@ -49,7 +49,7 @@ record DStack (s : SnocList Type -> Type) (e : Type) (q : Type) where
 export
 init : Stack True s [<] -> F1 q (DStack s e q)
 init st = T1.do
-  pr <- ref1 Nothing
+  pr <- ref1 empty
   fl <- ref1 empty
   bp <- ref1 (BP Z)
   ll <- ref1 Z
