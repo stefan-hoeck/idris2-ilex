@@ -106,10 +106,10 @@ ifaceType p t = piAll t (dropLastArg p.implicits)
 ||| following fields:
 |||
 ||| ```idris
-||| prev_      : Ref q (Maybe ByteString)
-||| full_      : Ref q ByteString
-||| off_       : Ref q BytePos
-||| pos_       : Ref q BytePos
+||| prev_      : Ref q ByteString
+||| cur_       : Ref q ByteString
+||| offset_    : Ref q Nat
+||| relpos_    : Ref q Integer
 ||| len_       : Ref q Nat
 ||| positions_ : Ref q (SnocList BytePos)
 ||| ```
@@ -125,7 +125,7 @@ HasBytes nms p =
       in implClaimVis Export impl (ifaceType p $ var "HasBytes" `app` arg)
 
     dfn : (impl : Name) -> Decl
-    dfn impl = def impl [patClause (var impl) `(MkHB prev_ full_ off_ pos_ len_ positions_)]
+    dfn impl = def impl [patClause (var impl) `(MkHB prev_ cur_ offset_ relpos_ len_ positions_)]
 
 ||| Derives an implementation of `HasStringLits` for a record type with the
 ||| following field:

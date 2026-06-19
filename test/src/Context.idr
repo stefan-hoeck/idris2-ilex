@@ -78,12 +78,15 @@ export
 lit : P1 q (BBErr Void) (List $ ByteBounded Lit)
 lit = P SLit (init [<]) lit1 (\x => (Nothing #)) litErr leoi
 
-space : Nat -> Gen String
-space n =  string (linear 0 5) (element [' ', '\t', '\r', '\t'])
+export
+space : Gen String
+space =  string (linear 1 5) (element [' ', '\t', '\r', '\t'])
 
+export
 genNum : Gen (Lit, String)
 genNum = map (\n => (Num n, show n)) (nat $ linear 0 1000)
 
+export
 genStr : Gen (Lit, String)
 genStr = choice [quote, esc, regular]
   where

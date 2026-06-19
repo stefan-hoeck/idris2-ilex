@@ -76,22 +76,47 @@ Lex1 q r s = Arr32 r (DFA q r s)
 public export
 interface HasBytes (0 s : Type -> Type) where
   constructor MkHB
+  ||| Returns the remainder of the previous bytestring that should
+  ||| be used as the beginning of the current token.
   prev      : s q -> Ref q ByteString
-  full      : s q -> Ref q ByteString
-  off       : s q -> Ref q BytePos
-  pos       : s q -> Ref q BytePos
+
+  ||| The byte vector currently being processed.
+  cur       : s q -> Ref q ByteString
+
+  ||| Absolute start position of the current token from the beginning
+  ||| of the whole byte stream processed so far.
+  offset    : s q -> Ref q Nat
+
+  ||| Start position of the current token relative to `cur`.
+  |||
+  ||| If this is negative, the current token will also include
+  ||| `prev`. Reference `len` will still hold the full length
+  ||| of the token.
+  relpos    : s q -> Ref q Integer
+
+  ||| Length of the current token
   len       : s q -> Ref q Nat
+
+  ||| Stack of positions used to keep track of the positions of
+  ||| opening parentheses and brackets.
   positions : s q -> Ref q (SnocList BytePos)
 
+||| Returns the current substring of the byte vector
+||| (corresponding to the position and length of the current
+||| token).
+|||
+||| The remainder of the previous bytestring is prefixed in case
+||| we are currently at position zero.
 export %inline
 getBytes : HasBytes s => (sk : s q) => F1 q ByteString
 getBytes = T1.do
-  bs   <- read1 (full sk)
-  BP p <- read1 (pos sk)
+  bs   <- read1 (cur sk)
+  p    <- read1 (relpos sk)
   l    <- read1 (len sk)
-  case p of
-    0 => read1 (prev sk) >>= \pre => pure (pre <+> take l bs)
-    _ => pure (substring p l bs)
+  case prim__lt_Integer p 0 of
+    0 => pure (substring (cast p) l bs)
+    n => read1 (prev sk) >>= \pre =>
+           pure (pre <+> take (cast $ cast l + p) bs)
 
 ||| A parser is a system of automata, where each
 ||| lexicographic token determines the next automaton
@@ -146,17 +171,6 @@ arrFail s arr ix st t =
 export %inline
 fail : (p : P1 q e a) -> PIx p -> PST p -> F1 q (Either e x)
 fail p = arrFail p.state p.err
-
-export
-lastStep :
-     (p : P1 q e a)
-  -> PStep p
-  -> PIx p
-  -> PST p
-  -> F1 q (Either e a)
-lastStep p f st stck t =
-  let r # t := f.run st stck t
-   in p.eoi r stck t
 
 public export
 0 Parser1 : (e : Type) -> (a : Type) -> Type
