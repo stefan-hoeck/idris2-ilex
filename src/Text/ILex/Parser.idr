@@ -78,6 +78,7 @@ interface HasBytes (0 s : Type -> Type) where
   constructor MkHB
   prev      : s q -> Ref q ByteString
   full      : s q -> Ref q ByteString
+  off       : s q -> Ref q BytePos
   pos       : s q -> Ref q BytePos
   len       : s q -> Ref q Nat
   positions : s q -> Ref q (SnocList BytePos)

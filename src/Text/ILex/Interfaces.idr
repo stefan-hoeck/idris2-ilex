@@ -201,10 +201,14 @@ parameters {auto sk  : s q}
 parameters {auto sk   : s q}
            {auto hb   : HasBytes s}
 
-  ||| Gets the position of the first byte of the current token.
+  ||| Gets the absolute position of the
+  ||| first byte of the current token.
   export %inline
   startPos : F1 q BytePos
-  startPos = read1 (pos sk)
+  startPos = T1.do
+    BP o <- read1 (off sk)
+    BP c <- read1 (pos sk)
+    pure $ BP (o+c)
 
   ||| Gets the position of the last byte of the current token.
   export %inline

@@ -36,6 +36,7 @@ record Stack (e,a : Type) (r : Bits32) (q : Type) where
   -- Position and token bounds
   prev_      : Ref q ByteString
   full_      : Ref q ByteString
+  off_       : Ref q BytePos
   pos_       : Ref q BytePos
   len_       : Ref q Nat
   positions_ : Ref q (SnocList BytePos)
@@ -60,6 +61,7 @@ init : (0 p : 0 < r) => a -> F1 q (Stack e a r q)
 init v = T1.do
   pr <- ref1 empty
   fl <- ref1 empty
+  bo <- ref1 (BP Z)
   bp <- ref1 (BP Z)
   ll <- ref1 Z
   ps <- ref1 [<]
@@ -67,7 +69,7 @@ init v = T1.do
   st <- ref1 (I 0)
   ss <- ref1 [<]
   er <- ref1 Nothing
-  pure (S pr fl bp ll ps sk st ss er)
+  pure (S pr fl bo bp ll ps sk st ss er)
 
 --------------------------------------------------------------------------------
 -- Lexer

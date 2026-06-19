@@ -37,6 +37,7 @@ record DStack (s : SnocList Type -> Type) (e : Type) (q : Type) where
   -- Position and token bounds
   prev_      : Ref q ByteString
   full_      : Ref q ByteString
+  off_       : Ref q BytePos
   pos_       : Ref q BytePos
   len_       : Ref q Nat
   positions_ : Ref q (SnocList BytePos)
@@ -51,18 +52,20 @@ init : Stack True s [<] -> F1 q (DStack s e q)
 init st = T1.do
   pr <- ref1 empty
   fl <- ref1 empty
+  bo <- ref1 (BP Z)
   bp <- ref1 (BP Z)
   ll <- ref1 Z
   ps <- ref1 [<]
   ss <- ref1 [<]
   sk <- ref1 st
   er <- ref1 Nothing
-  pure (S pr fl bp ll ps ss sk er)
+  pure (S pr fl bo bp ll ps ss sk er)
 
 export %inline
 HasBytes (DStack s e) where
   prev = prev_
   full = full_
+  off  = off_
   pos  = pos_
   len  = len_
   positions = positions_
