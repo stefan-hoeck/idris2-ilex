@@ -10,32 +10,18 @@ import Text.ILex
 export
 aOrB : L1 q Void AorB
 aOrB =
-  lexer {r = 1} $ jsonSpaced (Ini {n = 1})
-    [ convTok (plus ('A' <|> 'a')) (const A)
-    , convTok (plus ('B' <|> 'b')) (const B)
+  lexer {r = 1} $ jsonSpaced
+    [ tok (plus ('A' <|> 'a')) A
+    , tok (plus ('B' <|> 'b')) B
     ]
 
--- export
--- exprDFA : DFA (Tok Void TExpr)
--- exprDFA =
---   dfa
---     [ (natural, bytes (TLit . decimal))
---     , ('+', const $ TOp P)
---     , ('-', const $ TOp S)
---     , ('*', const $ TOp M)
---     , ('^', const $ TOp X)
---     , ('(', const PO)
---     , (')', const PC)
---     , (spaces, Ignore)
---     ]
---
 identifier : RExp True
 identifier = plus $ alphaNum <|> '_'
 
 export
 ident : L1 q Void Ident
 ident =
-  lexer {r = 1} $ jsonSpaced (Ini {n = 1})
-    [ ctok "else" Else
-    , readTok identifier Id
+  lexer {r = 1} $ jsonSpaced
+    [ tok "else" Else
+    , stringTok identifier Id
     ]
