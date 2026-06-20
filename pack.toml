@@ -43,5 +43,6 @@ test = "test/test.ipkg"
 
 [custom.all]
 bytestring.commit  = "latest:main"
-parser.commit      = "latest:main"
+elin.commit        = "latest:main"
 parser-show.commit = "latest:main"
+parser.commit      = "latest:main"

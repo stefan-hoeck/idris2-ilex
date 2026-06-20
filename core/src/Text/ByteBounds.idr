@@ -174,7 +174,12 @@ BBErr e = ByteBounded (InnerError e)
 
 export
 Interpolation e => Interpolation (BBErr e) where
-  interpolate (B err bs) = "Error at byte(s) \{bs}: \{err}"
+  interpolate (B err bs) =
+    case bs of
+      BB s e => case s == e of
+        True  => "Error at byte \{s}: \{err}"
+        False => "Error at bytes \{s}--\{e}: \{err}"
+      NoBB   =>  "Error: \{err}"
 
 ||| Converts an error with byte bounds to a `ParseError` by pairing it with
 ||| an origin and the parsed string.

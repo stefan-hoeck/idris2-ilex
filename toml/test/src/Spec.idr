@@ -9,6 +9,7 @@ import IO.Async.Loop.Epoll
 import IO.Async.Loop.Posix
 import JSON.Parser
 import System
+import System.File
 import Text.ILex
 import Text.ILex.FS
 import Text.TOML.Parser
@@ -62,10 +63,10 @@ testdir : Path Rel
 testdir = "toml/test/suite"
 
 0 Errs : List Type
-Errs = [ParseError Void, Errno]
+Errs = [BBErr Void, ParseError Void, Errno]
 
 0 AllErrs : List Type
-AllErrs = [ParseError TomlParseError, ParseError Void, Errno]
+AllErrs = [BBErr TomlParseError, BBErr Void, ParseError Void, Errno]
 
 0 Prog : Type -> Type -> Type
 Prog o = AsyncPull Poll o Errs
@@ -77,7 +78,7 @@ readFile = readBytes . interpolate
 covering
 runProg : Prog Void () -> IO ()
 runProg prog =
- let handled := handle [stderrLn . interpolate, stderrLn . interpolate] prog
+ let handled := handle [stderrLn . interpolate, stderrLn . interpolate, stderrLn . interpolate] prog
   in epollApp $ mpull handled
 
 invalidTest : Path Rel -> Bool
@@ -87,12 +88,12 @@ invalidTest (PRel sp) =
     _     => True
 
 jval : File Rel -> Prog o JSON
-jval p = streamVal JNull json (FileSrc "\{p}") (readFile p)
+jval p = streamVal JNull json (readFile p)
 
-ttbl : File Rel -> Prog o (Either (ParseError TomlParseError) TomlTable)
+ttbl : File Rel -> Prog o (Either (BBErr TomlParseError) TomlTable)
 ttbl p =
   extractErr _ $
-  streamVal {es = AllErrs} empty toml (FileSrc "\{p}") (readBytes "\{p}")
+  streamVal {es = AllErrs} empty toml (readBytes "\{p}")
 
 runTest : File Rel -> Prog (Nat,Nat) ()
 runTest p =
@@ -106,7 +107,7 @@ runTest p =
           emit (1,0)
         False => Prelude.do
           jv        <- jval pjson
-          Right tbl <- ttbl ptoml | Left x => stdoutLn "\{x}" >> emit (1,1)
+          Right tbl <- ttbl ptoml | Left x => stdoutLn "\{ptoml}: \{x}" >> emit (1,1)
           case adjJSON jv == adjJSON (tableToJSON tbl) of
             True  => emit (1,0)
             False => Prelude.do

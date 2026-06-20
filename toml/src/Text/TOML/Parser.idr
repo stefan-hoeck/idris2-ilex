@@ -63,27 +63,27 @@ TSTCK = Stack TomlParseError TStack TSz
 
 parameters {auto sk : TSTCK q}
 
-  addkey : KeyType -> Bounded String -> F1 q TST
+  addkey : KeyType -> ByteBounded String -> F1 q TST
   addkey kt (B s bs) =
    let k := KT s kt bs
     in getStack >>= \case
-      STbl x ks   => putStackAs (STbl x $ ks:<k) TSep
-      SArr x ks   => putStackAs (SArr x $ ks:<k) ASep
-      STop x ks t => putStackAs (STop x (ks:<k) t) ESep
-      VTbl x ks t => putStackAs (VTbl x (ks:<k) t) ESep
-      VArr x sv   => putStackAs (VArr x sv) Err
+         STbl x ks   => putStackAs (STbl x $ ks:<k) TSep
+         SArr x ks   => putStackAs (SArr x $ ks:<k) ASep
+         STop x ks t => putStackAs (STop x (ks:<k) t) ESep
+         VTbl x ks t => putStackAs (VTbl x (ks:<k) t) ESep
+         VArr x sv   => putStackAs (VArr x sv) Err
 
   onkey : String -> F1 q TST
   onkey s = T1.do
-    bs <- tokenBounds (length s)
+    bs <- Interfaces.bounds
     addkey Plain (B s bs)
 
   escape : TST -> ByteString -> F1 q TST
   escape res bs =
    let hex := cast {to = Bits32} $ hexadecimal (drop 2 bs)
     in case has unicode hex && not (has surrogate hex) of
-         True  => inccol (size bs) >> pushBits32 res hex
-         False => unexpected [] bs sk >>= flip failWith Err
+         True  => pushBits32 res hex
+         False => unexpected [] sk >>= flip failWith Err
 
   end : TST -> Either TErr TStack -> F1 q TST
   end x (Left y)  = failWith y Err
@@ -129,13 +129,13 @@ parameters {auto sk : TSTCK q}
 
 %inline
 val : a -> (ByteString -> TomlValue) -> (a, Step q TSz TSTCK)
-val x f = goBS x $ \bs => inccol bs.size >> getStack >>= onval (f bs)
+val x f = bytes x $ \bs => getStack >>= onval (f bs)
 
 valE : a -> (ByteString -> AnyTime) -> (a, Step q TSz TSTCK)
 valE x f =
-  goBS x $ \bs => case extraCheckDate (f bs) of
-    Right v => inccol bs.size >> getStack >>= onval (TTime v)
-    Left  x => raise (Custom $ InvalidLeapDay x) (size bs) bs Err
+  bytes x $ \bs => case extraCheckDate (f bs) of
+    Right v => getStack >>= onval (TTime v)
+    Left  x => raise (Custom $ InvalidLeapDay x) (size bs) Err
 
 %inline
 val' : a -> TomlValue -> (a, Step q TSz TSTCK)
@@ -145,18 +145,17 @@ val' x = val x . const
 -- Lexer Steps
 --------------------------------------------------------------------------------
 
-tomlSpaced : TST -> Steps q TSz TSTCK -> DFA q TSz TSTCK
-tomlSpaced res ss = dfa $ conv' (plus wschar) res :: ss
+tomlSpaced : Steps q TSz TSTCK -> DFA q TSz TSTCK
+tomlSpaced ss = dfa $ ignore' (plus wschar) :: ss
 
-tomlIgnore : TST -> TST -> Steps q TSz TSTCK -> DFA q TSz TSTCK
-tomlIgnore res nl ss =
-  tomlSpaced res $ [read' comment res, newline' newline nl] ++ ss
+tomlIgnore : TST -> Steps q TSz TSTCK -> DFA q TSz TSTCK
+tomlIgnore nl ss = tomlSpaced $ [ignore' comment, step' newline nl] ++ ss
 
 keySteps : Steps q TSz TSTCK
 keySteps =
-  [ goStr unquotedKey onkey
-  , copen' '\'' LKey
-  , copen' '"'  QKey
+  [ string unquotedKey onkey
+  , opn' '\'' LKey
+  , opn' '"'  QKey
   ]
 
 valSteps : Steps q TSz TSTCK
@@ -184,57 +183,57 @@ valSteps =
   , valE offsetDateTime (ATOffsetDateTime . readOffsetDateTime)
 
   -- Nested Values
-  , copen '[' openArray
-  , copen '{' openInlineTable
+  , opn '[' openArray
+  , opn '{' openInlineTable
 
   -- Strings
-  , copen' '"'  QStr
-  , copen' '\'' LStr
-  , copen' #"""""# MLQStr
-  , go (#"""""# >> newline) (pushPosition >> incline 1 >> pure MLQStr)
-  , copen' "'''" MLLStr
-  , go ("'''" >> newline) (pushPosition >> incline 1 >> pure MLLStr)
+  , opn' '"'  QStr
+  , opn' '\'' LStr
+  , opn' #"""""# MLQStr
+  , opn' (#"""""# >> newline) MLQStr
+  , opn' "'''" MLLStr
+  , opn' ("'''" >> newline) MLLStr
   , val' #""""# (TStr "")
   , val' #"''"# (TStr "")
   ]
 
 escapes : TST -> Steps q TSz TSTCK
 escapes res =
-    [ read basicUnescaped (pushStr res)
-    , cexpr #"\""# (pushStr res "\"")
-    , cexpr #"\\"# (pushStr res "\\")
-    , cexpr #"\b"# (pushStr res "\b")
-    , cexpr #"\e"# (pushStr res "\e")
-    , cexpr #"\f"# (pushStr res "\f")
-    , cexpr #"\n"# (pushStr res "\n")
-    , cexpr #"\r"# (pushStr res "\r")
-    , cexpr #"\t"# (pushStr res "\t")
-    , goBS ("\\u" >> repeat 4 hexdigit) (escape res)
-    , goBS ("\\U" >> repeat 8 hexdigit) (escape res)
+    [ string (plus basicUnescaped) (pushStr res)
+    , step #"\""# (pushStr res "\"")
+    , step #"\\"# (pushStr res "\\")
+    , step #"\b"# (pushStr res "\b")
+    , step #"\e"# (pushStr res "\e")
+    , step #"\f"# (pushStr res "\f")
+    , step #"\n"# (pushStr res "\n")
+    , step #"\r"# (pushStr res "\r")
+    , step #"\t"# (pushStr res "\t")
+    , bytes ("\\u" >> repeat 4 hexdigit) (escape res)
+    , bytes ("\\U" >> repeat 8 hexdigit) (escape res)
     ]
 
 mlqDFA : DFA q TSz TSTCK
 mlqDFA =
   dfa $
-    [ ccloseStr #"""""# qstr
-    , cclose #""""""# (pushStr' "\"" >> getStr >>= qstr)
-    , cclose #"""""""# (pushStr' "\"\"" >> getStr >>= qstr)
-    , cexpr #"""# (pushStr MLQStr "\"")
-    , cexpr #""""# (pushStr MLQStr "\"\"")
-    , newline newline (pushStr MLQStr "\n")
-    , multiline' mlbEscapedNL MLQStr
+    [ closeStr #"""""# qstr
+    , close #""""""# (pushStr' "\"" >> getStr >>= qstr)
+    , close #"""""""# (pushStr' "\"\"" >> getStr >>= qstr)
+    , step #"""# (pushStr MLQStr "\"")
+    , step #""""# (pushStr MLQStr "\"\"")
+    , step newline (pushStr MLQStr "\n")
+    , step' mlbEscapedNL MLQStr
     ] ++ escapes MLQStr
 
 mllDFA : DFA q TSz TSTCK
 mllDFA =
   dfa $
-    [ ccloseStr "'''" qstr
-    , cclose "''''" (pushStr' "'" >> getStr >>= qstr)
-    , cclose "'''''" (pushStr' "''" >> getStr >>= qstr)
-    , cexpr "'" (pushStr MLLStr "'")
-    , cexpr "''" (pushStr MLLStr "''")
-    , newline newline (pushStr MLLStr "\n")
-    , read literalChars (pushStr MLLStr)
+    [ closeStr "'''" qstr
+    , close "''''" (pushStr' "'" >> getStr >>= qstr)
+    , close "'''''" (pushStr' "''" >> getStr >>= qstr)
+    , step "'" (pushStr MLLStr "'")
+    , step "''" (pushStr MLLStr "''")
+    , step newline (pushStr MLLStr "\n")
+    , string literalChars (pushStr MLLStr)
     ]
 
 --------------------------------------------------------------------------------
@@ -244,28 +243,28 @@ mllDFA =
 tomlTrans : Lex1 q TSz TSTCK
 tomlTrans =
   lex1
-    [ E TIni $ tomlIgnore TIni TIni (keySteps ++ [copen '[' openStdTable, copen "[[" openArrayTable])
-    , E ESep $ tomlSpaced ESep [cexpr' '.' EKey, cexpr' '=' EVal]
-    , E TSep $ tomlSpaced TSep [cexpr' '.' EKey, cclose ']' close]
-    , E ASep $ tomlSpaced ASep [cexpr' '.' EKey, cclose "]]" close]
-    , E EKey $ tomlSpaced EKey keySteps
-    , E EVal $ tomlSpaced EVal valSteps
-    , E ANew $ tomlIgnore ANew ANew (cclose ']' close :: valSteps)
-    , E AVal $ tomlIgnore AVal AVal [cclose ']' close, cexpr' ',' ACom]
-    , E ACom $ tomlIgnore ACom ACom (cclose ']' close :: valSteps)
-    , E QKey $ dfa $ ccloseBoundedStr '"' (addkey Quoted) :: escapes QKey
-    , E LKey $ dfa [ccloseBoundedStr '\'' (addkey Plain), read literalChars (pushStr LKey)]
-    , E QStr $ dfa $ ccloseStr '"' qstr :: escapes QStr
-    , E LStr $ dfa [ccloseStr '\'' qstr, read literalChars (pushStr LStr)]
+    [ E TIni $ tomlIgnore TIni (keySteps ++ [opn '[' openStdTable, opn "[[" openArrayTable])
+    , E ESep $ tomlSpaced [step' '.' EKey, step' '=' EVal]
+    , E TSep $ tomlSpaced [step' '.' EKey, close ']' close]
+    , E ASep $ tomlSpaced [step' '.' EKey, close "]]" close]
+    , E EKey $ tomlSpaced keySteps
+    , E EVal $ tomlSpaced valSteps
+    , E ANew $ tomlIgnore ANew (close ']' close :: valSteps)
+    , E AVal $ tomlIgnore AVal [close ']' close, step' ',' ACom]
+    , E ACom $ tomlIgnore ACom (close ']' close :: valSteps)
+    , E QKey $ dfa $ closeBoundedStr '"' (addkey Quoted) :: escapes QKey
+    , E LKey $ dfa [closeBoundedStr '\'' (addkey Plain), string literalChars (pushStr LKey)]
+    , E QStr $ dfa $ closeStr '"' qstr :: escapes QStr
+    , E LStr $ dfa [closeStr '\'' qstr, string literalChars (pushStr LStr)]
     , E MLQStr mlqDFA
     , E MLLStr mllDFA
-    , E TVal $ tomlSpaced TVal [cexpr' ',' TCom, cclose '}' close]
-    , E TNew $ tomlSpaced TNew (cclose '}' close :: keySteps)
-    , E TCom $ tomlSpaced TCom keySteps
-    , E EOL  $ tomlIgnore EOL TIni []
+    , E TVal $ tomlSpaced [step' ',' TCom, close '}' close]
+    , E TNew $ tomlSpaced (close '}' close :: keySteps)
+    , E TCom $ tomlSpaced keySteps
+    , E EOL  $ tomlIgnore TIni []
     ]
 
-tomlErr : Arr32 TSz (ByteString -> TSTCK q -> F1 q TErr)
+tomlErr : Arr32 TSz (TSTCK q -> F1 q TErr)
 tomlErr =
   arr32 TSz (unexpected [])
     [ E ANew $ unclosedIfEOI "[" []
@@ -285,10 +284,10 @@ tomlErr =
     , E ASep $ unclosedIfNLorEOI "[[" [".", "]]"]
     ]
 
-tomlEOI : ByteString -> TST -> TSTCK q -> F1 q (Either TErr TomlTable)
-tomlEOI bs st sk =
+tomlEOI : TST -> TSTCK q -> F1 q (Either TErr TomlTable)
+tomlEOI st sk =
   case st == TIni || st == EOL of
-    False => arrFail TSTCK tomlErr st bs sk
+    False => arrFail TSTCK tomlErr st sk
     True  => getStack >>= pure . toTable
 
 public export

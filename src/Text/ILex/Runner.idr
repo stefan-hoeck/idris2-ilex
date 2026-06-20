@@ -188,7 +188,7 @@ parameters {0 q,e,a : Type}
   step st dfa cur l (S k) t =
    let byte := buf `ix` k
     in case cur `atByte` byte of
-         Keep         => step st dfa cur l k t
+         Keep         => step st dfa cur (S l) k t
          Done f       =>
           let s2 # t := stp st f (S l) t
            in loop s2 k t
