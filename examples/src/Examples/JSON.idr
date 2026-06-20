@@ -31,7 +31,7 @@ runProg prog =
 
 streamVals : Prog String () -> Prog Void ()
 streamVals pths =
-     flatMap pths (\p => streamParse jsonArray (FileSrc p) (readBytes p))
+     flatMap pths (\p => streamParse jsonArray (readBytes p))
   |> C.count
   |> foreach (\x => stdoutLn "\{show x} values streamed.")
 
@@ -39,7 +39,7 @@ parStreamVals : Prog String () -> Prog Void ()
 parStreamVals pths =
      flatMap pths readBytes
   |> lines
-  |> parMapI 32 (traverse $ parseBytesBB json Virtual)
+  |> parMapI 32 (traverse $ parseBytes json Virtual)
   |> C.count
   |> foreach (\x => stdoutLn "\{show x} values streamed.")
 
