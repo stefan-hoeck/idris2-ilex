@@ -30,14 +30,12 @@ streamParse prs pl = Prelude.do
     go : LexState prs -> Pull f ByteString es x -> Pull f a es x
     go st p =
       assert_total $ P.uncons p >>= \case
-        Left res      =>
-          lift1 {s = q} (lastStep prs st) >>= \case
-            Left x  => throw x
-            Right v => emit v $> res
+        Left res      => Prelude.do
+          v <- eliftEither {s = q} (lastStep prs st)
+          emit v $> res
         Right (BS n bv,p2) => Prelude.do
-          Right st2 <- lift1 (stepState (toIBuffer bv) prs st)
-            | Left x => throw x
-          m         <- lift1 (prs.chunk st2.stack)
+          st2 <- eliftEither (stepState (toIBuffer bv) prs st)
+          m   <- lift1 (prs.chunk st2.stack)
           consMaybe m (go st2 p2)
 
 export %inline
@@ -49,3 +47,7 @@ streamVal :
   -> Stream f es ByteString
   -> Pull f o es a
 streamVal dflt prs = P.lastOr dflt . streamParse prs
+
+--------------------------------------------------------------------------------
+-- Error Handling
+--------------------------------------------------------------------------------

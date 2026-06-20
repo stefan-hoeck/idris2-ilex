@@ -173,13 +173,17 @@ public export
 BBErr e = ByteBounded (InnerError e)
 
 export
+prettyBBErr : Interpolation e => BBErr e -> String
+prettyBBErr (B err bs) =
+  case bs of
+    BB s e => case s == e of
+      True  => "Error at byte \{s}: \{err}"
+      False => "Error at bytes \{s}--\{e}: \{err}"
+    NoBB   =>  "Error: \{err}"
+
+export %inline
 Interpolation e => Interpolation (BBErr e) where
-  interpolate (B err bs) =
-    case bs of
-      BB s e => case s == e of
-        True  => "Error at byte \{s}: \{err}"
-        False => "Error at bytes \{s}--\{e}: \{err}"
-      NoBB   =>  "Error: \{err}"
+  interpolate = prettyBBErr
 
 ||| Converts an error with byte bounds to a `ParseError` by pairing it with
 ||| an origin and the parsed string.

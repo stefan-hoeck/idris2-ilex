@@ -75,8 +75,28 @@ init v = T1.do
 -- Lexer
 --------------------------------------------------------------------------------
 
+public export
+0 Tok : Type -> Type
+Tok = ByteBounded
+
+public export
+0 Toks : Type -> Type
+Toks = List . Tok
+
+public export
+0 Skot : Type -> Type
+Skot = SnocList . ByteBounded
+
+public export
+0 L1 : (q,e : Type) -> (a : Type) -> Type
+L1 q e a = P1 q (BBErr e) (Toks a)
+
+public export
+0 Lexer : (e : Type) -> Type -> Type
+Lexer e a = {0 q : Type} -> L1 q e a
+
 parameters {auto hb   : HasBytes s}
-           {auto hs   : HasStack s (SnocList $ ByteBounded a)}
+           {auto hs   : HasStack s (Skot a)}
            (x         : RExp True)
            {auto 0 lt : 0 < r}
 
@@ -110,19 +130,6 @@ lexEOI i sk =
      then getList (stack sk) >>= pure . Right
      else unexpected [] sk >>= pure . Left
 
-public export
-0 L1 : (q,e : Type) -> (a : Type) -> Type
-L1 q e a = P1 q (BBErr e) (List $ ByteBounded a)
-
-public export
-0 Lexer : (e : Type) -> Type -> Type
-Lexer e a = {0 q : Type} -> L1 q e a
-
 export
-lexer :
-     {r : _}
-  -> {auto 0 lt  : 0 < r}
-  -> Steps q r (Stack e (SnocList $ ByteBounded a) r)
-  -> L1 q e a
-lexer m =
-  P Ini (init [<]) (lex1 [E Ini $ dfa m]) snocChunk (errs []) lexEOI
+lexer : {r : _} -> (0 lt : 0 < r) => Steps q r (Stack e (Skot a) r) -> L1 q e a
+lexer m = P Ini (init [<]) (lex1 [E Ini $ dfa m]) snocChunk (errs []) lexEOI
