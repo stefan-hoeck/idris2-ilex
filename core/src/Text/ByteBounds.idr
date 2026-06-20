@@ -134,24 +134,19 @@ Eq PositionMap where
 
 export %inline
 bytePositionMapFrom : Position -> ByteString -> PositionMap
-bytePositionMapFrom p (BS n bv) = PM n $ positionMapFrom p bv
+bytePositionMapFrom p (BS n bv) = PM (S n) $ positionMapFrom p bv
 
 export %inline
 stringPositionMapFrom : Position -> String -> PositionMap
 stringPositionMapFrom p = bytePositionMapFrom p . fromString
 
-
 export %inline
 bytePositionMap : ByteString -> PositionMap
-bytePositionMap (BS n bv) = PM n $ positionMap bv
+bytePositionMap (BS n bv) = PM (S n) $ positionMap bv
 
 export %inline
 stringPositionMap : String -> PositionMap
 stringPositionMap = bytePositionMap . fromString
-
-lastPos : PositionMap => Maybe Position
-lastPos @{PM (S k) arr} = Just $ incCol $ at arr Fin.last
-lastPos                 = Nothing
 
 parameters {auto pm : PositionMap}
   export %inline
@@ -159,7 +154,7 @@ parameters {auto pm : PositionMap}
   position (BP n) =
     case tryLT n of
       Just0 x  => Just $ atNat pm.arr n @{x}
-      Nothing0 => lastPos
+      Nothing0 => Nothing
 
   export
   toBounds : ByteBounds -> Bounds
