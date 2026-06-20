@@ -133,3 +133,81 @@ lexEOI i sk =
 export
 lexer : {r : _} -> (0 lt : 0 < r) => Steps q r (Stack e (Skot a) r) -> L1 q e a
 lexer m = P Ini (init [<]) (lex1 [E Ini $ dfa m]) snocChunk (errs []) lexEOI
+
+--------------------------------------------------------------------------------
+-- Values
+--------------------------------------------------------------------------------
+
+%runElab deriveParserState "VSz" "VST" ["VIni", "VErr", "VDone"]
+
+||| Description of lexicographic tokens
+public export
+data Token : (e, a : Type) -> Type where
+  ||| Marks a terminal state that does not produce a token.
+  ||| This can be used for comments or whitespace that should be
+  ||| ignored.
+  Ignore : Token e a
+
+  ||| A constant token that allows us to emit a value directly.
+  Const  : a -> Token e a
+
+  ||| A token that needs to be parsed from its corresponding bytestring.
+  Txt    : (String -> Either e a) -> Token e a
+
+  ||| A token that needs to be parsed from its corresponding bytestring.
+  Bytes  : (ByteString -> Either e a) -> Token e a
+
+export %inline
+const : a -> Token e a
+const = Const
+
+export %inline
+txt : (String -> a) -> Token e a
+txt f = Txt (Right . f)
+
+export %inline
+bytes : (ByteString -> a) -> Token e a
+bytes f = Bytes (Right . f)
+
+toStep :
+     (RExpOf True b, Token e a)
+  -> (RExpOf True b, Step q VSz (Stack e (Maybe a) VSz))
+toStep (x,c) =
+  case c of
+    Ignore  => step' x VIni
+    Const v => step x (putStackAs (Just v) VDone)
+    Txt f   =>
+      string x $ \s => case f s of
+        Right v => putStackAs (Just v) VDone
+        Left e  => failHere (Custom e) VErr
+    Bytes f =>
+      bytes x $ \s => case f s of
+        Right v => putStackAs (Just v) VDone
+        Left e  => failHere (Custom e) VErr
+
+ignore :
+     (RExpOf True b, Token e a)
+  -> Maybe (RExpOf True b, Step q VSz (Stack e (Maybe a) VSz))
+ignore (x,Ignore) = Just $ step' x VDone
+ignore _          = Nothing
+
+valEOI : VST -> Stack e (Maybe a) VSz q -> F1 q (Either (BBErr e) a)
+valEOI i sk =
+  if i == VDone || i == VIni
+     then replace1 sk.stack_ Nothing >>= \case
+            Just v  => pure (Right v)
+            Nothing => unexpected [] sk >>= pure . Left
+     else unexpected [] sk >>= pure . Left
+
+public export
+0 PVal1 : (q,e : Type) -> (a : Type) -> Type
+PVal1 q e a = P1 q (BBErr e) a
+
+||| Parser for simple values based on regular expressions.
+export
+value : Maybe a -> TokenMap (Token e a) -> PVal1 q e a
+value mv m =
+ let iniSteps  := E VIni $ dfa (map toStep m)
+     doneSteps := E VDone $ dfa (mapMaybe ignore m)
+     states    := lex1 [iniSteps, doneSteps]
+  in P VIni (init mv) states noChunk (errs []) valEOI
