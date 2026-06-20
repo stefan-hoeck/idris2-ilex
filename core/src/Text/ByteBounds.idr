@@ -75,6 +75,11 @@ record ByteBounded ty where
 
 %runElab derive "ByteBounded" [Show,Eq]
 
+export
+fromBytePos : ByteBounded a -> BytePos -> ByteBounded a
+fromBytePos (B v $ BB (BP s) (BP e)) (BP p) = B v $ BB (BP $ s+p) (BP $ e+p)
+fromBytePos (B v NoBB)               p      = B v $ BB p p
+
 -- implements of `(<*>)`
 app : ByteBounded (a -> b) -> ByteBounded a -> ByteBounded b
 app (B vf b1) (B va b2) = B (vf va) (b1 <+> b2)
