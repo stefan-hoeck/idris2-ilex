@@ -25,6 +25,12 @@ record Position where
   ||| The current column in a string (0-based)
   col  : Nat
 
+%runElab derive "Position" [Show,Eq,Ord]
+
+public export
+Interpolation Position where
+  interpolate (P l c) = show (l+1) ++ ":" ++ show (c+1)
+
 ||| Appends the second position to the first.
 |||
 ||| If the second is on a single line, the column is added.
@@ -119,26 +125,32 @@ incBytes (BS n bv) (P l c) = go l c n
           _    => go l c k
 
 parameters (bv : ByteVect n)
-           (m  : MArray s n Position)
+           (m  : MArray s (S n) Position)
 
-  skip : (k : Nat) -> (ix : Ix k n) => Position -> F1 s (IArray n Position)
+  skip : (k : Nat) -> (ix : Ix k n) => Position -> F1' s
 
-  fillMap : (k : Nat) -> (ix : Ix k n) => Position -> F1 s (IArray n Position)
-  fillMap 0     p t = unsafeFreeze m t
+  fillMap : (k : Nat) -> (ix : Ix k n) => Position -> F1' s
+  fillMap 0     p t = () # t
   fillMap (S k) p t =
-   let _ # t := setIx m k p t
+   let _ # t := setIx m _ {x = succIx ix}  p t
     in case ByteVect.ix bv k of
          0x0a => fillMap k (incLine p) t
          b    => case b < 128 of
            True  => fillMap k (incCol p) t
            False => skip k p t
 
-  skip 0     p t = unsafeFreeze m t
+  skip 0     p t = () # t
   skip (S k) p t =
-   let _ # t := setIx m k p t
+   let _ # t := setIx m _ {x = succIx ix} p t
     in if isStartByte (ByteVect.ix bv k)
           then fillMap (S k) (incCol p) t
           else skip k p t
+
+setLast : {n : _} -> MArray s (S n) Position -> F1' s
+setLast {n = 0} m t = () # t
+setLast {n = S k} m t =
+ let p # t := Array.Core.get m (weaken last) t
+  in Array.Core.set m last (incCol p) t
 
 ||| From a byte vector, generates an array that maps each
 ||| byte index to the corresponding text position (line and column),
@@ -146,18 +158,24 @@ parameters (bv : ByteVect n)
 |||
 ||| The line number is increased after a line feed (`'\n'`) character.
 export
-positionMapFrom : {n : _} -> Position -> ByteVect n -> IArray n Position
+positionMapFrom :
+     {n : _}
+  -> Position
+  -> ByteVect n
+  -> IArray (S n) Position
 positionMapFrom p bv =
   run1 $ \t =>
-   let m # t := marray1 n p t
-    in fillMap bv m n p t
+   let m # t := marray1 (S n) p t
+       _ # t := fillMap bv m n p t
+       _ # t := setLast m t
+    in unsafeFreeze m t
 
 ||| From a byte vector, generates an array that maps each
 ||| byte index to the corresponding text position (line and column).
 |||
 ||| The line number is increased after a line feed (`'\n'`) character.
 export %inline
-positionMap : {n : _} -> ByteVect n -> IArray n Position
+positionMap : {n : _} -> ByteVect n -> IArray (S n) Position
 positionMap = positionMapFrom (P 0 0)
 
 ||| Adjusts the current position by one character.
@@ -168,12 +186,6 @@ public export %inline
 next : Char -> Position -> Position
 next '\n' = incLine
 next _    = incCol
-
-%runElab derive "Position" [Show,Eq,Ord]
-
-public export
-Interpolation Position where
-  interpolate (P l c) = show (l+1) ++ ":" ++ show (c+1)
 
 --------------------------------------------------------------------------------
 --          Bounds
