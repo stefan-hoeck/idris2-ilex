@@ -102,54 +102,16 @@ unapply1 t                    = t
 ifaceType : ParamTypeInfo -> TTImp -> TTImp
 ifaceType p t = piAll t (dropLastArg p.implicits)
 
-||| Derives an implementation of `HasPosition` for a record type with the
-||| following fields:
-|||
-||| ```idris
-||| line_      : Ref q Nat
-||| col_       : Ref q Nat
-||| positions_ : Ref q Nat
-||| ```
-export
-HasPosition : List Name -> ParamTypeInfo -> Res (List TopLevel)
-HasPosition nms p =
- let impl := implName p "HasPosition"
-  in Right [ TL (clm impl) (dfn impl) ]
-  where
-    clm : (impl : Name) -> Decl
-    clm impl =
-     let arg := unapply1 p.applied
-      in implClaimVis Export impl (ifaceType p $ var "HasPosition" `app` arg)
-
-    dfn : (impl : Name) -> Decl
-    dfn impl = def impl [patClause (var impl) `(MkHP line_ col_ positions_)]
-
-||| Derives an implementation of `HasBytePos` for a record type with the
-||| following fields:
-|||
-||| ```idris
-||| pos_       : Ref q BytePos
-||| positions_ : Ref q (SnocList BytePos)
-||| ```
-export
-HasBytePos : List Name -> ParamTypeInfo -> Res (List TopLevel)
-HasBytePos nms p =
- let impl := implName p "HasBytePos"
-  in Right [ TL (clm impl) (dfn impl) ]
-  where
-    clm : (impl : Name) -> Decl
-    clm impl =
-     let arg := unapply1 p.applied
-      in implClaimVis Export impl (ifaceType p $ var "HasBytePos" `app` arg)
-
-    dfn : (impl : Name) -> Decl
-    dfn impl = def impl [patClause (var impl) `(MkHBP pos_ positions_)]
-
 ||| Derives an implementation of `HasBytes` for a record type with the
-||| following field:
+||| following fields:
 |||
 ||| ```idris
-||| bytes_     : Ref q ByteString
+||| prev_      : Ref q ByteString
+||| cur_       : Ref q ByteString
+||| offset_    : Ref q Nat
+||| relpos_    : Ref q Integer
+||| len_       : Ref q Nat
+||| positions_ : Ref q (SnocList BytePos)
 ||| ```
 export
 HasBytes : List Name -> ParamTypeInfo -> Res (List TopLevel)
@@ -163,7 +125,7 @@ HasBytes nms p =
       in implClaimVis Export impl (ifaceType p $ var "HasBytes" `app` arg)
 
     dfn : (impl : Name) -> Decl
-    dfn impl = def impl [patClause (var impl) `(MkHB bytes_)]
+    dfn impl = def impl [patClause (var impl) `(MkHB prev_ cur_ offset_ relpos_ len_ positions_)]
 
 ||| Derives an implementation of `HasStringLits` for a record type with the
 ||| following field:
@@ -301,28 +263,13 @@ HasStack nms p =
     dfn impl = def impl [patClause (var impl) `(MkHS stack_)]
 
 ||| Derives implementations of the following interfaces for a suitable
-||| record type: `HasPosition`, `HasBytes`, `HasStringLits`, `HasError`, and
+||| record type: `HasBytePos`, `HasStringLits`, `HasBBErr`, and
 ||| `HasStack`.
 export
 FullStack : List Name -> ParamTypeInfo -> Res (List TopLevel)
 FullStack nms p =
   sequenceJoin
-    [ HasPosition nms p
-    , HasBytes nms p
-    , HasStringLits nms p
-    , HasError nms p
-    , HasStack nms p
-    ]
-
-||| Derives implementations of the following interfaces for a suitable
-||| record type: `HasBytePos`, `HasBytes`, `HasStringLits`, `HasBBErr`, and
-||| `HasStack`.
-export
-ByteStack : List Name -> ParamTypeInfo -> Res (List TopLevel)
-ByteStack nms p =
-  sequenceJoin
-    [ HasBytePos nms p
-    , HasBytes nms p
+    [ HasBytes nms p
     , HasStringLits nms p
     , HasBBErr nms p
     , HasStack nms p

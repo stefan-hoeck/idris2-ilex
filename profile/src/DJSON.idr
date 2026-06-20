@@ -3,9 +3,8 @@ module DJSON
 import Data.String
 import Derive.Prelude
 import JSON.Parser
-import Text.ILex.Bytes
-import Text.ILex.Bytes.DStack
-import Text.ILex.Util
+import Text.ILex.DStack
+import Text.ILex
 import Syntax.T1
 
 %default total
@@ -184,7 +183,7 @@ djson = P (cast JInit) (init $ [<]:>JInit) jsonTrans (\x => (Nothing #)) jsonErr
 
 export %inline
 dparseJSON : Origin -> String -> Either (ParseError Void) JSON
-dparseJSON = parseStringBB djson
+dparseJSON = parseString djson
 
 export
 testDJSON : String -> IO ()

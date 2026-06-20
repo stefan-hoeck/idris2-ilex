@@ -61,16 +61,35 @@ import Text.ILex.FS
 %hide Data.Linear.(.)
 %hide Language.Reflection.TT.Str
 
+Interpolation a => Interpolation (ByteBounded a) where
+  interpolate (B v bs) = "\{v}: \{bs}"
+
+Interpolation a => Interpolation (Bounded a) where
+  interpolate (B v bs) = "\{v}: \{bs}"
+
 pretty :
      {auto ie : Interpolation e}
   -> {auto ia : Interpolation a}
-  -> Parser1 (BoundedErr e) (List a)
+  -> Parser1 (BBErr e) (List a)
   -> String
   -> IO ()
 pretty p s =
   case parseString p Virtual s of
     Left x   => putStrLn $ interpolate x
     Right vs => traverse_ (putStrLn . interpolate) vs
+
+lexPretty :
+     {auto ie : Interpolation e}
+  -> {auto ia : Interpolation a}
+  -> Lexer e a
+  -> String
+  -> IO ()
+lexPretty p s =
+  case parseString p Virtual s of
+    Left x   => putStrLn $ interpolate x
+    Right vs =>
+     let m := stringPositionMap s
+      in traverse_ (putStrLn . interpolate . toBounded) vs
 ```
 
 ## A basic CSV Lexer
@@ -116,9 +135,9 @@ file. Without further ado, here is our first CSV lexer:
 csv0 : L1 q Void CSV0
 csv0 =
   lexer {r = 1}
-    [ ctok ',' Comma0
-    , nltok '\n' NL0
-    , readTok (plus (dot && not ',')) Cell0
+    [ tok ',' Comma0
+    , tok '\n' NL0
+    , stringTok (plus (dot && not ',')) Cell0
     ]
 ```
 
@@ -127,27 +146,27 @@ test it at the REPL:
 
 ```repl
 README> :exec pretty csv0 csvStr1
-Cell0 "foo": 1:1--1:4
-Comma0: 1:4--1:5
-Cell0 "12": 1:5--1:7
-Comma0: 1:7--1:8
-Cell0 "true": 1:8--1:12
-NL0: 1:12--1:13
-Cell0 "bar": 2:1--2:4
-Comma0: 2:4--2:5
-Cell0 "13": 2:5--2:7
-Comma0: 2:7--2:8
-Cell0 "true": 2:8--2:12
-NL0: 2:12--2:13
-Cell0 "baz": 3:1--3:4
-Comma0: 3:4--3:5
-Cell0 "14": 3:5--3:7
-Comma0: 3:7--3:8
-Cell0 "false": 3:8--3:13
+Cell0 "foo": 0--2
+Comma0: 3
+Cell0 "12": 4--5
+Comma0: 6
+Cell0 "true": 7--10
+NL0: 11
+Cell0 "bar": 12--14
+Comma0: 15
+Cell0 "13": 16--17
+Comma0: 18
+Cell0 "true": 19--22
+NL0: 23
+Cell0 "baz": 24--26
+Comma0: 27
+Cell0 "14": 28--29
+Comma0: 30
+Cell0 "false": 31--35
 ```
 
 As you can see, the input has been cut into a list of tokens, each
-annotated with the region (its *bounds*) where in the string it appeared.
+annotated with the region (its *bounds*) where in the byte string it appeared.
 Please note that the functions in this library cannot be evaluated directly
 at the REPL, so we have to actually compile a small program and run it using
 `:exec`.
@@ -186,6 +205,40 @@ natural number (encoded as a value of type `Bits32`)
 strictly less than 1. Again, we will see more about this when
 we talk about context sensitive lexers.
 
+As you can see from the output above, the bounds of a token specify
+the start and end byte of the token in question. In general, we'd prefer
+to use proper string bounds: The start and end line and column of
+a token. We can get there by converting the source string into
+a position map and lookup the string position of a specific byte.
+This is already implemented in `lexPretty`, so let's have a look
+at that:
+
+```repl
+README> :exec lexPretty csv0 csvStr1
+Cell0 "foo": 1:1--1:3
+Comma0: 1:4
+Cell0 "12": 1:5--1:6
+Comma0: 1:7
+Cell0 "true": 1:8--1:11
+NL0: 1:12
+Cell0 "bar": 2:1--2:3
+Comma0: 2:4
+Cell0 "13": 2:5--2:6
+Comma0: 2:7
+Cell0 "true": 2:8--2:11
+NL0: 2:12
+Cell0 "baz": 3:1--3:3
+Comma0: 3:4
+Cell0 "14": 3:5--3:6
+Comma0: 3:7
+Cell0 "false": 3:8--3:12
+```
+
+In general, we'd like to keep the byte bounds for as long as possible
+and only convert them to proper string positions when necessary, for
+instance, when an error occurs or when we need to send the
+string positions to another program.
+
 ### Additional Cell Types
 
 While our first example already demonstrates how we can tokenize
@@ -223,12 +276,12 @@ linebreak = '\n' <|> "\n\r" <|> "\r\n" <|> '\r' <|> '\RS'
 csv1 : L1 q Void CSV1
 csv1 =
   lexer {r = 1}
-    [ ctok ',' Comma1
-    , nltok linebreak NL1
-    , ctok "true" (Bool1 True)
-    , ctok "false" (Bool1 False)
-    , convTok (opt '-' >> decimal) (Int1 . integer)
-    , readTok (plus (dot && not ',')) Txt1
+    [ tok ',' Comma1
+    , tok linebreak NL1
+    , tok "true" (Bool1 True)
+    , tok "false" (Bool1 False)
+    , byteTok (opt '-' >> decimal) (Int1 . integer)
+    , stringTok (plus (dot && not ',')) Txt1
     ]
 ```
 
@@ -300,13 +353,13 @@ unquote : ByteString -> String
 csv1_2 : L1 q Void CSV1
 csv1_2 =
   lexer {r = 1}
-    [ ctok ',' Comma1
-    , nltok linebreak NL1
-    , ctok "true" (Bool1 True)
-    , ctok "false" (Bool1 False)
-    , convTok (opt '-' >> decimal) (Int1 . integer)
-    , readTok (plus (dot && not ',' && not '"')) Txt1
-    , convTok quoted (Txt1 . unquote)
+    [ tok ',' Comma1
+    , tok linebreak NL1
+    , tok "true" (Bool1 True)
+    , tok "false" (Bool1 False)
+    , byteTok (opt '-' >> decimal) (Int1 . integer)
+    , stringTok (plus (dot && not ',' && not '"')) Txt1
+    , byteTok quoted (Txt1 . unquote)
     ]
 ```
 
@@ -342,12 +395,12 @@ is used in performance critical code.
 lexUQ : L1 q Void String
 lexUQ =
   lexer {r = 1}
-    [ ctok #""""# "\""
-    , ctok #""n"# "\n"
-    , ctok #""r"# "\r"
-    , ctok #""t"# "\t"
-    , ctok #"""#  ""
-    , readTok (plus (dot && not '"' && not '\\')) id
+    [ tok #""""# "\""
+    , tok #""n"# "\n"
+    , tok #""r"# "\r"
+    , tok #""t"# "\t"
+    , tok #"""#  ""
+    , stringTok (plus (dot && not '"' && not '\\')) id
     ]
 
 fastUnquote : ByteString -> String
@@ -380,11 +433,13 @@ in a quoted string token or not.
 
 ```idris
 0 QSTCK : Type -> Type
-QSTCK = Stack Void (SnocList $ Bounded CSV1) 2
+QSTCK = Stack Void (Skot CSV1) 2
 ```
 
 Parser stack `QSTCK q` is a wrapper around several mutable references
-that can be manipulated in state-thread `q`.
+that can be manipulated in state-thread `q`. `Skot a` is an alias
+for `SnocList (ByteBounded a)` (its `Toks` in reverse, `Toks` being
+an alias for `List . ByteBounded`).
 
 ### Parser State
 
@@ -429,13 +484,13 @@ compared to `csv1_2`:
 lexInit : DFA q 2 QSTCK
 lexInit =
   dfa
-    [ ctok ',' Comma1
-    , nltok linebreak NL1
-    , ctok "true" (Bool1 True)
-    , ctok "false" (Bool1 False)
-    , convTok (opt '-' >> decimal) (Int1 . integer)
-    , readTok (plus (dot && not ',' && not '"')) Txt1
-    , copen '"' (pure InStr)
+    [ tok ',' Comma1
+    , tok linebreak NL1
+    , tok "true" (Bool1 True)
+    , tok "false" (Bool1 False)
+    , byteTok (opt '-' >> decimal) (Int1 . integer)
+    , stringTok (plus (dot && not ',' && not '"')) Txt1
+    , opn' '"' InStr
     ]
 ```
 
@@ -465,12 +520,12 @@ closeStr : (x : QSTCK q) => F1 q QST
 lexStr : DFA q QSz QSTCK
 lexStr =
   dfa
-    [ cexpr #""""# $ pushStr InStr "\""
-    , cexpr #""n"# $ pushStr InStr "\n"
-    , cexpr #""r"# $ pushStr InStr "\r"
-    , cexpr #""t"# $ pushStr InStr "\t"
-    , cexpr '"' closeStr
-    , read (plus $ dot && not '"') (pushStr InStr)
+    [ step #""""# $ pushStr InStr "\""
+    , step #""n"# $ pushStr InStr "\n"
+    , step #""r"# $ pushStr InStr "\r"
+    , step #""t"# $ pushStr InStr "\t"
+    , step '"' closeStr
+    , string (plus $ dot && not '"') (pushStr InStr)
     ]
 ```
 
@@ -506,7 +561,7 @@ from the array and passed the parser stack and byte sequence
 parsed so far:
 
 ```idris
-quotedErr : Arr32 QSz (QSTCK q -> F1 q (BoundedErr Void))
+quotedErr : Arr32 QSz (QSTCK q -> F1 q (BBErr Void))
 quotedErr = arr32 QSz (unexpected []) [E InStr $ unclosedIfEOI "\"" []]
 ```
 
@@ -516,7 +571,7 @@ end in any state except within a quoted string) and either produce
 a result or fail with an error:
 
 ```idris
-quotedEOI : QST -> QSTCK q -> F1 q (Either (BoundedErr Void) (List $ Bounded CSV1))
+quotedEOI : QST -> QSTCK q -> F1 q (Either (BBErr Void) (Toks CSV1))
 quotedEOI st x =
   case st == Ini of
     False => arrFail QSTCK quotedErr st x
@@ -528,7 +583,7 @@ We are going to have a look at the `lchunk` thing when we talk about
 streaming large amounts of data:
 
 ```idris
-csv1_3 : P1 q (BoundedErr Void) (List $ Bounded CSV1)
+csv1_3 : P1 q (BBErr Void) (Toks CSV1)
 csv1_3 = P Ini (init [<]) quotedTrans snocChunk quotedErr quotedEOI
 ```
 
@@ -580,24 +635,32 @@ it consists of more than a single (snoc)list:
 public export
 record CSTCK (q : Type) where
   constructor C
-  line  : Ref q Nat
-  col   : Ref q Nat
-  psns  : Ref q (SnocList Position)
-  strs  : Ref q (SnocList String)
-  err   : Ref q (Maybe $ BoundedErr Void)
-  cells : Ref q (SnocList Cell)
-  lines : Ref q (SnocList Line)
-  bytes : Ref q ByteString
+  prev_      : Ref q ByteString
+  cur_       : Ref q ByteString
+  offset_    : Ref q Nat
+  relpos_    : Ref q Integer
+  len_       : Ref q Nat
+  positions_ : Ref q (SnocList BytePos)
+  line       : Ref q Nat
+  col        : Ref q Nat
+  psns       : Ref q (SnocList Position)
+  strs       : Ref q (SnocList String)
+  err        : Ref q (Maybe $ BBErr Void)
+  cells      : Ref q (SnocList Cell)
+  lines      : Ref q (SnocList Line)
 
 export %inline
-HasPosition CSTCK where
-  line      = CSTCK.line
-  col       = CSTCK.col
-  positions = CSTCK.psns
-
-export %inline
-HasError CSTCK Void where
+HasBBErr CSTCK Void where
   error = err
+
+export %inline
+HasBytes CSTCK where
+  prev = prev_
+  cur = cur_
+  offset = offset_
+  relpos = relpos_
+  len = len_
+  positions = positions_
 
 export %inline
 HasStringLits CSTCK where
@@ -607,13 +670,15 @@ export %inline
 HasStack CSTCK (SnocList Line) where
   stack = lines
 
-export %inline
-HasBytes CSTCK where
-  bytes = CSTCK.bytes
-
 export
 cinit : F1 q (CSTCK q)
 cinit = T1.do
+  pr <- ref1 empty
+  fl <- ref1 empty
+  ro <- ref1 Z
+  rr <- ref1 0
+  ll <- ref1 Z
+  ps <- ref1 [<]
   l  <- ref1 Z
   c  <- ref1 Z
   bs <- ref1 [<]
@@ -621,8 +686,7 @@ cinit = T1.do
   er <- ref1 Nothing
   cs <- ref1 [<]
   ls <- ref1 [<]
-  by <- ref1 ""
-  pure (C l c bs ss er cs ls by)
+  pure (C pr fl ro rr ll ps l c bs ss er cs ls)
 ```
 
 Next, we'll define the different parser states. We want to make
@@ -679,7 +743,7 @@ break occurred right after a comma, we make sure to push a
 ```idris
 onNL : (x : CSTCK q) => (afterComma : Bool) -> F1 q CST
 onNL afterComma = T1.do
-  incline 1
+  mod1 x.line S
   when1 afterComma (push1 x.cells Null)
   cs@(_::_) <- getList x.cells | [] => pure Ini
   ln <- read1 x.line
@@ -699,13 +763,13 @@ the `Str` state:
 csvDflt : (afterComma : Bool) -> DFA q CSz CSTCK
 csvDflt afterComma =
   dfa
-    [ cexpr ',' $ push1 (cells %search) Null >> pure Com
-    , conv linebreak (\_ => onNL afterComma)
-    , cexpr "true" $ onCell (CBool True)
-    , cexpr "false" $ onCell (CBool False)
-    , conv (opt '-' >> decimal) (onCell . CInt . integer)
-    , read (plus $ dot && not ',' && not '"') (onCell . CStr)
-    , copen '"' (pure Str)
+    [ step ',' $ push1 (cells %search) Null >> pure Com
+    , bytes linebreak (\_ => onNL afterComma)
+    , step "true" $ onCell (CBool True)
+    , step "false" $ onCell (CBool False)
+    , bytes (opt '-' >> decimal) (onCell . CInt . integer)
+    , string (plus $ dot && not ',' && not '"') (onCell . CStr)
+    , opn' '"' Str
     ]
 ```
 
@@ -718,13 +782,13 @@ string to be pushed onto the stack of cells (`onCell`).
 csvStr : DFA q CSz CSTCK
 csvStr =
   dfa
-    [ cexpr #""""# $ pushStr Str "\""
-    , cexpr #""n"# $ pushStr Str "\n"
-    , cexpr #""r"# $ pushStr Str "\r"
-    , cexpr #""t"# $ pushStr Str "\t"
-    , cclose '"' $ getStr >>= onCell . CStr
-    , read (plus $ dot && not '"') $ pushStr Str
-    , conv linebreak (const $ pure NL)
+    [ step #""""# $ pushStr Str "\""
+    , step #""n"# $ pushStr Str "\n"
+    , step #""r"# $ pushStr Str "\r"
+    , step #""t"# $ pushStr Str "\t"
+    , close '"' $ getStr >>= onCell . CStr
+    , string (plus $ dot && not '"') $ pushStr Str
+    , step' linebreak NL
     ]
 ```
 
@@ -743,7 +807,7 @@ csvSteps : Lex1 q CSz CSTCK
 csvSteps =
   lex1
     [ E Ini (csvDflt False)
-    , E Val $ dfa [cexpr ',' (pure Com), conv linebreak (const $ onNL False)]
+    , E Val $ dfa [step' ',' Com, step linebreak (onNL False)]
     , E Str csvStr
     , E Com (csvDflt True)
     ]
@@ -755,7 +819,7 @@ The only thing missing is error handling and the final assembling of
 the parser. States `Str`, `Val`, and `NL` throw custom errors:
 
 ```idris
-csvErr : Arr32 CSz (CSTCK q -> F1 q (BoundedErr Void))
+csvErr : Arr32 CSz (CSTCK q -> F1 q (BBErr Void))
 csvErr =
   arr32 CSz (unexpected [])
     [ E Str $ unclosedIfEOI "\"" []
@@ -763,7 +827,7 @@ csvErr =
     , E NL  $ unclosed "\""
     ]
 
-csvEOI : CST -> CSTCK q -> F1 q (Either (BoundedErr Void) Table)
+csvEOI : CST -> CSTCK q -> F1 q (Either (BBErr Void) Table)
 csvEOI st x =
   case st == Str || st == NL of
     True  => arrFail CSTCK csvErr st x
@@ -776,7 +840,7 @@ csvEOI st x =
 And here's the final CSV parser:
 
 ```idris
-csv : P1 q (BoundedErr Void) Table
+csv : P1 q (BBErr Void) Table
 csv = P Ini cinit csvSteps snocChunk csvErr csvEOI
 ```
 
@@ -870,12 +934,12 @@ runner that will pretty print all errors to `stderr`:
 
 ```idris
 0 Prog : Type -> Type -> Type
-Prog o r = AsyncPull Poll o [ParseError Void, Errno] r
+Prog o r = AsyncPull Poll o [BBErr Void, Errno] r
 
 covering
 runProg : Prog Void () -> IO ()
 runProg prog =
- let handled := handle [stderrLn . interpolate, stderrLn . interpolate] prog
+ let handled := handle [stderrLn . prettyBBErr, stderrLn . interpolate] prog
   in epollApp $ mpull handled
 ```
 
@@ -889,7 +953,7 @@ And here's an example how to stream a single, possibly huge, CSV file
 streamCSV : String -> Prog Void ()
 streamCSV pth =
      readBytes pth
-  |> streamParse csv (FileSrc pth)
+  |> streamParse csv
   |> C.count
   |> printLnTo Stdout
 ```
@@ -910,7 +974,7 @@ string with the error.
 ```idris
 streamCSVFiles : Prog String () -> Prog Void ()
 streamCSVFiles pths =
-     flatMap pths (\p => readBytes p |> streamParse csv (FileSrc p))
+     flatMap pths (\p => readBytes p |> streamParse csv)
   |> C.count
   |> printLnTo Stdout
 ```

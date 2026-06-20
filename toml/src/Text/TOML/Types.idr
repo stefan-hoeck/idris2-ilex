@@ -3,7 +3,7 @@ module Text.TOML.Types
 import public Data.Time.Time
 import public Data.SortedMap
 import Derive.Prelude
-import Text.Bounds
+import Text.ByteBounds
 import Text.ParseError
 
 %default total
@@ -81,7 +81,7 @@ record Key where
   constructor KT
   key    : String
   tpe    : KeyType
-  bounds : Bounds
+  bounds : ByteBounds
 
 %name Key k,k2,k3
 %runElab derive "Key" [Eq,Show]
@@ -128,4 +128,4 @@ Interpolation TomlParseError where
 ||| Error type when lexing and parsing TOML files
 public export
 0 TErr : Type
-TErr = BoundedErr TomlParseError
+TErr = BBErr TomlParseError

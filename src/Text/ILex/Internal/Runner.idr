@@ -24,31 +24,28 @@ offsetToIx 0     = IZ
 offsetToIx (S k) = rewrite plusSuccRightSucc k s in IS (offsetToIx k)
 
 export %inline
-writeBS :
+toBS :
      IBuffer n
   -> (from        : Ix m n)
   -> (0    till   : Nat)
   -> {auto ix     : Ix till n}
   -> {auto 0  lte : LTE (ixToNat from) (ixToNat ix)}
-  -> Ref q ByteString
-  -> F1' q
-writeBS buf from till ref t =
+  -> ByteString
+toBS buf from till =
  let bv := fromIBuffer buf
-     bs := BS _ $ substringFromTill (ixToNat from) (ixToNat ix) {lt2 = ixLTE ix} bv
-  in write1 ref bs t
+  in BS _ $ substringFromTill (ixToNat from) (ixToNat ix) {lt2 = ixLTE ix} bv
 
 export
-writeBSP :
+toBSP :
      ByteString
   -> IBuffer n
   -> (from        : Ix m n)
   -> (0    till   : Nat)
   -> {auto ix     : Ix till n}
   -> {auto 0  lte : LTE (ixToNat from) (ixToNat ix)}
-  -> Ref q ByteString
-  -> F1' q
-writeBSP (BS 0 _) buf from till ref t = writeBS buf from till ref t
-writeBSP prev     buf from till ref t =
+  -> ByteString
+toBSP (BS 0 _) buf from till = toBS buf from till
+toBSP prev     buf from till =
  let bv := fromIBuffer buf
      bs := BS _ $ substringFromTill (ixToNat from) (ixToNat ix) {lt2 = ixLTE ix} bv
-  in write1 ref (prev <+> bs) t
+  in prev <+> bs

@@ -12,5 +12,4 @@ sourcedir = "src"
 modules = Examples.Basics
         , Examples.JSON
         , Examples.Types
-        , Examples.Value
         , README

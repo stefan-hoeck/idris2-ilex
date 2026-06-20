@@ -10,4 +10,3 @@ depends = ilex
 sourcedir = "src"
 
 modules = Text.ILex.FS
-        , Text.ILex.Runner1

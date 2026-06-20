@@ -3,10 +3,11 @@ module Main
 import Context
 import FC
 import Hedgehog
-import Repeat
 import Range
+import Repeat
 import Runner
 import Set
+import Stream
 import Unicode
 
 %default total
@@ -14,11 +15,12 @@ import Unicode
 main : IO ()
 main =
   test
-    [ Range.props
-    , Repeat.props
-    , Set.props
+    [ Runner.props
     , FC.props
-    , Runner.props
-    , Context.props
+    , Set.props
     , Unicode.props
+    , Context.props
+    , Range.props
+    , Repeat.props
+    , Stream.props
     ]

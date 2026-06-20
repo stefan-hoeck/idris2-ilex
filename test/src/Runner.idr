@@ -27,12 +27,12 @@ Interpolation Val where interpolate = show
 
 val : L1 q Void Val
 val =
-  lexer {r = 1} $ jsonSpaced (Ini {n = 1})
-    [ convTok ('A' >> plus 'a') (const MA)
-    , ctok 'A' A
-    , convTok (plus $ charLike 'B') (const B)
-    , ctok "Ccc" C
-    , ctok (like "Foo") Foo
+  lexer {r = 1} $ jsonSpaced
+    [ tok ('A' >> plus 'a') MA
+    , tok 'A' A
+    , tok (plus $ charLike 'B') B
+    , tok "Ccc" C
+    , tok (like "Foo") Foo
     ]
 
 space : Nat -> Gen String
@@ -66,20 +66,23 @@ genC = pure (C, "Ccc")
 vals : Gen (Val, String)
 vals = choice [genA, genMA, genB, genC]
 
-export
-lexBounds : Parser1 (BoundedErr e) a -> String -> Either (ParseError e) a
-lexBounds lex = parseString lex Virtual
+parameters (lex : Parser1 (BBErr e) (List $ ByteBounded a))
 
-export
-lexBytes : Parser1 (BoundedErr e) a -> ByteString -> Either (ParseError e) a
-lexBytes lex = parseBytes lex Virtual
+  export
+  lexBounds : String -> Either (ParseError e) (List $ Bounded a)
+  lexBounds s =
+   let m := stringPositionMap s
+    in map toBounded <$> parseString lex Virtual s
 
-export
-lexNoBounds :
-     Parser1 (BoundedErr e) (List $ Bounded a)
-  -> String
-  -> Either (ParseError e) (List a)
-lexNoBounds lex = map (map val) . lexBounds lex
+  export
+  lexBytes : ByteString -> Either (ParseError e) (List $ Bounded a)
+  lexBytes bs =
+   let m := bytePositionMap bs
+    in map toBounded <$> parseBytes lex Virtual bs
+
+  export
+  lexNoBounds : String -> Either (ParseError e) (List a)
+  lexNoBounds = map (map val) . lexBounds
 
 prop_lexAorB : Property
 prop_lexAorB =
@@ -92,7 +95,7 @@ prop_boundsAOnly : Property
 prop_boundsAOnly =
   property1 $
         Right
-          [ B A $ BS (P 0 0) (P 0 1)
+          [ B A $ BS (P 0 0) (P 0 0)
           ]
     === lexBounds val "A"
 
@@ -100,7 +103,7 @@ prop_boundsAsOnly : Property
 prop_boundsAsOnly =
   property1 $
         Right
-          [ B MA $ BS (P 0 1) (P 0 5)
+          [ B MA $ BS (P 0 1) (P 0 4)
           ]
     === lexBounds val " Aaaa"
 
@@ -114,52 +117,52 @@ prop_boundsFoo =
     res === lexBounds val " fOO"
   where
     res : Either a (List $ Bounded Val)
-    res = Right [B Foo $ BS (P 0 1) (P 0 4)]
+    res = Right [B Foo $ BS (P 0 1) (P 0 3)]
 
 prop_boundsMany : Property
 prop_boundsMany =
   property1 $
         Right
-          [ B MA $ BS (P 0  1) (P 0  5)
-          , B B  $ BS (P 0  8) (P 0 10)
-          , B B  $ BS (P 0 11) (P 0 15)
-          , B A  $ BS (P 0 16) (P 0 17)
-          , B MA $ BS (P 0 19) (P 0 22)
-          , B A  $ BS (P 0 22) (P 0 23)
-          , B B  $ BS (P 0 23) (P 0 24)
-          , B C  $ BS (P 0 24) (P 0 27)
-          , B MA $ BS (P 0 29) (P 0 31)
+          [ B MA $ BS (P 0  1) (P 0  4)
+          , B B  $ BS (P 0  8) (P 0  9)
+          , B B  $ BS (P 0 11) (P 0 14)
+          , B A  $ BS (P 0 16) (P 0 16)
+          , B MA $ BS (P 0 19) (P 0 21)
+          , B A  $ BS (P 0 22) (P 0 22)
+          , B B  $ BS (P 0 23) (P 0 23)
+          , B C  $ BS (P 0 24) (P 0 26)
+          , B MA $ BS (P 0 29) (P 0 30)
           ]
     === lexBounds val " Aaaa   Bb bbBb A  AaaABCcc  Aa"
 
 prop_boundsExpectedErr : Property
 prop_boundsExpectedErr =
   property1 $
-        toErr (P 0 4) (P 0 5) " AaaD" (Expected [] "D")
+        toErr (P 0 4) (P 0 4) " AaaD" (Expected [] "D")
     === lexBounds val " AaaD"
 
 prop_boundsExpectedErr2 : Property
 prop_boundsExpectedErr2 =
   property1 $
-        toErr (P 0 0) (P 0 3) "CcD" (Expected [] "CcD")
+        toErr (P 0 0) (P 0 2) "CcD" (Expected [] "CcD")
     === lexBounds val "CcD"
 
 prop_boundsEoiErr : Property
 prop_boundsEoiErr =
   property1 $
-        toErr (P 0 4) (P 0 6) " AaaCc" (Expected [] "Cc")
+        toErr (P 0 4) (P 0 5) " AaaCc" (Expected [] "Cc")
     === lexBounds val " AaaCc"
 
 prop_boundsByteErr : Property
 prop_boundsByteErr =
   property1 $
-        toErr (P 0 5) (P 0 6) " Aaaa\65533" (InvalidByte 0b1001_0011)
+        toErr (P 0 5) (P 0 5) " Aaaa\65533" (InvalidByte 0b1001_0011)
     === lexBytes val (" Aaaa" <+> pack [0b1001_0011])
 
 prop_boundsByteErr2 : Property
 prop_boundsByteErr2 =
   property1 $
-        toErr (P 0 5) (P 0 6) " Aaaaä" (InvalidByte 0xc3)
+        toErr (P 0 5) (P 0 5) " Aaaaä" (InvalidByte 0xc3)
     === lexBounds val " Aaaaä"
 
 export

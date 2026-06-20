@@ -27,9 +27,12 @@ public export %inline
 Interpolation BytePos where
   interpolate = show . pos
 
+||| Increases the position by the given length
+||| of a byte sequence.
 export
-inc : Nat -> BytePos -> BytePos
-inc n (BP p) = BP (n+p)
+incLen : Nat -> BytePos -> BytePos
+incLen (S n) (BP p) = BP (n+p)
+incLen _     p      = p
 
 --------------------------------------------------------------------------------
 --          ByteBounds
@@ -46,7 +49,7 @@ data ByteBounds : Type where
 
 export
 Interpolation ByteBounds where
-  interpolate (BB s e) = "\{s}--\{e}"
+  interpolate (BB s e) = if s == e then "\{s}" else "\{s}--\{e}"
   interpolate NoBB     = ""
 
 public export
@@ -141,21 +144,25 @@ export %inline
 stringPositionMap : String -> PositionMap
 stringPositionMap = bytePositionMap . fromString
 
+lastPos : PositionMap => Maybe Position
+lastPos @{PM (S k) arr} = Just $ incCol $ at arr Fin.last
+lastPos                 = Nothing
+
 parameters {auto pm : PositionMap}
   export %inline
   position : BytePos -> Maybe Position
   position (BP n) =
     case tryLT n of
       Just0 x  => Just $ atNat pm.arr n @{x}
-      Nothing0 => Nothing
+      Nothing0 => lastPos
 
   export
   toBounds : ByteBounds -> Bounds
   toBounds NoBB               = NoBounds
-  toBounds (BB (BP x) (BP y)) =
-   let Just0 px := tryLT {n = pm.size} x | _ => NoBounds
-       Just0 py := tryLT {n = pm.size} y | _ => NoBounds
-    in BS (atNat pm.arr x) (atNat pm.arr y)
+  toBounds (BB x y) =
+   let Just px := position x | _ => NoBounds
+       Just py := position y | _ => NoBounds
+    in BS px py
 
   export
   toBounded : ByteBounded a -> Bounded a
@@ -164,6 +171,19 @@ parameters {auto pm : PositionMap}
 public export
 0 BBErr : Type -> Type
 BBErr e = ByteBounded (InnerError e)
+
+export
+prettyBBErr : Interpolation e => BBErr e -> String
+prettyBBErr (B err bs) =
+  case bs of
+    BB s e => case s == e of
+      True  => "Error at byte \{s}: \{err}"
+      False => "Error at bytes \{s}--\{e}: \{err}"
+    NoBB   =>  "Error: \{err}"
+
+export %inline
+Interpolation e => Interpolation (BBErr e) where
+  interpolate = prettyBBErr
 
 ||| Converts an error with byte bounds to a `ParseError` by pairing it with
 ||| an origin and the parsed string.

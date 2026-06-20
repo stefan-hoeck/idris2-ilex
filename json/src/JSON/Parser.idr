@@ -6,10 +6,10 @@ import Data.Linear.Ref1
 import Derive.Prelude
 import Syntax.T1
 import Text.ILex.Derive
-
-import public Text.ILex
+import Text.ILex
 
 %default total
+%hide Data.Linear.(.)
 %language ElabReflection
 
 ||| We cannot use `cast` to convert all valid JSON numbers
@@ -177,8 +177,8 @@ parameters {auto sk : SK q}
 --------------------------------------------------------------------------------
 
 %inline
-spaced : Index r -> Steps q r SK -> DFA q r SK
-spaced x = dfa . jsonSpaced x
+spaced : Steps q r SK -> DFA q r SK
+spaced = dfa . jsonSpaced
 
 export
 jsonDouble : RExp True
@@ -188,17 +188,17 @@ jsonDouble =
    in opt '-' >> decimal >> opt frac >> opt exp
 
 %inline
-valTok : JST -> Steps q JSz SK -> DFA q JSz SK
-valTok x ts =
-  spaced x $
-    [ cexpr "null"  (onVal JNull)
-    , cexpr "true"  (onVal $ JBool True)
-    , cexpr "false" (onVal $ JBool False)
-    , conv (opt '-' >> decimal) (onVal . JInteger . integer)
-    , read jsonDouble (onVal . JDouble . jdouble)
-    , copen '{' (modStackAs SK (`PO` [<]) ONew)
-    , copen '[' (modStackAs SK (`PA` [<]) ANew)
-    , copen' '"' JStr
+valTok : Steps q JSz SK -> DFA q JSz SK
+valTok ts =
+  spaced $
+    [ step "null"  (onVal JNull)
+    , step "true"  (onVal $ JBool True)
+    , step "false" (onVal $ JBool False)
+    , bytes (opt '-' >> decimal) (onVal . JInteger . Util.integer)
+    , string jsonDouble (onVal . JDouble . jdouble)
+    , opn '{' (modStackAs SK (`PO` [<]) ONew)
+    , opn '[' (modStackAs SK (`PA` [<]) ANew)
+    , opn' '"' JStr
     ] ++ ts
 
 codepoint : RExp True
@@ -220,17 +220,17 @@ jchar = range32 0x20 0x10ffff && not '"' && not '\\'
 strTok : DFA q JSz SK
 strTok =
   dfa
-    [ ccloseStr '"' endStr
-    , read (plus jchar) (pushStr JStr)
-    , cexpr #"\""# (pushStr JStr "\"")
-    , cexpr #"\n"# (pushStr JStr "\n")
-    , cexpr #"\f"# (pushStr JStr "\f")
-    , cexpr #"\b"# (pushStr JStr "\b")
-    , cexpr #"\r"# (pushStr JStr "\r")
-    , cexpr #"\t"# (pushStr JStr "\t")
-    , cexpr #"\\"# (pushStr JStr "\\")
-    , cexpr #"\/"# (pushStr JStr "\/")
-    , conv codepoint (pushStr JStr . decode)
+    [ closeStr '"' endStr
+    , string (plus jchar) (pushStr JStr)
+    , step #"\""# (pushStr JStr "\"")
+    , step #"\n"# (pushStr JStr "\n")
+    , step #"\f"# (pushStr JStr "\f")
+    , step #"\b"# (pushStr JStr "\b")
+    , step #"\r"# (pushStr JStr "\r")
+    , step #"\t"# (pushStr JStr "\t")
+    , step #"\\"# (pushStr JStr "\\")
+    , step #"\/"# (pushStr JStr "\/")
+    , bytes codepoint (pushStr JStr . decode)
     ]
 
 --------------------------------------------------------------------------------
@@ -240,23 +240,23 @@ strTok =
 jsonTrans : Lex1 q JSz SK
 jsonTrans =
   lex1
-    [ E JIni (valTok JIni [])
-    , E JDone (spaced JDone [])
+    [ E JIni (valTok [])
+    , E JDone (spaced [])
 
-    , E ANew (valTok ANew [cclose ']' closeVal])
-    , E ACom (valTok ACom [])
-    , E AVal $ spaced AVal [cexpr' ',' ACom, cclose ']' closeVal]
+    , E ANew (valTok [close ']' closeVal])
+    , E ACom (valTok [])
+    , E AVal $ spaced [step' ',' ACom, close ']' closeVal]
 
-    , E ONew $ spaced ONew [cclose '}' closeVal, copen' '"' JStr]
-    , E OVal $ spaced OVal [cclose '}' closeVal, cexpr' ',' OCom]
-    , E OCom $ spaced OCom [copen' '"' JStr]
-    , E OLbl $ spaced OLbl [cexpr' ':' OCol]
-    , E OCol (valTok OCol [])
+    , E ONew $ spaced [close '}' closeVal, opn' '"' JStr]
+    , E OVal $ spaced [close '}' closeVal, step' ',' OCom]
+    , E OCom $ spaced [opn' '"' JStr]
+    , E OLbl $ spaced [step' ':' OCol]
+    , E OCol (valTok [])
 
     , E JStr strTok
     ]
 
-jsonErr : Arr32 JSz (SK q -> F1 q (BoundedErr Void))
+jsonErr : Arr32 JSz (SK q -> F1 q (BBErr Void))
 jsonErr =
   arr32 JSz (unexpected [])
     [ E ANew $ unclosedIfEOI "[" []
@@ -270,7 +270,7 @@ jsonErr =
     , E JStr $ unclosedIfNLorEOI "\"" []
     ]
 
-jsonEOI : JST -> SK q -> F1 q (Either (BoundedErr Void) JSON)
+jsonEOI : JST -> SK q -> F1 q (Either (BBErr Void) JSON)
 jsonEOI sk s t =
   case sk == JDone of
     False => arrFail SK jsonErr sk s t
@@ -279,7 +279,7 @@ jsonEOI sk s t =
       _    # t => Right JNull # t
 
 public export
-json : P1 q (BoundedErr Void) JSON
+json : P1 q (BBErr Void) JSON
 json = P JIni (init PI) jsonTrans (\x => (Nothing #)) jsonErr jsonEOI
 
 export %inline
@@ -305,7 +305,7 @@ arrChunk sk = T1.do
   let (p2,res) := extract p
   putStackAs p2 res
 
-arrEOI : JST -> SK q -> F1 q (Either (BoundedErr Void) (List JSON))
+arrEOI : JST -> SK q -> F1 q (Either (BBErr Void) (List JSON))
 arrEOI st sk t =
   case st == JIni of
     True  => case getStack t of
@@ -319,7 +319,7 @@ arrEOI st sk t =
 ||| A parser that is capable of streaming a single large
 ||| array of JSON values.
 public export
-jsonArray : P1 q (BoundedErr Void) (List JSON)
+jsonArray : P1 q (BBErr Void) (List JSON)
 jsonArray = P JIni (init PI) jsonTrans arrChunk jsonErr arrEOI
 
 ||| Parser that is capable of streaming large amounts of
@@ -328,5 +328,5 @@ jsonArray = P JIni (init PI) jsonTrans arrChunk jsonErr arrEOI
 ||| Values need not be separated by whitespace but the longest
 ||| possible value will always be consumed.
 public export
-jsonValues : P1 q (BoundedErr Void) (List JSON)
+jsonValues : P1 q (BBErr Void) (List JSON)
 jsonValues = P JIni (init $ PV [<]) jsonTrans arrChunk jsonErr arrEOI

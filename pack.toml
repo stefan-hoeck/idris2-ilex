@@ -1,7 +1,3 @@
-[install]
-
-whitelist = ["ilex-profile"]
-
 [custom.all.ilex]
 type = "local"
 path = "."
@@ -45,20 +41,8 @@ path = "toml"
 ipkg = "ilex-toml.ipkg"
 test = "test/test.ipkg"
 
-[custom.all.ref1]
-type   = "github"
-url    = "https://github.com/stefan-hoeck/idris2-ref1"
-commit = "latest:main"
-ipkg   = "ref1.ipkg"
-
-[custom.all.parser]
-type   = "github"
-url    = "https://github.com/stefan-hoeck/idris2-parser"
-commit = "latest:main"
-ipkg   = "parser.ipkg"
-
-[custom.all.parser-show]
-type   = "github"
-url    = "https://github.com/stefan-hoeck/idris2-parser"
-commit = "latest:main"
-ipkg   = "show/parser-show.ipkg"
+[custom.all]
+bytestring.commit  = "latest:main"
+elin.commit        = "latest:main"
+parser-show.commit = "latest:main"
+parser.commit      = "latest:main"
