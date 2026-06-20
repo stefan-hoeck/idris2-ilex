@@ -6,7 +6,7 @@ import Data.Linear.Ref1
 import Derive.Prelude
 import Syntax.T1
 import Text.ILex.Derive
-import Text.ILex
+import public Text.ILex
 
 %default total
 %hide Data.Linear.(.)
