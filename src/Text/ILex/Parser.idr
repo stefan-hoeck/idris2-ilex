@@ -146,6 +146,14 @@ public export
 0 PStep : (p : P1 q e a) -> Type
 PStep p = Step q p.states p.state
 
+public export
+0 PRun : (p : P1 q e a) -> Type
+PRun p = Run1 q p.states p.state
+
+public export
+0 PIgn : (p : P1 q e a) -> Type
+PIgn p = Ign1 q p.states p.state
+
 ||| An array of arrays describing a lexer's state machine.
 public export
 0 PByteStep : Nat -> (p : P1 q e a) -> Type
