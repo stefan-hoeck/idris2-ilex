@@ -73,14 +73,14 @@ record LexState (p : P1 q e a) where
   stack   : PST p
   dfa     : PStepper sts p
   cur     : PByteStep sts p
-  tok     : Maybe (PStep p)
+  tok     : PStep p
 
 export
 init : (p : P1 q e a) -> F1 q (LexState p)
 init p t =
  let stck # t := p.stck t
      L _ dfa  := p.lex `at` p.init
-  in LST p.init stck dfa (dfa `at` 0) Nothing # t
+  in LST p.init stck dfa (dfa `at` 0) Err # t
 
 ||| Result of a partial lexing step: In such a step, we lex
 ||| till the end of a chunk of bytes, allowing for a remainder of
@@ -93,19 +93,24 @@ export
 lastStep : (p : P1 q e a) -> LexState p -> F1 q (Either e a)
 lastStep p (LST st sk _ _ tok) t =
   case tok of
-    Nothing => case getBytes @{p.hasb} t of
+    Err => case getBytes @{p.hasb} t of
       BS 0 _ # t => p.eoi st sk t
       _      # t => fail p st sk t
-    Just f  =>
-     let st2 # t := f.run st sk t
+    Run f =>
+     let st2 # t := f (E sk t)
          l   # t := read1 (len @{p.hasb} sk) t
          _   # t := mod1 (relpos @{p.hasb} sk) (+ cast l) t
       in p.eoi st2 sk t
+    Ign f =>
+     let _   # t := f (E sk t)
+         l   # t := read1 (len @{p.hasb} sk) t
+         _   # t := mod1 (relpos @{p.hasb} sk) (+ cast l) t
+      in p.eoi st sk t
 
 parameters {0 q,e,a : Type}
            {0 n     : Nat}
            (parser  : P1 q e a)
-           (stck    : PST parser)
+           (sk    : PST parser)
            (buf     : IBuffer n)
            (rel     : Ref q Integer)
            (len     : Ref q Nat)
@@ -115,19 +120,26 @@ parameters {0 q,e,a : Type}
   endChunk l t =
    let _  # t := write1 len l t
        bs # t := getBytes @{parser.hasb} t
-       cr # t := read1 (cur @{parser.hasb} stck) t
-       _  # t := write1 (cur @{parser.hasb} stck) "" t
-       _  # t := write1 (prev @{parser.hasb} stck) bs t
-       _  # t := mod1 (offset @{parser.hasb} stck) (+ cr.size) t
+       cr # t := read1 (cur @{parser.hasb} sk) t
+       _  # t := write1 (cur @{parser.hasb} sk) "" t
+       _  # t := write1 (prev @{parser.hasb} sk) bs t
+       _  # t := mod1 (offset @{parser.hasb} sk) (+ cr.size) t
     in write1 rel (negate $ cast bs.size) t
 
   %inline
-  stp : PIx parser -> PStep parser -> Nat -> F1 q (PIx parser)
-  stp st f l t =
+  stp : PRun parser -> Nat -> F1 q (PIx parser)
+  stp f l t =
     let _ # t := write1 len l t
-        r # t := f.run st stck t
+        r # t := f (E sk t)
         _ # t := mod1 rel (+ cast l) t
      in r # t
+
+  %inline
+  ign : PIgn parser -> Nat -> F1 q ()
+  ign f l t =
+    let _ # t := write1 len l t
+        _ # t := f (E sk t)
+     in mod1 rel (+ cast l) t
 
   step :
        (st          : PIx parser)
@@ -142,7 +154,17 @@ parameters {0 q,e,a : Type}
        (st          : PIx parser)
     -> (dfa         : PStepper k parser)
     -> (cur         : PByteStep k parser)
-    -> (last        : PStep parser)
+    -> (last        : PRun parser)
+    -> (len         : Nat)
+    -> (pos         : Nat)
+    -> {auto x      : Ix pos n}
+    -> LoopRes parser
+
+  igno :
+       (st          : PIx parser)
+    -> (dfa         : PStepper k parser)
+    -> (cur         : PByteStep k parser)
+    -> (last        : PIgn parser)
     -> (len         : Nat)
     -> (pos         : Nat)
     -> {auto x      : Ix pos n}
@@ -152,51 +174,59 @@ parameters {0 q,e,a : Type}
   loop st 0     t =
    let _ # t   := endChunk 0 t
        L _ dfa := parser.lex `at` st
-    in Right (LST st stck dfa (dfa `at` 0) Nothing) # t
+    in Right (LST st sk dfa (dfa `at` 0) Err) # t
   loop st (S k) t =
    let L _ dfa := parser.lex `at` st
        cur     := dfa `at` 0
     in case cur `atByte` (buf `ix` k) of
-         Done f     =>
-          let s2 # t := stp st f 1 t
-           in loop s2 k t
+         Done f       => let s2 # t := stp f 1 t in loop s2 k t
+         Ignore f     => let _  # t := ign f 1 t in loop st k t
          Move   nxt f => succ st dfa (dfa `at` nxt) f   1 k t
+         MoveI  nxt f => igno st dfa (dfa `at` nxt) f   1 k t
          MoveE  nxt   => step st dfa (dfa `at` nxt)     1 k t
-         _            =>
-          let _ # t := write1 len 1 t
-           in fail parser st stck t
+         _            => let _ # t := write1 len 1 t in fail parser st sk t
 
   succ st dfa cur f l 0     t =
    let _ # t := endChunk l t
-    in Right (LST st stck dfa cur (Just f)) # t
+    in Right (LST st sk dfa cur (Run f)) # t
   succ st dfa cur f l (S k) t =
    let byte := buf `ix` k
     in case cur `atByte` byte of
          Keep         => succ st dfa cur f (S l) k t
-         Done f       =>
-          let s2 # t := stp st f (S l) t
-           in loop s2 k t
+         Done f       => let s2 # t := stp f (S l) t in loop s2 k t
+         Ignore f     => let _  # t := ign f (S l) t in loop st k t
          Move   nxt f => succ st dfa (dfa `at` nxt) f (S l) k t
+         MoveI  nxt f => igno st dfa (dfa `at` nxt) f (S l) k t
          MoveE  nxt   => step st dfa (dfa `at` nxt)   (S l) k t
-         Bottom       =>
-          let s2 # t := stp st f l t
-           in loop s2 (S k) t
+         Bottom       => let s2 # t := stp f l t in loop s2 (S k) t
+
+  igno st dfa cur f l 0     t =
+   let _ # t := endChunk l t
+    in Right (LST st sk dfa cur (Ign f)) # t
+  igno st dfa cur f l (S k) t =
+   let byte := buf `ix` k
+    in case cur `atByte` byte of
+         Keep         => igno st dfa cur f (S l) k t
+         Done f       => let s2 # t := stp f (S l) t in loop s2 k t
+         Ignore f     => let _  # t := ign f (S l) t in loop st k t
+         Move   nxt f => succ st dfa (dfa `at` nxt) f (S l) k t
+         MoveI  nxt f => igno st dfa (dfa `at` nxt) f (S l) k t
+         MoveE  nxt   => step st dfa (dfa `at` nxt)   (S l) k t
+         Bottom       => let _ # t := ign f l t in loop st (S k) t
 
   step st dfa cur l 0     t =
    let _ # t := endChunk l t
-    in Right (LST st stck dfa cur Nothing) # t
+    in Right (LST st sk dfa cur Err) # t
   step st dfa cur l (S k) t =
    let byte := buf `ix` k
     in case cur `atByte` byte of
          Keep         => step st dfa cur (S l) k t
-         Done f       =>
-          let s2 # t := stp st f (S l) t
-           in loop s2 k t
+         Done f       => let s2 # t := stp f (S l) t in loop s2 k t
+         Ignore f     => let _  # t := ign f (S l) t in loop st k t
          Move   nxt f => succ st dfa (dfa `at` nxt) f (S l) k t
+         MoveI  nxt f => igno st dfa (dfa `at` nxt) f (S l) k t
          MoveE  nxt   => step st dfa (dfa `at` nxt)   (S l) k t
-         Bottom       =>
-          let _ # t := write1 len (S l) t
-           in fail parser st stck t
+         Bottom       => let _ # t := write1 len (S l) t in fail parser st sk t
 
 export
 stepState :
@@ -214,18 +244,26 @@ stepState {n = S k} buf p (LST st sk dfa cr tok) t =
      _ # t := write1 (cur @{p.hasb} sk) (fromIBuffer buf) t
   in case cr `atByte` byte of
        Keep         => case tok of
-         Just f  => succ p sk buf rrel rlen st dfa cr f (S l) k t
-         Nothing => step p sk buf rrel rlen st dfa cr   (S l) k t
+         Run f  => succ p sk buf rrel rlen st dfa cr f (S l) k t
+         Ign f  => igno p sk buf rrel rlen st dfa cr f (S l) k t
+         Err    => step p sk buf rrel rlen st dfa cr   (S l) k t
        Done f       =>
-        let s2 # t := stp p sk buf rrel rlen st f (S l) t
+        let s2 # t := stp p sk buf rrel rlen f (S l) t
          in loop p sk buf rrel rlen s2 k t
+       Ignore f     =>
+        let _ # t := ign p sk buf rrel rlen f (S l) t
+         in loop p sk buf rrel rlen st k t
        Move   nxt f => succ p sk buf rrel rlen st dfa (dfa `at` nxt) f (S l) k t
+       MoveI  nxt f => igno p sk buf rrel rlen st dfa (dfa `at` nxt) f (S l) k t
        MoveE  nxt   => step p sk buf rrel rlen st dfa (dfa `at` nxt)   (S l) k t
        Bottom     => case tok of
-         Just f  =>
-          let s2 # t := stp p sk buf rrel rlen st f l t
+         Run f  =>
+          let s2 # t := stp p sk buf rrel rlen f l t
            in loop p sk buf rrel rlen s2 (S k) t
-         Nothing =>
+         Ign f  =>
+          let _  # t := ign p sk buf rrel rlen f l t
+           in loop p sk buf rrel rlen st (S k) t
+         Err =>
           let _ # t := write1 rlen (S l) t
            in fail p st sk t
 
@@ -244,4 +282,3 @@ loopAll p lst (BS n bv :: xs) t =
 
 runList p bs =
   run1 $ \t => let lst # t := Runner.init p t in loopAll p lst bs t
-

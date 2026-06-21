@@ -53,14 +53,18 @@ public export
 Step1 q r s = s q -> F1 q (Index r)
 
 public export
-data Step : (q : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type where
-  Run : ((1 sk : Env q s) -> R1 q (Index r)) -> Step q r s
-  Ign : ((1 sk : Env q s) -> R1 q ()) -> Step q r s
+0 Run1 : (q : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type
+Run1 q r s = (1 sk : Env q s) -> R1 q (Index r)
 
-export %inline
-(.run) : Step q r s -> Index r -> s q -> F1 q (Index r)
-(.run) (Run f) _ sk t = f (E sk t)
-(.run) (Ign f) v sk t = let _ # t := f (E sk t) in v # t
+public export
+0 Ign1 : (q : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type
+Ign1 q r s = (1 sk : Env q s) -> R1 q ()
+
+public export
+data Step : (q : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type where
+  Run : Run1 q r s -> Step q r s
+  Ign : Ign1 q r s -> Step q r s
+  Err : Step q r s
 
 export %inline
 toState : Index r -> Step q r s
@@ -74,10 +78,22 @@ data Transition :
   -> (s : Type -> Type)
   -> Type where
   Keep   : Transition n q r s
-  Done   : Step q r s -> Transition n q r s
-  Move   : Fin (S n) -> Step q r s -> Transition n q r s
+  Done   : Run1 q r s -> Transition n q r s
+  Ignore : Ign1 q r s -> Transition n q r s
+  Move   : Fin (S n) -> Run1 q r s -> Transition n q r s
+  MoveI  : Fin (S n) -> Ign1 q r s -> Transition n q r s
   MoveE  : Fin (S n) -> Transition n q r s
   Bottom : Transition n q r s
+
+move : Step q r s -> Fin (S n) -> Transition n q r s
+move (Run f) y = Move y f
+move (Ign f) y = MoveI y f
+move Err     y = Bottom
+
+done : Step q r s -> Transition n q r s
+done (Run f) = Done f
+done (Ign f) = Ignore f
+done Err     = Bottom
 
 ||| An array of arrays describing a lexer's state machine.
 public export
@@ -150,10 +166,10 @@ node terms index (ix, N me _ out) =
         Nothing        => case tgt == me of
           True  => Just (cast b, Keep)
           False => ((cast b,) . MoveE) <$> lookup tgt index
-        Just (Left f)  => Just (cast b, Done f)
+        Just (Left f)  => Just (cast b, done f)
         Just (Right f) => case tgt == me of
           True  => Just (cast b, Keep)
-          False => ((cast b,) . (`Move` f)) <$> lookup tgt index
+          False => ((cast b,) . (move f)) <$> lookup tgt index
 
 ||| A DFA operating on raw bytes.
 export
