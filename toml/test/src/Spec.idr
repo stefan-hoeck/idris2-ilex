@@ -63,10 +63,10 @@ testdir : Path Rel
 testdir = "toml/test/suite"
 
 0 Errs : List Type
-Errs = [BBErr Void, ParseError Void, Errno]
+Errs = [ByteErr Void, ParseError Void, Errno]
 
 0 AllErrs : List Type
-AllErrs = [BBErr TomlParseError, BBErr Void, ParseError Void, Errno]
+AllErrs = [ByteErr TomlParseError, ByteErr Void, ParseError Void, Errno]
 
 0 Prog : Type -> Type -> Type
 Prog o = AsyncPull Poll o Errs
@@ -87,13 +87,16 @@ invalidTest (PRel sp) =
     b::bs => b == "invalid"
     _     => True
 
-jval : File Rel -> Prog o JSON
-jval p = streamVal JNull json (readFile p)
+src : File Rel -> Origin
+src = FileSrc . interpolate
 
-ttbl : File Rel -> Prog o (Either (BBErr TomlParseError) TomlTable)
+jval : File Rel -> Prog o JSON
+jval p = streamValFrom (src p) JNull json (readFile p)
+
+ttbl : File Rel -> Prog o (Either (ByteErr TomlParseError) TomlTable)
 ttbl p =
   extractErr _ $
-  streamVal {es = AllErrs} empty toml (readBytes "\{p}")
+  streamValFrom {es = AllErrs} (src p) empty toml (readBytes "\{p}")
 
 runTest : File Rel -> Prog (Nat,Nat) ()
 runTest p =

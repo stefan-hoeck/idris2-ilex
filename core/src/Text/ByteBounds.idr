@@ -198,32 +198,39 @@ Interpolation ByteContext where
   interpolate (BC o bs)   = "\{o}: \{bs}"
 
 public export
-record ByteErr e where
+record ByteError e where
   constructor BE
   origin  : Origin
   bounds  : ByteBounds
   content : Maybe ByteString
   error   : e
 
-%runElab derive "ByteErr" [Show,Eq]
+%runElab derive "ByteError" [Show,Eq]
+
+public export
+0 ByteErr : Type -> Type
+ByteErr = ByteError . InnerError
 
 export
-byteErr : Origin -> BBErr e -> ByteErr (InnerError e)
-byteErr o (B err bs) = BE o bs Nothing err
+byteError : Origin -> ByteBounded e -> ByteError e
+byteError o (B err bs) = BE o bs Nothing err
+
+boundsPart : ByteBounds -> String
+boundsPart NoBB     = ""
+boundsPart (BB s e) =
+  case s == e of
+    True  => ", byte \{s}"
+    False => ", bytes \{s}--\{e}"
 
 export
-prettyByteErr : Interpolation e => ByteErr e -> String
+prettyByteErr : Interpolation e => ByteError e -> String
 prettyByteErr (BE o bb m err) =
   case m of
-    Nothing => case bb of
-      BB s e => case s == e of
-        True  => "Error at byte \{s}: \{err}"
-        False => "Error at bytes \{s}--\{e}: \{err}"
-      NoBB   =>  "Error: \{err}"
+    Nothing => "Error at \{o}\{boundsPart bb}: \{err}"
     Just bs =>
      let mp := bytePositionMap bs
       in interpolate $ toParseError o (toString bs) (toBounded $ B err bb)
 
 export %inline
-Interpolation e => Interpolation (ByteErr e) where
+Interpolation e => Interpolation (ByteError e) where
   interpolate = prettyByteErr

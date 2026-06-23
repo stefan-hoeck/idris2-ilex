@@ -21,7 +21,7 @@ prettyList (Left x)   = putStrLn $ interpolate x
 prettyList (Right vs) = traverse_ printLn vs
 
 0 Prog : Type -> Type -> Type
-Prog o = AsyncPull Poll o [ByteErr (InnerError Void), ParseError Void, Errno]
+Prog o = AsyncPull Poll o [ByteErr Void, ParseError Void, Errno]
 
 covering
 runProg : Prog Void () -> IO ()
@@ -31,7 +31,7 @@ runProg prog =
 
 streamVals : Prog String () -> Prog Void ()
 streamVals pths =
-     flatMap pths (\p => streamParseErr (byteErr $ FileSrc p) jsonArray (readBytes p))
+     flatMap pths (\p => streamParseFrom (FileSrc p) jsonArray (readBytes p))
   |> C.count
   |> foreach (\x => stdoutLn "\{show x} values streamed.")
 

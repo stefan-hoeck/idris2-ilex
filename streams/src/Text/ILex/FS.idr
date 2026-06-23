@@ -43,6 +43,16 @@ streamParseErr err prs pl = Prelude.do
           m   <- lift1 (prs.chunk st2.stack)
           consMaybe m (go st2 p2)
 
+export %inline
+streamParseFrom :
+     {auto has : Has (ByteError e) es}
+  -> {auto lft : ELift1 q f}
+  -> Origin
+  -> (prs      : P1 q (ByteBounded e) a)
+  -> Pull f ByteString es x
+  -> Pull f a es x
+streamParseFrom o = streamParseErr (byteError o)
+
 ||| Converts a stream of byte strings to a list of tokens of
 ||| type `a`.
 |||
@@ -69,6 +79,17 @@ streamValErr :
   -> Stream f es ByteString
   -> Pull f o es a
 streamValErr err dflt prs = P.lastOr dflt . streamParseErr err prs
+
+export %inline
+streamValFrom :
+     {auto has : Has (ByteError e) es}
+  -> {auto lft : ELift1 q f}
+  -> Origin
+  -> (dflts : Lazy a)
+  -> (prs : P1 q (ByteBounded e) a)
+  -> Stream f es ByteString
+  -> Pull f o es a
+streamValFrom o = streamValErr (byteError o)
 
 export %inline
 streamVal :
