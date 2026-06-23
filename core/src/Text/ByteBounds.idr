@@ -172,19 +172,6 @@ public export
 0 BBErr : Type -> Type
 BBErr e = ByteBounded (InnerError e)
 
-export
-prettyBBErr : Interpolation e => BBErr e -> String
-prettyBBErr (B err bs) =
-  case bs of
-    BB s e => case s == e of
-      True  => "Error at byte \{s}: \{err}"
-      False => "Error at bytes \{s}--\{e}: \{err}"
-    NoBB   =>  "Error: \{err}"
-
-export %inline
-Interpolation e => Interpolation (BBErr e) where
-  interpolate = prettyBBErr
-
 ||| Converts an error with byte bounds to a `ParseError` by pairing it with
 ||| an origin and the parsed string.
 export
@@ -192,3 +179,58 @@ toParseError : Origin -> String -> BBErr e -> ParseError e
 toParseError o s err =
  let mp := stringPositionMap s
   in toParseError o s (toBounded err)
+
+--------------------------------------------------------------------------------
+--          Conversion to Bounds
+--------------------------------------------------------------------------------
+
+public export
+record ByteContext where
+  constructor BC
+  origin  : Origin
+  bounds  : ByteBounds
+
+%runElab derive "ByteContext" [Show,Eq]
+
+export
+Interpolation ByteContext where
+  interpolate (BC o NoBB) = interpolate o
+  interpolate (BC o bs)   = "\{o}: \{bs}"
+
+public export
+record ByteError e where
+  constructor BE
+  origin  : Origin
+  bounds  : ByteBounds
+  content : Maybe ByteString
+  error   : e
+
+%runElab derive "ByteError" [Show,Eq]
+
+public export
+0 ByteErr : Type -> Type
+ByteErr = ByteError . InnerError
+
+export
+byteError : Origin -> ByteBounded e -> ByteError e
+byteError o (B err bs) = BE o bs Nothing err
+
+boundsPart : ByteBounds -> String
+boundsPart NoBB     = ""
+boundsPart (BB s e) =
+  case s == e of
+    True  => ", byte \{s}"
+    False => ", bytes \{s}--\{e}"
+
+export
+prettyByteErr : Interpolation e => ByteError e -> String
+prettyByteErr (BE o bb m err) =
+  case m of
+    Nothing => "Error at \{o}\{boundsPart bb}: \{err}"
+    Just bs =>
+     let mp := bytePositionMap bs
+      in interpolate $ toParseError o (toString bs) (toBounded $ B err bb)
+
+export %inline
+Interpolation e => Interpolation (ByteError e) where
+  interpolate = prettyByteErr

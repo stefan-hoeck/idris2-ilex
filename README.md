@@ -934,12 +934,12 @@ runner that will pretty print all errors to `stderr`:
 
 ```idris
 0 Prog : Type -> Type -> Type
-Prog o r = AsyncPull Poll o [BBErr Void, Errno] r
+Prog o r = AsyncPull Poll o [ByteErr Void, Errno] r
 
 covering
 runProg : Prog Void () -> IO ()
 runProg prog =
- let handled := handle [stderrLn . prettyBBErr, stderrLn . interpolate] prog
+ let handled := handle [stderrLn . interpolate, stderrLn . interpolate] prog
   in epollApp $ mpull handled
 ```
 
@@ -953,7 +953,7 @@ And here's an example how to stream a single, possibly huge, CSV file
 streamCSV : String -> Prog Void ()
 streamCSV pth =
      readBytes pth
-  |> streamParse csv
+  |> streamParseFrom (FileSrc pth) csv
   |> C.count
   |> printLnTo Stdout
 ```
@@ -974,7 +974,7 @@ string with the error.
 ```idris
 streamCSVFiles : Prog String () -> Prog Void ()
 streamCSVFiles pths =
-     flatMap pths (\p => readBytes p |> streamParse csv)
+     flatMap pths (\p => readBytes p |> streamParseFrom (FileSrc p) csv)
   |> C.count
   |> printLnTo Stdout
 ```
