@@ -42,8 +42,9 @@ ipkg = "ilex-toml.ipkg"
 test = "test/test.ipkg"
 
 [custom.all]
-bytestring.commit  = "latest:main"
-elin.commit        = "latest:main"
-parser-show.commit = "latest:main"
-parser.commit      = "latest:main"
+bytestring.commit           = "latest:main"
+quantifiers-extra.commit    = "latest:main"
+elin.commit                 = "latest:main"
+parser-show.commit          = "latest:main"
+parser.commit               = "latest:main"
 pretty-show.commit = "latest:main"

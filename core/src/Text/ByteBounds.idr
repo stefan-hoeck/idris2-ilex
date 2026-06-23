@@ -208,6 +208,10 @@ record ByteErr e where
 %runElab derive "ByteErr" [Show,Eq]
 
 export
+byteErr : Origin -> BBErr e -> ByteErr (InnerError e)
+byteErr o (B err bs) = BE o bs Nothing err
+
+export
 prettyByteErr : Interpolation e => ByteErr e -> String
 prettyByteErr (BE o bb m err) =
   case m of
