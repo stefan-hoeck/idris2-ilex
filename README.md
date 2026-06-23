@@ -939,7 +939,7 @@ Prog o r = AsyncPull Poll o [BBErr Void, Errno] r
 covering
 runProg : Prog Void () -> IO ()
 runProg prog =
- let handled := handle [stderrLn . prettyBBErr, stderrLn . interpolate] prog
+ let handled := handle [stderrLn . interpolate, stderrLn . interpolate] prog
   in epollApp $ mpull handled
 ```
 
