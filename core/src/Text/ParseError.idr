@@ -244,7 +244,7 @@ fromVoid (InvalidByte b)    = InvalidByte b
 ||| Pairs a parsing error with a text's origin, the error's bound, and
 ||| the text itself.
 public export
-record ParseError e where
+record FCErr e where
   constructor PE
   ||| Origin of the byte sequence that was parsed.
   origin    : Origin
@@ -262,18 +262,22 @@ record ParseError e where
   content   : Maybe String
 
   ||| The actual error that occurred.
-  error     : InnerError e
+  error     : e
 
-%runElab derive "ParseError" [Show,Eq]
+%runElab derive "FCErr" [Show,Eq]
+
+public export
+0 ParseError : (e : Type) -> Type
+ParseError e = FCErr (InnerError e)
 
 ||| Converts a bounded error to a `ParseError` by pairing it with
 ||| an origin and the parsed string.
 export
-toParseError : Origin -> String -> Bounded (InnerError e) -> ParseError e
+toParseError : Origin -> String -> Bounded e -> FCErr e
 toParseError o s (B err bs) = PE o bs bs (Just s) err
 
 export
-Interpolation e => Interpolation (ParseError e) where
+Interpolation e => Interpolation (FCErr e) where
   interpolate (PE origin bounds relbs cont err) =
     let fc := FC origin bounds
      in case cont of
@@ -281,9 +285,5 @@ Interpolation e => Interpolation (ParseError e) where
           Nothing => unlines ["Error: \{err}", interpolate fc]
 
 export %inline
-leftErr :
-     Origin
-  -> String
-  -> Either (Bounded (InnerError e)) a
-  -> Either (ParseError e) a
+leftErr : Origin -> String -> Either (Bounded e) a -> Either (FCErr e) a
 leftErr o = mapFst . toParseError o
