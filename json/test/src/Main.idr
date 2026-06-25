@@ -110,7 +110,7 @@ testErr s exp =
 prop_err1 : Property
 prop_err1 = testErr #"{"foo?" : nlul}"#
   """
-  Error: Unexpected "nl"
+  Unexpected "nl"
 
   virtual: 1:11--1:12
    1 | {"foo?" : nlul}
@@ -121,7 +121,7 @@ prop_err1 = testErr #"{"foo?" : nlul}"#
 prop_err2 : Property
 prop_err2 = testErr #"{"foo?" : }"#
   """
-  Error: Unexpected '}'
+  Unexpected '}'
 
   virtual: 1:11
    1 | {"foo?" : }
@@ -132,7 +132,7 @@ prop_err2 = testErr #"{"foo?" : }"#
 prop_err3 : Property
 prop_err3 = testErr #"{"foo?" : 12"#
   """
-  Error: Unclosed '{'
+  Unclosed '{'
 
   virtual: 1:1
    1 | {"foo?" : 12
@@ -143,7 +143,7 @@ prop_err3 = testErr #"{"foo?" : 12"#
 prop_err4 : Property
 prop_err4 = testErr "[true,false,"
   """
-  Error: Unclosed '['
+  Unclosed '['
 
   virtual: 1:1
    1 | [true,false,
@@ -154,7 +154,7 @@ prop_err4 = testErr "[true,false,"
 prop_err5 : Property
 prop_err5 = testErr "[true,false, ?"
   """
-  Error: Unexpected '?'
+  Unexpected '?'
 
   virtual: 1:14
    1 | [true,false, ?
@@ -165,7 +165,7 @@ prop_err5 = testErr "[true,false, ?"
 prop_err6 : Property
 prop_err6 = testErr "1.false"
   """
-  Error: Unexpected "1.f"
+  Unexpected "1.f"
 
   virtual: 1:1--1:3
    1 | 1.false
@@ -176,7 +176,7 @@ prop_err6 = testErr "1.false"
 prop_err7 : Property
 prop_err7 = testErr "1."
   """
-  Error: Unexpected "1."
+  Unexpected "1."
 
   virtual: 1:1--1:2
    1 | 1.
@@ -187,7 +187,7 @@ prop_err7 = testErr "1."
 prop_err8 : Property
 prop_err8 = testErr "0012"
   """
-  Error: Unexpected '0'
+  Unexpected '0'
 
   virtual: 1:2
    1 | 0012
@@ -199,7 +199,7 @@ prop_err8 = testErr "0012"
 prop_err9 : Property
 prop_err9 = testErr "-0012"
   """
-  Error: Unexpected '0'
+  Unexpected '0'
 
   virtual: 1:3
    1 | -0012
