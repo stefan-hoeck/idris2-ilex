@@ -281,8 +281,8 @@ Interpolation e => Interpolation (FCErr e) where
   interpolate (PE origin bounds relbs cont err) =
     let fc := FC origin bounds
      in case cont of
-          Just c  => unlines $ "Error: \{err}" :: printFC fc relbs (lines c)
-          Nothing => unlines ["Error: \{err}", interpolate fc]
+          Just c  => unlines $ "\{err}" :: printFC fc relbs (lines c)
+          Nothing => unlines ["\{err}", interpolate fc]
 
 export %inline
 leftErr : Origin -> String -> Either (Bounded e) a -> Either (FCErr e) a
