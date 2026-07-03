@@ -62,6 +62,17 @@ public export
 Monoid ByteBounds where
   neutral = NoBB
 
+public export
+interface MapBounds (0 a : Type) where
+  mapBounds : (ByteBounds -> ByteBounds) -> a -> a
+
+export %inline
+clearBounds : MapBounds a => a -> a
+clearBounds = mapBounds (const NoBB)
+
+export %inline
+MapBounds ByteBounds where mapBounds = id
+
 --------------------------------------------------------------------------------
 --          ByteBounded
 --------------------------------------------------------------------------------
@@ -114,6 +125,9 @@ Foldable ByteBounded where
 export
 Traversable ByteBounded where
   traverse f (B v bs) = (`B` bs) <$> f v
+
+export %inline
+MapBounds (ByteBounded a) where mapBounds f = {bounds $= f}
 
 --------------------------------------------------------------------------------
 --          Conversion to Bounds
@@ -197,6 +211,9 @@ Interpolation ByteContext where
   interpolate (BC o NoBB) = interpolate o
   interpolate (BC o bs)   = "\{o}: \{bs}"
 
+export %inline
+MapBounds ByteContext where mapBounds f = {bounds $= f}
+
 public export
 record ByteError e where
   constructor BE
@@ -206,6 +223,9 @@ record ByteError e where
   error   : e
 
 %runElab derive "ByteError" [Show,Eq]
+
+export %inline
+MapBounds (ByteError e) where mapBounds f = {bounds $= f}
 
 public export
 0 ByteErr : Type -> Type
