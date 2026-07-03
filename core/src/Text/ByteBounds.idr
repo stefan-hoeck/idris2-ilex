@@ -67,6 +67,10 @@ interface MapBounds (0 a : Type) where
   mapBounds : (ByteBounds -> ByteBounds) -> a -> a
 
 export %inline
+clearBounds : MapBounds a => a -> a
+clearBounds = mapBounds (const NoBB)
+
+export %inline
 MapBounds ByteBounds where mapBounds = id
 
 --------------------------------------------------------------------------------
