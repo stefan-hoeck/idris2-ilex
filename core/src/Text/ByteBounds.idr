@@ -73,6 +73,27 @@ clearBounds = mapBounds (const NoBB)
 export %inline
 MapBounds ByteBounds where mapBounds = id
 
+export
+MapBounds a => MapBounds (Maybe a) where
+  mapBounds = map . mapBounds
+
+export
+MapBounds a => MapBounds (List a) where
+  mapBounds = map . mapBounds
+
+export
+MapBounds a => MapBounds (SnocList a) where
+  mapBounds = map . mapBounds
+
+export
+MapBounds a => MapBounds b => MapBounds (a,b) where
+  mapBounds f (x,y) = (mapBounds f x, mapBounds f y)
+
+export
+MapBounds a => MapBounds b => MapBounds (Either a b) where
+  mapBounds f (Left x)  = Left $ mapBounds f x
+  mapBounds f (Right x) = Right $ mapBounds f x
+
 --------------------------------------------------------------------------------
 --          ByteBounded
 --------------------------------------------------------------------------------
