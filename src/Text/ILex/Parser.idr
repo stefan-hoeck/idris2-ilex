@@ -72,40 +72,27 @@ Lex1 q r s = Arr32 r (DFA q r s)
 --------------------------------------------------------------------------------
 
 public export
-record RelBounds (n : Nat) where
-  constructor RB
-  from        : Nat
-  till        : Nat
-  {auto 0 lt1 : LTE from till}
-  {auto 0 lt2 : LTE till n}
+record LTENat (n : Nat) where
+  constructor LN
+  val : Nat
+  {auto 0 prf : LTE val n}
 
 export %inline
-initial : (0 n : Nat) -> RelBounds n
-initial n = RB 0 0
+lteNat : (0 m : Nat) -> Ix m n => LTENat n
+lteNat _ @{x} = LN (ixToNat x) @{ixLTE x}
 
 export %inline
-final : (n : Nat) -> RelBounds n
-final n = RB n n
+first : (0 n : Nat) -> LTENat n
+first n = LN 0
 
 export %inline
-fromTill :
-     (0 from, till : Nat)
-  -> {auto fromIx : Ix from n}
-  -> {auto tillIx : Ix till n}
-  -> {auto 0 prf  : LTE (ixToNat fromIx) (ixToNat tillIx)}
-  -> RelBounds n
-fromTill from till = RB (ixToNat fromIx) (ixToNat tillIx) {lt2 = ixLTE _}
+last : (n : Nat) -> LTENat n
+last n = LN n
 
 export %inline
-bytesFromTill :
-     IBuffer n
-  -> (from       : Nat)
-  -> (till       : Nat)
-  -> {auto 0 lt1 : LTE from till}
-  -> {auto 0 lt2 : LTE till n}
-  -> ByteString
-bytesFromTill buf from till =
-  BS (till `minus` from) (BV buf from $ transitive (plusMinusLTE _ _ lt1) lt2)
+bytesFromTill : IBuffer n -> (from, till : LTENat n) -> ByteString
+bytesFromTill buf (LN from @{lt1}) (LN till @{lt2}) =
+  BS (till `minus` from) (BV buf from $ plusMinusBothLTE _ _ lt1 lt2)
 
 ||| An interface for mutable parser stacks `s` that facilitates
 ||| parsing string tokens containing escape sequences.
@@ -116,13 +103,13 @@ interface HasBytes (0 s : Type -> Type) where
        (size, offset : Nat)
     -> ByteString
     -> IBuffer size
-    -> Ref q (RelBounds size)
+    -> (from, till : Ref q (LTENat size))
     -> s q
     -> s q
 
   bufSize   : s q -> Nat
 
-  ||| Returns the remainder of the previous bytestring that should
+  ||| Remainder of the previous bytestring that should
   ||| be used as the beginning of the current token.
   prev      : s q -> ByteString
 
@@ -137,7 +124,11 @@ interface HasBytes (0 s : Type -> Type) where
   ||| provided as a separate field for reasons of efficiency)
   curOffset    : s q -> Nat
 
-  relBounds : (v : s q) -> Ref q (RelBounds (bufSize v))
+  ||| Lower relative token bound (lower position in `cur`)
+  from         : (v : s q) -> Ref q (LTENat (bufSize v))
+
+  ||| Next relative token bound (upser position + 1 in `cur`)
+  till         : (v : s q) -> Ref q (LTENat (bufSize v))
 
   ||| Stack of positions used to keep track of the positions of
   ||| opening parentheses and brackets.
@@ -152,14 +143,17 @@ interface HasBytes (0 s : Type -> Type) where
 export %inline
 getBytes : HasBytes s => (sk : s q) => F1 q ByteString
 getBytes t =
-  let RB from till # t := read1 (relBounds sk) t
-   in case from of
-        0 => (prev sk <+> bytesFromTill (cur sk) from till) # t
-        _ => bytesFromTill (cur sk) from till # t
+  let rf # t := read1 (from sk) t
+      rt # t := read1 (till sk) t
+   in case rf.val of
+        0 => (prev sk <+> bytesFromTill (cur sk) rf rt) # t
+        _ => bytesFromTill (cur sk) rf rt # t
 
 export %inline
 toFinalPos : HasBytes s => (sk : s q) => F1' q
-toFinalPos = write1 (relBounds sk) (final $ bufSize sk)
+toFinalPos t =
+ let _ # t := write1 (from sk) (last $ bufSize sk) t
+  in write1 (from sk) (last $ bufSize sk) t
 
 ||| A parser is a system of automata, where each
 ||| lexicographic token determines the next automaton

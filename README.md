@@ -640,7 +640,8 @@ record CSTCK (q : Type) where
   cur_        : IBuffer bufSize_
   prevOffset_ : Nat
   curOffset_  : Nat
-  relBounds_  : Ref q (RelBounds bufSize_)
+  from_       : Ref q (LTENat bufSize_)
+  till_       : Ref q (LTENat bufSize_)
   positions_  : Ref q (SnocList BytePos)
   line        : Ref q Nat
   col         : Ref q Nat
@@ -661,15 +662,17 @@ HasBytes CSTCK where
   cur        = cur_
   prevOffset = prevOffset_
   curOffset  = curOffset_
-  relBounds  = relBounds_
+  from       = from_
+  till       = till_
   positions  = positions_
-  copy s o bs buf rb sk =
+  copy s o bs buf rf rt sk =
     { bufSize_    := s
     , cur_        := buf
     , prev_       := bs
     , prevOffset_ := o
     , curOffset_  := o + bs.size
-    , relBounds_  := rb
+    , from_       := rf
+    , till_       := rt
     } sk
 
 export %inline
@@ -683,7 +686,8 @@ HasStack CSTCK (SnocList Line) where
 export
 cinit : (n : Nat) -> IBuffer n -> F1 q (CSTCK q)
 cinit n buf = T1.do
-  rb <- ref1 (initial n)
+  rf <- ref1 (first n)
+  rt <- ref1 (first n)
   ps <- ref1 [<]
   l  <- ref1 Z
   c  <- ref1 Z
@@ -692,7 +696,7 @@ cinit n buf = T1.do
   er <- ref1 Nothing
   cs <- ref1 [<]
   ls <- ref1 [<]
-  pure (C n empty buf 0 0 rb ps l c bs ss er cs ls)
+  pure (C n empty buf 0 0 rf rt ps l c bs ss er cs ls)
 ```
 
 Next, we'll define the different parser states. We want to make

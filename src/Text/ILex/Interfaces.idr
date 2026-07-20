@@ -206,7 +206,7 @@ parameters {auto sk   : s q}
   export %inline
   startPos : F1 q BytePos
   startPos = T1.do
-    RB f t <- read1 (relBounds sk)
+    LN f <- read1 (from sk)
     pure $ case f of
       0 => BP (prevOffset sk)
       _ => BP (curOffset sk + f)
@@ -215,7 +215,8 @@ parameters {auto sk   : s q}
   export %inline
   endPos : F1 q BytePos
   endPos t =
-    let RB rf rt # t := read1 (relBounds sk) t
+    let LN rf # t := read1 (from sk) t
+        LN rt # t := read1 (till sk) t
         coff         := curOffset sk
         till         := coff + rt
      in case rf of
@@ -226,9 +227,10 @@ parameters {auto sk   : s q}
   export %inline
   bounds : F1 q ByteBounds
   bounds t =
-    let RB rf rt # t := read1 (relBounds sk) t
-        coff         := curOffset sk
-        till         := coff + rt
+    let LN rf # t := read1 (from sk) t
+        LN rt # t := read1 (till sk) t
+        coff      := curOffset sk
+        till      := coff + rt
      in case rf of
           0 => let from := prevOffset sk in BB (BP from) (endPos from till) # t
           _ => let from := coff + rf     in BB (BP from) (endPos from till) # t

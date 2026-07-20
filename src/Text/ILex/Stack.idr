@@ -39,7 +39,8 @@ record Stack (e,a : Type) (r : Bits32) (q : Type) where
   cur_        : IBuffer bufSize_
   prevOffset_ : Nat
   curOffset_  : Nat
-  relBounds_  : Ref q (RelBounds bufSize_)
+  from_       : Ref q (LTENat bufSize_)
+  till_       : Ref q (LTENat bufSize_)
   positions_  : Ref q (SnocList BytePos)
 
   -- Custom stack type
@@ -60,13 +61,14 @@ record Stack (e,a : Type) (r : Bits32) (q : Type) where
 export
 init : (0 p : 0 < r) => a -> (n : Nat) -> IBuffer n -> F1 q (Stack e a r q)
 init v n buf = T1.do
-  rb <- ref1 (initial n)
+  rf <- ref1 (first n)
+  rt <- ref1 (first n)
   ps <- ref1 [<]
   sk <- ref1 v
   st <- ref1 (I 0)
   ss <- ref1 [<]
   er <- ref1 Nothing
-  pure (S n empty buf 0 0 rb ps sk st ss er)
+  pure (S n empty buf 0 0 rf rt ps sk st ss er)
 
 --------------------------------------------------------------------------------
 -- Lexer

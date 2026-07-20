@@ -40,7 +40,8 @@ record DStack (s : SnocList Type -> Type) (e : Type) (q : Type) where
   cur_        : IBuffer bufSize_
   prevOffset_ : Nat
   curOffset_  : Nat
-  relBounds_  : Ref q (RelBounds bufSize_)
+  from_       : Ref q (LTENat bufSize_)
+  till_       : Ref q (LTENat bufSize_)
   positions_  : Ref q (SnocList BytePos)
 
   strings_    : Ref q (SnocList String)
@@ -51,12 +52,13 @@ record DStack (s : SnocList Type -> Type) (e : Type) (q : Type) where
 export
 init : Stack True s [<] -> (n : Nat) -> IBuffer n -> F1 q (DStack s e q)
 init st n buf = T1.do
-  rb <- ref1 (initial n)
+  rf <- ref1 (first n)
+  rt <- ref1 (first n)
   ps <- ref1 [<]
   ss <- ref1 [<]
   sk <- ref1 st
   er <- ref1 Nothing
-  pure (S n empty buf 0 0 rb ps ss sk er)
+  pure (S n empty buf 0 0 rf rt ps ss sk er)
 
 export %inline
 HasBytes (DStack s e) where
@@ -65,15 +67,17 @@ HasBytes (DStack s e) where
   cur        = cur_
   prevOffset = prevOffset_
   curOffset  = curOffset_
-  relBounds  = relBounds_
+  from       = from_
+  till       = till_
   positions  = positions_
-  copy s o bs buf rb sk =
+  copy s o bs buf rf rt sk =
     { bufSize_    := s
     , cur_        := buf
     , prev_       := bs
     , prevOffset_ := o
     , curOffset_  := o + bs.size
-    , relBounds_  := rb
+    , from_       := rf
+    , till_       := rt
     } sk
 
 export %inline
