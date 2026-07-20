@@ -116,8 +116,9 @@ interface HasBytes (0 s : Type -> Type) where
        (size, offset : Nat)
     -> ByteString
     -> IBuffer size
+    -> Ref q (RelBounds size)
     -> s q
-    -> F1 q (s q)
+    -> s q
 
   bufSize   : s q -> Nat
 

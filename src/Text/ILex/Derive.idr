@@ -102,6 +102,18 @@ unapply1 t                    = t
 ifaceType : ParamTypeInfo -> TTImp -> TTImp
 ifaceType p t = piAll t (dropLastArg p.implicits)
 
+copyImpl : TTImp
+copyImpl =
+  `(\s,o,bs,buf,rb,sk =>
+      { bufSize_    := s
+      , cur_        := buf
+      , prev_       := bs
+      , prevOffset_ := o
+      , curOffset_  := o + bs.size
+      , relBounds_  := rb
+      } sk
+   )
+
 ||| Derives an implementation of `HasBytes` for a record type with the
 ||| following fields:
 |||
@@ -125,7 +137,13 @@ HasBytes nms p =
       in implClaimVis Export impl (ifaceType p $ var "HasBytes" `app` arg)
 
     dfn : (impl : Name) -> Decl
-    dfn impl = def impl [patClause (var impl) `(MkHB prev_ cur_ offset_ relpos_ len_ positions_)]
+    dfn impl =
+      def impl
+        [patClause (var impl)
+          `( MkHB
+               ~(copyImpl)
+               bufSize_ prev_ cur_ prevOffset_ curOffset_ relBounds_ positions_
+           )]
 
 ||| Derives an implementation of `HasStringLits` for a record type with the
 ||| following field:

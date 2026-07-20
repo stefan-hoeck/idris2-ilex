@@ -67,15 +67,14 @@ HasBytes (DStack s e) where
   curOffset  = curOffset_
   relBounds  = relBounds_
   positions  = positions_
-  copy s o bs buf sk t =
-   let rb # t := ref1 (initial s) t
-    in { bufSize_    := s
-       , cur_        := buf
-       , prev_       := bs
-       , prevOffset_ := o
-       , curOffset_  := o + bs.size
-       , relBounds_  := rb
-       } sk # t
+  copy s o bs buf rb sk =
+    { bufSize_    := s
+    , cur_        := buf
+    , prev_       := bs
+    , prevOffset_ := o
+    , curOffset_  := o + bs.size
+    , relBounds_  := rb
+    } sk
 
 export %inline
 HasStack (DStack s e) (Stack True s [<]) where
