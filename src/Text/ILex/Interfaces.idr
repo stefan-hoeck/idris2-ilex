@@ -206,25 +206,26 @@ parameters {auto sk   : s q}
   export %inline
   startPos : F1 q BytePos
   startPos = T1.do
-    o <- read1 (offset sk)
-    r <- read1 (relpos sk)
-    pure (BP $ cast (cast o + r))
+    RB f t <- read1 (relBounds sk)
+    pure $ case f of
+      0 => BP (prevOffset sk)
+      _ => BP (curOffset sk + f)
 
   ||| Gets the absolute position of the last byte of the current token.
   export %inline
   endPos : F1 q BytePos
   endPos = T1.do
-    o <- startPos
-    l <- read1 (len sk)
-    pure (incLen l o)
+    RB f t <- read1 (relBounds sk)
+    pure $ BP (curOffset sk + t)
 
   ||| Gets the bounds of the current token.
   export %inline
   bounds : F1 q ByteBounds
   bounds = T1.do
-    s <- startPos
-    l <- read1 (len sk)
-    pure $ BB s (incLen l s)
+    RB f t <- read1 (relBounds sk)
+    pure $ case f of
+      0 => BB (BP $ prevOffset sk) (BP $ curOffset sk + t)
+      _ => BB (BP $ curOffset sk + f) (BP $ curOffset sk + t)
 
   ||| Computes the given value and pairs it with the token bounds.
   export %inline

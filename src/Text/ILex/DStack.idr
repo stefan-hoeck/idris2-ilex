@@ -35,40 +35,47 @@ record DStack (s : SnocList Type -> Type) (e : Type) (q : Type) where
   [search q]
   constructor S
   -- Position and token bounds
-  prev_      : Ref q ByteString
-  cur_       : Ref q ByteString
-  offset_    : Ref q Nat
-  relpos_    : Ref q Integer
-  len_       : Ref q Nat
-  positions_ : Ref q (SnocList BytePos)
+  bufSize_    : Nat
+  prev_       : ByteString
+  cur_        : IBuffer bufSize_
+  prevOffset_ : Nat
+  curOffset_  : Nat
+  relBounds_  : Ref q (RelBounds bufSize_)
+  positions_  : Ref q (SnocList BytePos)
 
-  strings_   : Ref q (SnocList String)
-  stack_     : Ref q (Stack True s [<])
-  error_     : Ref q (Maybe $ BBErr e)
+  strings_    : Ref q (SnocList String)
+  stack_      : Ref q (Stack True s [<])
+  error_      : Ref q (Maybe $ BBErr e)
 
 ||| Initializes a new parser stack.
 export
-init : Stack True s [<] -> F1 q (DStack s e q)
-init st = T1.do
-  pr <- ref1 empty
-  fl <- ref1 empty
-  ro <- ref1 Z
-  rr <- ref1 0
-  ll <- ref1 Z
+init : Stack True s [<] -> (n : Nat) -> IBuffer n -> F1 q (DStack s e q)
+init st n buf = T1.do
+  rb <- ref1 (initial n)
   ps <- ref1 [<]
   ss <- ref1 [<]
   sk <- ref1 st
   er <- ref1 Nothing
-  pure (S pr fl ro rr ll ps ss sk er)
+  pure (S n empty buf 0 0 rb ps ss sk er)
 
 export %inline
 HasBytes (DStack s e) where
-  prev    = prev_
-  cur     = cur_
-  offset  = offset_
-  relpos  = relpos_
-  len     = len_
-  positions = positions_
+  bufSize    = bufSize_
+  prev       = prev_
+  cur        = cur_
+  prevOffset = prevOffset_
+  curOffset  = curOffset_
+  relBounds  = relBounds_
+  positions  = positions_
+  copy s o bs buf sk t =
+   let rb # t := ref1 (initial s) t
+    in { bufSize_    := s
+       , cur_        := buf
+       , prev_       := bs
+       , prevOffset_ := o
+       , curOffset_  := o + bs.size
+       , relBounds_  := rb
+       } sk # t
 
 export %inline
 HasStack (DStack s e) (Stack True s [<]) where

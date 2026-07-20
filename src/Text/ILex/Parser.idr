@@ -71,31 +71,72 @@ Lex1 q r s = Arr32 r (DFA q r s)
 -- HasBytes Interface
 --------------------------------------------------------------------------------
 
+public export
+record RelBounds (n : Nat) where
+  constructor RB
+  from        : Nat
+  till        : Nat
+  {auto 0 lt1 : LTE from till}
+  {auto 0 lt2 : LTE till n}
+
+export %inline
+initial : (0 n : Nat) -> RelBounds n
+initial n = RB 0 0
+
+export %inline
+final : (n : Nat) -> RelBounds n
+final n = RB n n
+
+export %inline
+fromTill :
+     (0 from, till : Nat)
+  -> {auto fromIx : Ix from n}
+  -> {auto tillIx : Ix till n}
+  -> {auto 0 prf  : LTE (ixToNat fromIx) (ixToNat tillIx)}
+  -> RelBounds n
+fromTill from till = RB (ixToNat fromIx) (ixToNat tillIx) {lt2 = ixLTE _}
+
+export %inline
+bytesFromTill :
+     IBuffer n
+  -> (from       : Nat)
+  -> (till       : Nat)
+  -> {auto 0 lt1 : LTE from till}
+  -> {auto 0 lt2 : LTE till n}
+  -> ByteString
+bytesFromTill buf from till =
+  BS (till `minus` from) (BV buf from $ transitive (plusMinusLTE _ _ lt1) lt2)
+
 ||| An interface for mutable parser stacks `s` that facilitates
 ||| parsing string tokens containing escape sequences.
 public export
 interface HasBytes (0 s : Type -> Type) where
   constructor MkHB
+  copy :
+       (size, offset : Nat)
+    -> ByteString
+    -> IBuffer size
+    -> s q
+    -> F1 q (s q)
+
+  bufSize   : s q -> Nat
+
   ||| Returns the remainder of the previous bytestring that should
   ||| be used as the beginning of the current token.
-  prev      : s q -> Ref q ByteString
+  prev      : s q -> ByteString
 
   ||| The byte vector currently being processed.
-  cur       : s q -> Ref q ByteString
+  cur       : (v : s q) -> IBuffer (bufSize v)
 
-  ||| Absolute start position of the current token from the beginning
-  ||| of the whole byte stream processed so far.
-  offset    : s q -> Ref q Nat
+  ||| Absolute position of the first byte of `prev`.
+  prevOffset    : s q -> Nat
 
-  ||| Start position of the current token relative to `cur`.
-  |||
-  ||| If this is negative, the current token will also include
-  ||| `prev`. Reference `len` will still hold the full length
-  ||| of the token.
-  relpos    : s q -> Ref q Integer
+  ||| Absolute position of the first byte of `cur`
+  ||| (this equals `prevOffset + prev.size` but should be
+  ||| provided as a separate field for reasons of efficiency)
+  curOffset    : s q -> Nat
 
-  ||| Length of the current token
-  len       : s q -> Ref q Nat
+  relBounds : (v : s q) -> Ref q (RelBounds (bufSize v))
 
   ||| Stack of positions used to keep track of the positions of
   ||| opening parentheses and brackets.
@@ -109,14 +150,15 @@ interface HasBytes (0 s : Type -> Type) where
 ||| we are currently at position zero.
 export %inline
 getBytes : HasBytes s => (sk : s q) => F1 q ByteString
-getBytes = T1.do
-  bs   <- read1 (cur sk)
-  p    <- read1 (relpos sk)
-  l    <- read1 (len sk)
-  case prim__lt_Integer p 0 of
-    0 => pure (substring (cast p) l bs)
-    n => read1 (prev sk) >>= \pre =>
-           pure (pre <+> take (cast $ cast l + p) bs)
+getBytes t =
+  let RB from till # t := read1 (relBounds sk) t
+   in case from of
+        0 => (prev sk <+> bytesFromTill (cur sk) from till) # t
+        _ => bytesFromTill (cur sk) from till # t
+
+export %inline
+toFinalPos : HasBytes s => (sk : s q) => F1' q
+toFinalPos = write1 (relBounds sk) (final $ bufSize sk)
 
 ||| A parser is a system of automata, where each
 ||| lexicographic token determines the next automaton
@@ -127,7 +169,7 @@ record P1 (q,e : Type) (a : Type) where
   {states    : Bits32}
   {0 state   : Type -> Type}
   init       : Index states
-  stck       : F1 q (state q)
+  stck       : (size : Nat) -> IBuffer size -> F1 q (state q)
   lex        : Lex1 q states state
   chunk      : state q -> F1 q (Maybe a)
   err        : Arr32 states (state q -> F1 q e)
@@ -179,6 +221,10 @@ arrFail s arr ix st t =
 export %inline
 fail : (p : P1 q e a) -> PIx p -> PST p -> F1 q (Either e x)
 fail p = arrFail p.state p.err
+
+export %inline
+failFun1 : (p : P1 q e a) -> PIx p -> Fun1 q p.state (Either e x)
+failFun1 p st (E sk t) = arrFail p.state p.err st sk t
 
 public export
 0 Parser1 : (e : Type) -> (a : Type) -> Type
