@@ -111,16 +111,18 @@ parameters {0 q,e,a : Type}
            (parser  : P1 q e a)
            (sk      : PST parser)
            (buf     : IBuffer n)
-           (relb    : Ref q (RelBounds n))
+           (rfrom   : Ref q (LTENat n))
+           (rtill   : Ref q (LTENat n))
 
   %inline
   endChunk :
        (0 from : Nat)
     -> {auto fromIx : Ix from n}
     -> {auto tillIx : Ix 0 n}
-    -> {auto 0 prf  : LTE (ixToNat fromIx) (ixToNat tillIx)}
     -> F1' q
-  endChunk from t = write1 relb (fromTill from 0) t
+  endChunk from t =
+   let _ # t := write1 rfrom (lteNat from) t
+    in  write1 rtill (lteNat 0) t
 
   %inline
   stp :
@@ -128,10 +130,10 @@ parameters {0 q,e,a : Type}
     -> (0 from, till : Nat)
     -> {auto fromIx : Ix from n}
     -> {auto tillIx : Ix till n}
-    -> {auto 0 prf  : LTE (ixToNat fromIx) (ixToNat tillIx)}
     -> F1 q x
   stp f from till t =
-    let _ # t := write1 relb (fromTill from till) t
+    let _ # t := write1 rfrom (lteNat from) t
+        _ # t := write1 rtill (lteNat till) t
      in f (E sk t)
 
   %inline
@@ -146,7 +148,6 @@ parameters {0 q,e,a : Type}
     -> (pos         : Nat)
     -> {auto fromIx : Ix from n}
     -> {auto posIx  : Ix pos n}
-    -> {auto 0 prf  : LTE (ixToNat fromIx) (ixToNat posIx)}
     -> LoopRes parser
 
   succ :
@@ -158,7 +159,6 @@ parameters {0 q,e,a : Type}
     -> (pos         : Nat)
     -> {auto fromIx : Ix from n}
     -> {auto posIx  : Ix pos n}
-    -> {auto 0 prf  : LTE (ixToNat fromIx) (ixToNat posIx)}
     -> LoopRes parser
 
   igno :
@@ -170,7 +170,6 @@ parameters {0 q,e,a : Type}
     -> (pos         : Nat)
     -> {auto fromIx : Ix from n}
     -> {auto posIx  : Ix pos n}
-    -> {auto 0 prf  : LTE (ixToNat fromIx) (ixToNat posIx)}
     -> LoopRes parser
 
   loop : (st : PIx parser) -> (pos : Nat) -> (x : Ix pos n) => LoopRes parser
@@ -242,33 +241,34 @@ stepState {n = 0}   buf p lst t = Right lst # t
 stepState {n = S k} buf p (LST st skOld dfa cr tok) t =
  let bs   # t := getBytes @{p.hasb} @{skOld} t
      BP o # t := startPos {hb = p.hasb, sk = skOld} t
-     relb # t := ref1 (initial $ S k) t
-     sk       := Parser.copy @{p.hasb} (S k) o bs buf relb skOld
+     rf   # t := ref1 (first $ S k) t
+     rt   # t := ref1 (first $ S k) t
+     sk       := Parser.copy @{p.hasb} (S k) o bs buf rf rt skOld
      byte     := at buf 0
   in case cr `atByte` byte of
        Keep         => case tok of
-         Run f  => succ p sk buf relb st dfa cr f (S k) k t
-         Ign f  => igno p sk buf relb st dfa cr f (S k) k t
-         Err    => step p sk buf relb st dfa cr   (S k) k t
+         Run f  => succ p sk buf rf rt st dfa cr f (S k) k t
+         Ign f  => igno p sk buf rf rt st dfa cr f (S k) k t
+         Err    => step p sk buf rf rt st dfa cr   (S k) k t
        Done f       =>
-        let s2 # t := stp1 p sk buf relb f IZ t
-         in loop p sk buf relb s2 k t
+        let s2 # t := stp1 p sk buf rf rt f IZ t
+         in loop p sk buf rf rt s2 k t
        Ignore f     =>
-        let _ # t := stp1 p sk buf relb f IZ t
-         in loop p sk buf relb st k t
-       Move   nxt f => succ p sk buf relb st dfa (dfa `at` nxt) f (S k) k t
-       MoveI  nxt f => igno p sk buf relb st dfa (dfa `at` nxt) f (S k) k t
-       MoveE  nxt   => step p sk buf relb st dfa (dfa `at` nxt)   (S k) k t
+        let _ # t := stp1 p sk buf rf rt f IZ t
+         in loop p sk buf rf rt st k t
+       Move   nxt f => succ p sk buf rf rt st dfa (dfa `at` nxt) f (S k) k t
+       MoveI  nxt f => igno p sk buf rf rt st dfa (dfa `at` nxt) f (S k) k t
+       MoveE  nxt   => step p sk buf rf rt st dfa (dfa `at` nxt)   (S k) k t
        Bottom     => case tok of
          Run f  =>
-          let s2 # t := stp p sk buf relb f (S k) (S k) t
-              ske    := Parser.copy @{p.hasb} (S k) (o+bs.size) empty buf relb sk
-           in loop p ske buf relb s2 (S k) t
+          let s2 # t := stp p sk buf rf rt f (S k) (S k) t
+              ske    := Parser.copy @{p.hasb} (S k) (o+bs.size) empty buf rf rt sk
+           in loop p ske buf rf rt s2 (S k) t
          Ign f  =>
-          let _  # t := stp p sk buf relb f (S k) (S k) t
-              ske    := Parser.copy @{p.hasb} (S k) (o+bs.size) empty buf relb sk
-           in loop p ske buf relb st (S k) t
-         Err => stp p sk buf relb (failFun1 p st) (S k) (S k) t
+          let _  # t := stp p sk buf rf rt f (S k) (S k) t
+              ske    := Parser.copy @{p.hasb} (S k) (o+bs.size) empty buf rf rt sk
+           in loop p ske buf rf rt st (S k) t
+         Err => stp p sk buf rf rt (failFun1 p st) (S k) (S k) t
 
 run p buf =
  run1 $ \t =>

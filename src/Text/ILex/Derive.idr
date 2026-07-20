@@ -104,13 +104,14 @@ ifaceType p t = piAll t (dropLastArg p.implicits)
 
 copyImpl : TTImp
 copyImpl =
-  `(\s,o,bs,buf,rb,sk =>
+  `(\s,o,bs,buf,rf,rt,sk =>
       { bufSize_    := s
       , cur_        := buf
       , prev_       := bs
       , prevOffset_ := o
       , curOffset_  := o + bs.size
-      , relBounds_  := rb
+      , from_       := rf
+      , till_       := rt
       } sk
    )
 
@@ -118,12 +119,14 @@ copyImpl =
 ||| following fields:
 |||
 ||| ```idris
-||| prev_      : Ref q ByteString
-||| cur_       : Ref q ByteString
-||| offset_    : Ref q Nat
-||| relpos_    : Ref q Integer
-||| len_       : Ref q Nat
-||| positions_ : Ref q (SnocList BytePos)
+|||   bufSize_    : Nat
+|||   prev_       : ByteString
+|||   cur_        : IBuffer bufSize_
+|||   prevOffset_ : Nat
+|||   curOffset_  : Nat
+|||   from_       : Ref q (LTENat bufSize_)
+|||   till_       : Ref q (LTENat bufSize_)
+|||   positions_  : Ref q (SnocList BytePos)
 ||| ```
 export
 HasBytes : List Name -> ParamTypeInfo -> Res (List TopLevel)
@@ -142,7 +145,7 @@ HasBytes nms p =
         [patClause (var impl)
           `( MkHB
                ~(copyImpl)
-               bufSize_ prev_ cur_ prevOffset_ curOffset_ relBounds_ positions_
+               bufSize_ prev_ cur_ prevOffset_ curOffset_ from_ till_ positions_
            )]
 
 ||| Derives an implementation of `HasStringLits` for a record type with the

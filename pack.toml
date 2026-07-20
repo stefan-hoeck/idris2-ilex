@@ -42,6 +42,7 @@ ipkg = "ilex-toml.ipkg"
 test = "test/test.ipkg"
 
 [custom.all]
+array.commit                = "latest:main"
 bytestring.commit           = "latest:main"
 quantifiers-extra.commit    = "latest:main"
 elin.commit                 = "latest:main"
