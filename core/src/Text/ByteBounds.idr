@@ -34,6 +34,17 @@ incLen : Nat -> BytePos -> BytePos
 incLen (S n) (BP p) = BP (n+p)
 incLen _     p      = p
 
+||| Computes the end position of a token by reducing
+||| the start position of the next token by one
+||| (unless this is a zero-byte token corresponding to the
+||| end of input).
+export
+endPos : (from, till : Nat) -> BytePos
+endPos from till =
+  case prim__lt_Integer (cast from) (cast till) of
+    0 => BP till
+    _ => BP (pred till)
+
 --------------------------------------------------------------------------------
 --          ByteBounds
 --------------------------------------------------------------------------------

@@ -53,12 +53,16 @@ public export
 Step1 q r s = s q -> F1 q (Index r)
 
 public export
+0 Fun1 : (q : Type) -> (s : Type -> Type) -> Type -> Type
+Fun1 q s a = (1 sk : Env q s) -> R1 q a
+
+public export
 0 Run1 : (q : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type
-Run1 q r s = (1 sk : Env q s) -> R1 q (Index r)
+Run1 q r s = Fun1 q s (Index r)
 
 public export
 0 Ign1 : (q : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type
-Ign1 q r s = (1 sk : Env q s) -> R1 q ()
+Ign1 q r s = Fun1 q s ()
 
 public export
 data Step : (q : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type where

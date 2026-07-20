@@ -635,19 +635,20 @@ it consists of more than a single (snoc)list:
 public export
 record CSTCK (q : Type) where
   constructor C
-  prev_      : Ref q ByteString
-  cur_       : Ref q ByteString
-  offset_    : Ref q Nat
-  relpos_    : Ref q Integer
-  len_       : Ref q Nat
-  positions_ : Ref q (SnocList BytePos)
-  line       : Ref q Nat
-  col        : Ref q Nat
-  psns       : Ref q (SnocList Position)
-  strs       : Ref q (SnocList String)
-  err        : Ref q (Maybe $ BBErr Void)
-  cells      : Ref q (SnocList Cell)
-  lines      : Ref q (SnocList Line)
+  bufSize_    : Nat
+  prev_       : ByteString
+  cur_        : IBuffer bufSize_
+  prevOffset_ : Nat
+  curOffset_  : Nat
+  relBounds_  : Ref q (RelBounds bufSize_)
+  positions_  : Ref q (SnocList BytePos)
+  line        : Ref q Nat
+  col         : Ref q Nat
+  psns        : Ref q (SnocList Position)
+  strs        : Ref q (SnocList String)
+  err         : Ref q (Maybe $ BBErr Void)
+  cells       : Ref q (SnocList Cell)
+  lines       : Ref q (SnocList Line)
 
 export %inline
 HasBBErr CSTCK Void where
@@ -655,12 +656,21 @@ HasBBErr CSTCK Void where
 
 export %inline
 HasBytes CSTCK where
-  prev = prev_
-  cur = cur_
-  offset = offset_
-  relpos = relpos_
-  len = len_
-  positions = positions_
+  bufSize    = bufSize_
+  prev       = prev_
+  cur        = cur_
+  prevOffset = prevOffset_
+  curOffset  = curOffset_
+  relBounds  = relBounds_
+  positions  = positions_
+  copy s o bs buf rb sk =
+    { bufSize_    := s
+    , cur_        := buf
+    , prev_       := bs
+    , prevOffset_ := o
+    , curOffset_  := o + bs.size
+    , relBounds_  := rb
+    } sk
 
 export %inline
 HasStringLits CSTCK where
@@ -671,13 +681,9 @@ HasStack CSTCK (SnocList Line) where
   stack = lines
 
 export
-cinit : F1 q (CSTCK q)
-cinit = T1.do
-  pr <- ref1 empty
-  fl <- ref1 empty
-  ro <- ref1 Z
-  rr <- ref1 0
-  ll <- ref1 Z
+cinit : (n : Nat) -> IBuffer n -> F1 q (CSTCK q)
+cinit n buf = T1.do
+  rb <- ref1 (initial n)
   ps <- ref1 [<]
   l  <- ref1 Z
   c  <- ref1 Z
@@ -686,7 +692,7 @@ cinit = T1.do
   er <- ref1 Nothing
   cs <- ref1 [<]
   ls <- ref1 [<]
-  pure (C pr fl ro rr ll ps l c bs ss er cs ls)
+  pure (C n empty buf 0 0 rb ps l c bs ss er cs ls)
 ```
 
 Next, we'll define the different parser states. We want to make

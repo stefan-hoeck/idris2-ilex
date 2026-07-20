@@ -25,7 +25,7 @@ streamParseErr :
   -> Pull f ByteString es x
   -> Pull f a es x
 streamParseErr err prs pl = Prelude.do
-  st      <- lift1 (init prs)
+  st      <- lift1 (init 0 empty prs)
   go st pl
 
   where
