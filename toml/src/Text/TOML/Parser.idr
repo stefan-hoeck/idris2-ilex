@@ -146,10 +146,10 @@ val' x = val x . const
 --------------------------------------------------------------------------------
 
 tomlSpaced : Steps q TSz TSTCK -> DFA q TSz TSTCK
-tomlSpaced ss = dfa $ ignore' (plus wschar) :: ss
+tomlSpaced ss = dfa $ ignore (plus wschar) :: ss
 
 tomlIgnore : TST -> Steps q TSz TSTCK -> DFA q TSz TSTCK
-tomlIgnore nl ss = tomlSpaced $ [ignore' comment, step' newline nl] ++ ss
+tomlIgnore nl ss = tomlSpaced $ [ignore comment, step' newline nl] ++ ss
 
 keySteps : Steps q TSz TSTCK
 keySteps =

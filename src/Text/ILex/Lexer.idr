@@ -61,13 +61,9 @@ public export
 Run1 q r s = Fun1 q s (Index r)
 
 public export
-0 Ign1 : (q : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type
-Ign1 q r s = Fun1 q s ()
-
-public export
 data Step : (q : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type where
   Run : Run1 q r s -> Step q r s
-  Ign : Ign1 q r s -> Step q r s
+  Ign : Step q r s
   Err : Step q r s
 
 export %inline
@@ -83,20 +79,20 @@ data Transition :
   -> Type where
   Keep   : Transition n q r s
   Done   : Run1 q r s -> Transition n q r s
-  Ignore : Ign1 q r s -> Transition n q r s
+  Ignore : Transition n q r s
   Move   : Fin (S n) -> Run1 q r s -> Transition n q r s
-  MoveI  : Fin (S n) -> Ign1 q r s -> Transition n q r s
+  MoveI  : Fin (S n) -> Transition n q r s
   MoveE  : Fin (S n) -> Transition n q r s
   Bottom : Transition n q r s
 
 move : Step q r s -> Fin (S n) -> Transition n q r s
 move (Run f) y = Move y f
-move (Ign f) y = MoveI y f
+move Ign     y = MoveI y
 move Err     y = Bottom
 
 done : Step q r s -> Transition n q r s
 done (Run f) = Done f
-done (Ign f) = Ignore f
+done Ign     = Ignore
 done Err     = Bottom
 
 ||| An array of arrays describing a lexer's state machine.
