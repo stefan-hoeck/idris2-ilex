@@ -101,9 +101,8 @@ lastStep p (LST st sk _ _ tok) t =
      let st2 # t := f (E sk t)
          _   # t := toFinalPos @{p.hasb} t
       in p.eoi st2 sk t
-    Ign f =>
-     let _   # t := f (E sk t)
-         _   # t := toFinalPos @{p.hasb} t
+    Ign   =>
+     let _   # t := toFinalPos @{p.hasb} t
       in p.eoi st sk t
 
 parameters {0 q,e,a : Type}
@@ -165,7 +164,6 @@ parameters {0 q,e,a : Type}
        (st          : PIx parser)
     -> (dfa         : PStepper k parser)
     -> (cur         : PByteStep k parser)
-    -> (last        : PIgn parser)
     -> (0 from      : Nat)
     -> (pos         : Nat)
     -> {auto fromIx : Ix from n}
@@ -182,9 +180,9 @@ parameters {0 q,e,a : Type}
        cur     := dfa `at` 0
     in case cur `atByte` (buf `ix` k) of
          Done f       => let s2 # t := stp1 f x t in loop s2 k t
-         Ignore f     => let _  # t := stp1 f x t in loop st k t
+         Ignore       => loop st k t
          Move   nxt f => succ st dfa (dfa `at` nxt) f   (S k) k t
-         MoveI  nxt f => igno st dfa (dfa `at` nxt) f   (S k) k t
+         MoveI  nxt   => igno st dfa (dfa `at` nxt)     (S k) k t
          MoveE  nxt   => step st dfa (dfa `at` nxt)     (S k) k t
          _            => stp1 (failFun1 parser st) x t
 
@@ -196,25 +194,25 @@ parameters {0 q,e,a : Type}
     in case cur `atByte` byte of
          Keep         => succ st dfa cur f from k t
          Done f       => let s2 # t := stp f from k t in loop s2 k t
-         Ignore f     => let _  # t := stp f from k t in loop st k t
+         Ignore       => loop st k t
          Move   nxt f => succ st dfa (dfa `at` nxt) f from k t
-         MoveI  nxt f => igno st dfa (dfa `at` nxt) f from k t
+         MoveI  nxt   => igno st dfa (dfa `at` nxt)   from k t
          MoveE  nxt   => step st dfa (dfa `at` nxt)   from k t
          Bottom       => let s2 # t := stp f from (S k) t in loop s2 (S k) t
 
-  igno st dfa cur f from 0     t =
+  igno st dfa cur from 0     t =
    let _ # t := endChunk from t
-    in Right (LST st sk dfa cur (Ign f)) # t
-  igno st dfa cur f from (S k) t =
+    in Right (LST st sk dfa cur Ign) # t
+  igno st dfa cur from (S k) t =
    let byte := buf `ix` k
     in case cur `atByte` byte of
-         Keep         => igno st dfa cur f from k t
+         Keep         => igno st dfa cur   from k t
          Done f       => let s2 # t := stp f from k t in loop s2 k t
-         Ignore f     => let _  # t := stp f from k t in loop st k t
+         Ignore       => loop st k t
          Move   nxt f => succ st dfa (dfa `at` nxt) f from k t
-         MoveI  nxt f => igno st dfa (dfa `at` nxt) f from k t
+         MoveI  nxt   => igno st dfa (dfa `at` nxt)   from k t
          MoveE  nxt   => step st dfa (dfa `at` nxt)   from k t
-         Bottom       => let _ # t := stp f from (S k) t in loop st (S k) t
+         Bottom       => loop st (S k) t
 
   step st dfa cur from 0     t =
    let _ # t := endChunk from t
@@ -224,9 +222,9 @@ parameters {0 q,e,a : Type}
     in case cur `atByte` byte of
          Keep         => step st dfa cur from k t
          Done f       => let s2 # t := stp f from k t in loop s2 k t
-         Ignore f     => let _  # t := stp f from k t in loop st k t
+         Ignore       => loop st k t
          Move   nxt f => succ st dfa (dfa `at` nxt) f from k t
-         MoveI  nxt f => igno st dfa (dfa `at` nxt) f from k t
+         MoveI  nxt   => igno st dfa (dfa `at` nxt)   from k t
          MoveE  nxt   => step st dfa (dfa `at` nxt)   from k t
          Bottom       => stp (failFun1 parser st) from k t
 
@@ -248,25 +246,22 @@ stepState {n = S k} buf p (LST st skOld dfa cr tok) t =
   in case cr `atByte` byte of
        Keep         => case tok of
          Run f  => succ p sk buf rf rt st dfa cr f (S k) k t
-         Ign f  => igno p sk buf rf rt st dfa cr f (S k) k t
+         Ign    => igno p sk buf rf rt st dfa cr   (S k) k t
          Err    => step p sk buf rf rt st dfa cr   (S k) k t
        Done f       =>
         let s2 # t := stp1 p sk buf rf rt f IZ t
          in loop p sk buf rf rt s2 k t
-       Ignore f     =>
-        let _ # t := stp1 p sk buf rf rt f IZ t
-         in loop p sk buf rf rt st k t
+       Ignore       => loop p sk buf rf rt st k t
        Move   nxt f => succ p sk buf rf rt st dfa (dfa `at` nxt) f (S k) k t
-       MoveI  nxt f => igno p sk buf rf rt st dfa (dfa `at` nxt) f (S k) k t
+       MoveI  nxt   => igno p sk buf rf rt st dfa (dfa `at` nxt)   (S k) k t
        MoveE  nxt   => step p sk buf rf rt st dfa (dfa `at` nxt)   (S k) k t
        Bottom     => case tok of
          Run f  =>
           let s2 # t := stp p sk buf rf rt f (S k) (S k) t
               ske    := Parser.copy @{p.hasb} (S k) (o+bs.size) empty buf rf rt sk
            in loop p ske buf rf rt s2 (S k) t
-         Ign f  =>
-          let _  # t := stp p sk buf rf rt f (S k) (S k) t
-              ske    := Parser.copy @{p.hasb} (S k) (o+bs.size) empty buf rf rt sk
+         Ign    =>
+          let ske    := Parser.copy @{p.hasb} (S k) (o+bs.size) empty buf rf rt sk
            in loop p ske buf rf rt st (S k) t
          Err => stp p sk buf rf rt (failFun1 p st) (S k) (S k) t
 

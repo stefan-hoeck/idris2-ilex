@@ -50,8 +50,8 @@ go : a -> (s q => F1 q (Index r)) -> (a,Step q r s)
 go x f = (x, Run $ \(E x t) => f t)
 
 export %inline
-ign : a -> (s q => F1 q ()) -> (a,Step q r s)
-ign x f = (x, Ign $ \(E x t) => f t)
+ign : a -> (a,Step q r s)
+ign x = (x, Ign)
 
 export %inline
 goBS : HasBytes s => a -> (s q => ByteString -> F1 q (Index r)) -> (a,Step q r s)
@@ -311,12 +311,8 @@ parameters {auto hbp : HasBytes s}
            (x        : a)
 
   export %inline
-  ignore : (s q => F1 q ()) -> (a,Step q r s)
+  ignore : (a,Step q r s)
   ignore = ign x
-
-  export %inline
-  ignore' : (a,Step q r s)
-  ignore' = ign x (() #)
 
   export %inline
   step : (s q => F1 q (Index r)) -> (a,Step q r s)
@@ -507,7 +503,7 @@ jsonSpaces = plus jsonSpace
 
 export %inline
 jsonSpaced : HasBytes s => Steps q r s -> Steps q r s
-jsonSpaced xs = ignore' jsonSpaces :: xs
+jsonSpaced xs = ignore jsonSpaces :: xs
 
 --------------------------------------------------------------------------------
 -- Error handling

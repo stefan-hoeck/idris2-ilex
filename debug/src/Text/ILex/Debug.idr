@@ -137,9 +137,9 @@ prettyByteStep (x,bs) =
       case t of
         Keep       => Just (prettyByte byte <+> colon <++> line "stay")
         Done y     => Just (prettyByte byte <+> colon <++> line "done")
-        Ignore y   => Just (prettyByte byte <+> colon <++> line "ignore")
+        Ignore     => Just (prettyByte byte <+> colon <++> line "ignore")
         Move y z   => Just (prettyByte byte <+> colon <++> line "move (\{show y})")
-        MoveI y z  => Just (prettyByte byte <+> colon <++> line "move ignore (\{show y})")
+        MoveI y    => Just (prettyByte byte <+> colon <++> line "move ignore (\{show y})")
         MoveE y    => Just (prettyByte byte <+> colon <++> line "move non-terminal (\{show y})")
         Bottom     => Nothing
 
