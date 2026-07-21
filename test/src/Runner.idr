@@ -147,6 +147,12 @@ prop_boundsExpectedErr2 =
         toErr (P 0 0) (P 0 2) "CcD" (Expected [] "CcD")
     === lexBounds val "CcD"
 
+prop_boundsExpectedErr3 : Property
+prop_boundsExpectedErr3 =
+  property1 $
+        toErr (P 0 0) (P 0 0) "XCcc" (Expected [] "X")
+    === lexBounds val "XCcc"
+
 prop_boundsEoiErr : Property
 prop_boundsEoiErr =
   property1 $
@@ -176,6 +182,7 @@ props =
     , ("prop_boundsMany", prop_boundsMany)
     , ("prop_boundsExpectedErr", prop_boundsExpectedErr)
     , ("prop_boundsExpectedErr2", prop_boundsExpectedErr2)
+    , ("prop_boundsExpectedErr3", prop_boundsExpectedErr3)
     , ("prop_boundsEoiErr", prop_boundsEoiErr)
     , ("prop_boundsByteErr", prop_boundsByteErr)
     , ("prop_boundsByteErr2", prop_boundsByteErr2)
