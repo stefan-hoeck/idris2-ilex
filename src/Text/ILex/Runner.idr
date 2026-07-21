@@ -239,7 +239,7 @@ stepState {n = S k} buf p (LST st skOld dfa cr tok) t =
          Ign    =>
           let ske    := Parser.copy @{p.hasb} (S k) (o+bs.size) empty buf rf rt sk
            in loop p ske buf rf rt st (S k) t
-         Err => stp p sk buf rf rt (failFun1 p st) (S k) t
+         Err => stp p sk buf rf rt (failFun1 p st) k t
 
 run p buf =
  run1 $ \t =>
