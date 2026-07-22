@@ -94,6 +94,11 @@ bytesFromTill : IBuffer n -> (from, till : LTENat n) -> ByteString
 bytesFromTill buf (LN from @{lt1}) (LN till @{lt2}) =
   BS (till `minus` from) (BV buf from $ plusMinusBothLTE _ _ lt1 lt2)
 
+export %inline
+stringFromTill : IBuffer n -> (from, till : LTENat n) -> String
+stringFromTill buf (LN from @{lt1}) (LN till @{lt2}) =
+  toString buf from (till `minus` from) @{plusMinusBothLTE _ _ lt1 lt2}
+
 ||| An interface for mutable parser stacks `s` that facilitates
 ||| parsing string tokens containing escape sequences.
 public export
@@ -150,10 +155,19 @@ getBytes t =
         _ => bytesFromTill (cur sk) rf rt # t
 
 export %inline
+getString : HasBytes s => (sk : s q) => F1 q String
+getString t =
+  let rf # t := read1 (from sk) t
+      rt # t := read1 (till sk) t
+   in case rf.val of
+        0 => (toString $ prev sk <+> bytesFromTill (cur sk) rf rt) # t
+        _ => stringFromTill (cur sk) rf rt # t
+
+export %inline
 toFinalPos : HasBytes s => (sk : s q) => F1' q
 toFinalPos t =
  let _ # t := write1 (from sk) (last $ bufSize sk) t
-  in write1 (from sk) (last $ bufSize sk) t
+  in write1 (till sk) (last $ bufSize sk) t
 
 ||| A parser is a system of automata, where each
 ||| lexicographic token determines the next automaton

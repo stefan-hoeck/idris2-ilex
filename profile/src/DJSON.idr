@@ -2,47 +2,95 @@ module DJSON
 
 import Data.String
 import Derive.Prelude
+import Text.ILex.Derive
 import JSON.Parser
-import Text.ILex.DStack
 import Text.ILex
 import Syntax.T1
 
 %default total
 %hide Data.Linear.(.)
-%hide JSON.Parser.JStr
 %language ElabReflection
 
-data JState : SnocList Type -> Type where
-  JInit : JState [<]
-  JVal  : JState [<JSON]
-
-  JArr  : JState [<SnocList JSON]
-  JArrV : JState [<Void]
-  JArrS : JState [<Void]
-
-  JObj  : JState [<SnocList (String,JSON)]
-  JObjL : JState [<SnocList (String,JSON),String]
-  JObjC : JState [<Void]
-  JObjV : JState [<Void]
-  JObjS : JState [<Void]
-
-  JStr  : JState [<Void]
-  JErr  : JState [<]
-
-%runElab deriveIndexed "JState" [Show,ConIndex]
-
-DSz : Bits32
-DSz = 1 + cast (conIndexJState JErr)
-
-inBoundsJState : (s : JState ts) -> (cast (conIndexJState s) < DSz) === True
-
-export %inline
-Cast (JState ts) (Index DSz) where
-  cast v = I (cast $ conIndexJState v) @{mkLT $ inBoundsJState v}
+public export
+data Tag : Type -> Type where
+  TArr : Tag (SnocList JSON)
+  TObj : Tag (SnocList (String,JSON))
+  TLbl : Tag (SnocList (String,JSON),String)
+  TVal : Tag JSON
+  TIni : Tag ()
 
 public export
-0 DSK : Type -> Type
-DSK = DStack JState Void
+data PTag : Type -> Type where
+  PArr : PTag (SnocList JSON)
+  PLbl : PTag (SnocList (String,JSON),String)
+  PIni : PTag ()
+
+public export
+record Tagged (t : Type -> Type) where
+  constructor T
+  {0 type : Type}
+  tag : t type
+  val : type
+
+public export
+0 DHead : Type
+DHead = Tagged Tag
+
+public export
+0 DPart : Type
+DPart = Tagged PTag
+
+toHead : DPart -> DHead
+toHead (T PArr val) = T TArr val
+toHead (T PLbl val) = T TLbl val
+toHead (T PIni val) = T TIni val
+
+appendPart : SnocList DPart -> DHead -> SnocList DPart
+appendPart sx (T TArr val) = sx :< T PArr val
+appendPart sx (T TLbl val) = sx :< T PLbl val
+appendPart sx (T TIni val) = sx :< T PIni val
+appendPart sx _ = sx
+
+public export
+record DSK (q : Type) where
+  [search q]
+  constructor S
+  -- Position and token bounds
+  bufSize_    : Nat
+  prev_       : ByteString
+  cur_        : IBuffer bufSize_
+  prevOffset_ : Nat
+  curOffset_  : Nat
+  from_       : Ref q (LTENat bufSize_)
+  till_       : Ref q (LTENat bufSize_)
+  positions_  : Ref q (SnocList BytePos)
+
+  -- Custom stack type
+  stack_     : Ref q (SnocList DPart)
+
+  -- Current state
+  head       : Ref q DHead
+
+  -- Working with string literals
+  strings_   : Ref q (SnocList String)
+
+  -- Error handling
+  error_     : Ref q (Maybe $ BBErr Void)
+
+%runElab derive "DSK" [FullStack]
+
+||| Initializes a new parser stack.
+export
+init : (n : Nat) -> IBuffer n -> F1 q (DSK q)
+init n buf = T1.do
+  rf <- ref1 (first n)
+  rt <- ref1 (first n)
+  ps <- ref1 [<]
+  sk <- ref1 [<]
+  st <- ref1 (T TIni ())
+  ss <- ref1 [<]
+  er <- ref1 Nothing
+  pure (S n empty buf 0 0 rf rt ps sk st ss er)
 
 --------------------------------------------------------------------------------
 -- Transformations
@@ -51,60 +99,66 @@ DSK = DStack JState Void
 parameters {auto sk : DSK q}
 
   %inline
-  jval : JSON -> StateAct q JState DSz
-  jval v JArr  (sx:<sv)    = putStackAsC (sx:<(sv:<v):>JArr) JArrV
-  jval v JObjL (sx:<sv:<l) = putStackAsC (sx:<(sv:<(l,v)):>JObj) JObjV
-  jval v JInit sx          = dput JVal (sx:<v)
-  jval v s     sx          = derr JErr sx s
+  part : JSON -> DHead -> F1 q JST
+  part v (T tg x) =
+    case tg of
+      TArr => writeAs sk.head (T TArr $ x:<v) AVal
+      TLbl => writeAs sk.head (T TObj $ (fst x:< (snd x, v))) OVal
+      _    => writeAs sk.head (T TVal v) JDone
 
   %inline
-  carr : StateAct q JState DSz
-  carr JArr (sx:>st:<sv) = jval (JArray $ sv <>> []) st sx
-  carr s    sx           = derr JErr sx s
+  onVal : JSON -> F1 q JST
+  onVal v = read1 sk.head >>= part v
 
   %inline
-  cobj : StateAct q JState DSz
-  cobj JObj (sx:>st:<sp) = jval (JObject $ sp <>> []) st sx
-  cobj s    sx           = derr JErr sx s
+  endStr : String -> F1 q JST
+  endStr s =
+   read1 sk.head >>= \case
+     T TObj x => writeAs sk.head (T TLbl (x,s)) OLbl
+     p        => part (JString s) p
 
   %inline
-  endstr : String -> StateAct q JState DSz
-  endstr s JObj sx = dput JObjL (sx:<s)
-  endstr s st   sx = jval (JString s) st sx
+  closeVal : F1 q JST
+  closeVal = T1.do
+    (sx:<x) <- read1 sk.stack_ | [<] => pure JDone
+    write1 sk.stack_ sx
+    read1 sk.head >>= \case
+      T TObj sp => part (JObject $ sp <>> []) (toHead x)
+      T TArr sp => part (JArray $ sp <>> []) (toHead x)
+      _         => pure JDone
 
   %inline
-  opn : JState [<SnocList a] -> F1 q (Index DSz)
-  opn s = read1 sk.stack_ >>= \sx => dput s (sx:<[<])
+  openHead : DHead -> JST -> F1 q JST
+  openHead h res = T1.do
+    sx <- read1 sk.stack_
+    ho <- read1 sk.head
+    write1 sk.stack_ (appendPart sx ho)
+    writeAs sk.head h res
 
 --------------------------------------------------------------------------------
 -- Lexers
 --------------------------------------------------------------------------------
 
 %inline
-spaced : Steps q DSz DSK -> DFA q DSz DSK
+spaced : Steps q r DSK -> DFA q r DSK
 spaced = dfa . jsonSpaced
 
-codepoint : RExp True
-codepoint = #"\u"# >> hexdigit >> hexdigit >> hexdigit >> hexdigit
-
-valTok : Steps q DSz DSK -> DFA q DSz DSK
+%inline
+valTok : Steps q JSz DSK -> DFA q JSz DSK
 valTok ts =
   spaced $
-    [ step "null"  (dact $ jval JNull)
-    , step "true"  (dact $ jval $ JBool True)
-    , step "false" (dact $ jval $ JBool False)
-    , bytes (opt '-' >> decimal) (dact . jval . JInteger . integer)
-    , string jsonDouble (dact . jval . JDouble . jdouble)
-    , opn '{' $ opn JObj
-    , opn '[' $ opn JArr
+    [ step "null"  (onVal JNull)
+    , step "true"  (onVal $ JBool True)
+    , step "false" (onVal $ JBool False)
+    , bytes (opt '-' >> decimal) (onVal . JInteger . Util.integer)
+    , string jsonDouble (onVal . JDouble . jdouble)
+    , opn '{' (openHead (T TObj [<]) ONew)
+    , opn '[' (openHead (T TArr [<]) ANew)
     , opn' '"' JStr
     ] ++ ts
 
-valTok' : DFA q DSz DSK
-valTok' = valTok []
-
-valTokC : DFA q DSz DSK
-valTokC = valTok [close ']' $ dact carr]
+codepoint : RExp True
+codepoint = #"\u"# >> hexdigit >> hexdigit >> hexdigit >> hexdigit
 
 decode : ByteString -> String
 decode (BS 6 bv) =
@@ -118,10 +172,11 @@ decode _         = "" -- impossible
 jchar : RExp True
 jchar = range32 0x20 0x10ffff && not '"' && not '\\'
 
-strTok : DFA q DSz DSK
+%inline
+strTok : DFA q JSz DSK
 strTok =
   dfa
-    [ closeStr '"' (dact . endstr)
+    [ closeStr '"' endStr
     , string (plus jchar) (pushStr JStr)
     , step #"\""# (pushStr JStr "\"")
     , step #"\n"# (pushStr JStr "\n")
@@ -138,70 +193,51 @@ strTok =
 -- Parsers
 --------------------------------------------------------------------------------
 
-jsonTrans : Lex1 q DSz DSK
+jsonTrans : Lex1 q JSz DSK
 jsonTrans =
   lex1
-    [ entry JInit   valTok'
-    , entry JVal  $ spaced []
+    [ E JIni (valTok [])
+    , E JDone (spaced [])
 
-    , entry JArr    valTokC
-    , entry JArrV $ spaced [step' ',' JArrS, close ']' $ dact carr]
-    , entry JArrS   valTok'
+    , E ANew (valTok [close ']' closeVal])
+    , E ACom (valTok [])
+    , E AVal $ spaced [step' ',' ACom, close ']' closeVal]
 
-    , entry JObj  $ spaced [close '}' $ dact cobj, opn' '"' JStr]
-    , entry JObjL $ spaced [step' ':' JObjC]
-    , entry JObjC   valTok'
-    , entry JObjV $ spaced [close '}' $ dact cobj, step' ',' JObjS]
-    , entry JObjS $ spaced [opn' '"' JStr]
+    , E ONew $ spaced [close '}' closeVal, opn' '"' JStr]
+    , E OVal $ spaced [close '}' closeVal, step' ',' OCom]
+    , E OCom $ spaced [opn' '"' JStr]
+    , E OLbl $ spaced [step' ':' OCol]
+    , E OCol (valTok [])
 
-    , entry JStr strTok
+    , E JStr strTok
     ]
 
-jsonErr : Arr32 DSz (DSK q -> F1 q (BBErr Void))
+jsonErr : Arr32 JSz (DSK q -> F1 q (BBErr Void))
 jsonErr =
-  errs
-    [ entry JArr  $ unclosedIfEOI "[" []
-    , entry JArrV $ unclosedIfEOI "[" [",", "]"]
-    , entry JArrS $ unclosedIfEOI "[" []
-    , entry JObj  $ unclosedIfEOI "{" ["\"", "}"]
-    , entry JObjL $ unclosedIfEOI "{" [",", "}"]
-    , entry JObjC $ unclosedIfEOI "{" ["\""]
-    , entry JObjV $ unclosedIfEOI "{" [":"]
-    , entry JObjS $ unclosedIfEOI "{" [":"]
-    , entry JStr  $ unclosedIfNLorEOI "\"" []
+  arr32 JSz (unexpected [])
+    [ E ANew $ unclosedIfEOI "[" []
+    , E AVal $ unclosedIfEOI "[" [",", "]"]
+    , E ACom $ unclosedIfEOI "[" []
+    , E ONew $ unclosedIfEOI "{" ["\"", "}"]
+    , E OVal $ unclosedIfEOI "{" [",", "}"]
+    , E OCom $ unclosedIfEOI "{" ["\""]
+    , E OLbl $ unclosedIfEOI "{" [":"]
+    , E OCol $ unclosedIfEOI "{" []
+    , E JStr $ unclosedIfNLorEOI "\"" []
     ]
 
-jsonEOI : Index DSz -> DSK q -> F1 q (Either (BBErr Void) JSON)
-jsonEOI st sk =
-  read1 sk.stack_ >>= \case
-    _:<v:>JVal => pure (Right v)
-    _          => arrFail DSK jsonErr st sk
+jsonEOI : JST -> DSK q -> F1 q (Either (BBErr Void) JSON)
+jsonEOI st sk t =
+  case st == JDone of
+    False => arrFail DSK jsonErr st sk t
+    True  => case read1 sk.head t of
+      T TVal v # t => Right v # t
+      _        # t => Right JNull # t
 
 public export
-djson : P1 q (BBErr Void) JSON
-djson = P (cast JInit) (init $ [<]:>JInit) jsonTrans (\x => (Nothing #)) jsonErr jsonEOI
+json2 : P1 q (BBErr Void) JSON
+json2 = P JIni init jsonTrans (\x => (Nothing #)) jsonErr jsonEOI
 
 export %inline
-dparseJSON : Origin -> String -> Either (ParseError Void) JSON
-dparseJSON = parseString djson
-
-export
-testDJSON : String -> IO ()
-testDJSON = either (putStrLn . interpolate) printLn . dparseJSON Virtual
-
---------------------------------------------------------------------------------
--- Proofs
---------------------------------------------------------------------------------
-
-inBoundsJState JInit = Refl
-inBoundsJState JVal  = Refl
-inBoundsJState JArr  = Refl
-inBoundsJState JArrV = Refl
-inBoundsJState JArrS = Refl
-inBoundsJState JObj  = Refl
-inBoundsJState JObjL = Refl
-inBoundsJState JObjC = Refl
-inBoundsJState JObjV = Refl
-inBoundsJState JObjS = Refl
-inBoundsJState JStr  = Refl
-inBoundsJState JErr  = Refl
+parseJSON2 : Origin -> String -> Either (ParseError Void) JSON
+parseJSON2 = parseString json2
