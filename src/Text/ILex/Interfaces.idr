@@ -59,7 +59,7 @@ goBS x f = (x, Run $ \(E x t) => let bs # t := getBytes t in f bs t)
 
 export %inline
 goStr : HasBytes s => a -> (s q => String -> F1 q (Index r)) -> (a,Step q r s)
-goStr x f = (x, Run $ \(E x t) => let bs # t := getBytes t in f (toString bs) t)
+goStr x f = (x, Run $ \(E x t) => let s # t := Parser.getString t in f s t)
 
 ||| Writes a mutable reference and returns the given result.
 export %inline

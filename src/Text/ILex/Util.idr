@@ -26,7 +26,7 @@ hexdigit x =
   else if x <= byte_F then 10 + cast x - cast byte_A
   else                     10 + cast x - cast byte_a
 
-parameters (bv : ByteVect n)
+parameters (bv : IBuffer n)
   export
   binaryBV : Integer -> (k : Nat) -> (x : Ix k n) => Integer
   binaryBV res 0     = res
@@ -98,7 +98,7 @@ parameters (bv : ByteVect n)
 ||| Converts a string of binary digits to an integer
 export %inline
 binary : ByteString -> Integer
-binary (BS n bv) = binaryBV bv 0 n
+binary (BS n $ BV buf o _) = binaryBV (take (o+n) buf) 0 n @{offset n o}
 
 ||| Converts a string of binary digits containing optional
 ||| separators to an integer `0010_0011_1110_0011.
@@ -107,12 +107,12 @@ binary (BS n bv) = binaryBV bv 0 n
 ||| for instance:
 export %inline
 binarySep : ByteString -> Integer
-binarySep (BS n bv) = binarySepBV bv 0 n
+binarySep (BS n $ BV buf o _) = binarySepBV (take (o+n) buf) 0 n @{offset n o}
 
 ||| Converts a string of octal digits to an integer
 export %inline
 octal : ByteString -> Integer
-octal (BS n bv) = octalBV bv 0 n
+octal (BS n $ BV buf o _) = octalBV (take (o+n) buf) 0 n @{offset n o}
 
 ||| Converts a string of octal digits containing optional
 ||| separators to an integer `077_334`.
@@ -121,12 +121,12 @@ octal (BS n bv) = octalBV bv 0 n
 ||| for instance:
 export %inline
 octalSep : Bits8 -> ByteString -> Integer
-octalSep sep (BS n bv) = octalSepBV bv sep 0 n
+octalSep sep (BS n $ BV buf o _) = octalSepBV (take (o+n) buf) sep 0 n @{offset n o}
 
 ||| Converts a string of decimal digits to an integer
 export %inline
 decimal : ByteString -> Integer
-decimal (BS n bv) = decimalBV bv 0 n
+decimal (BS n $ BV buf o _) = decimalBV (take (o+n) buf) 0 n @{offset n o}
 
 ||| Converts a string of decimal digits containing optional
 ||| separators to an integer `177_934`.
@@ -135,12 +135,12 @@ decimal (BS n bv) = decimalBV bv 0 n
 ||| for instance:
 export %inline
 decimalSep : Bits8 -> ByteString -> Integer
-decimalSep sep (BS n bv) = decimalSepBV bv sep 0 n
+decimalSep sep (BS n $ BV buf o _) = decimalSepBV (take (o+n) buf) sep 0 n @{offset n o}
 
 ||| Converts a string of decimal digits to an integer
 export %inline
 hexadecimal : ByteString -> Integer
-hexadecimal (BS n bv) = hexadecimalBV bv 0 n
+hexadecimal (BS n $ BV buf o _) = hexadecimalBV (take (o+n) buf) 0 n @{offset n o}
 
 ||| Converts a string of decimal digits containing optional
 ||| separators to an integer `177_934`.
@@ -149,13 +149,13 @@ hexadecimal (BS n bv) = hexadecimalBV bv 0 n
 ||| for instance:
 export %inline
 hexadecimalSep : Bits8 -> ByteString -> Integer
-hexadecimalSep sep (BS n bv) = hexadecimalSepBV bv sep 0 n
+hexadecimalSep sep (BS n $ BV buf o _) = hexadecimalSepBV (take (o+n) buf) sep 0 n @{offset n o}
 
 ||| Converts an integer literal with optional sign prefix
 ||| to an integer.
 export %inline
 integer : ByteString -> Integer
-integer (BS n bv) = integerBV bv n
+integer (BS n $ BV buf o _) = integerBV (take (o+n) buf) n @{offset n o}
 
 --------------------------------------------------------------------------------
 -- Operator Precedence
