@@ -303,6 +303,12 @@ parameters {auto hae : HasBBErr s e}
     bs <- bounds
     failWith (B x bs) res
 
+  export
+  failUnexpected : HasBytes s => (sk : s q) => List String -> v -> F1 q v
+  failUnexpected vs v = T1.do
+    str <- getString
+    failHere (Expected vs str) v
+
 --------------------------------------------------------------------------------
 -- Terminals
 --------------------------------------------------------------------------------
