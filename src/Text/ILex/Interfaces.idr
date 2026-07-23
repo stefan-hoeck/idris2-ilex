@@ -99,33 +99,6 @@ getList ref = T1.do
   sv <- replace1 ref [<]
   pure (sv <>> [])
 
-||| Returns the content of some mutable state implementing
-||| `HasStack`.
-export %inline
-getStack : HasStack s a => (sk : s q) => F1 q a
-getStack = read1 (stack sk)
-
-||| Overwrites the content of some mutable state implementing
-||| `HasStack`.
-export %inline
-putStack : HasStack s a => (sk : s q) => a -> F1' q
-putStack = write1 (stack sk)
-
-||| Like `putStack` but returns the given result.
-export %inline
-putStackAs : HasStack s a => (sk : s q) => a -> v -> F1 q v
-putStackAs = writeAs (stack sk)
-
-||| Like `putStack` but returns the given result.
-export %inline
-putStackAsC : Cast b v => HasStack s a => (sk : s q) => a -> b -> F1 q v
-putStackAsC res = putStackAs res . cast
-
-||| Reads and updates the stack.
-export %inline
-modStackAs : (0 s : _) -> HasStack s a => (sk : s q) => (a -> a) -> v -> F1 q v
-modStackAs _ f v = getStack >>= \x => putStackAs (f x) v
-
 ||| Appends a value to some mutable state implementing `HasStack`.
 export %inline
 pushStack : HasStack s (SnocList a) => (sk : s q) => a -> F1' q
@@ -282,6 +255,51 @@ parameters {auto sk   : s q}
     read1 (positions sk) >>= \case
       sb:<b => writeAs (positions sk) sb (BB b pe)
       [<]   => pure NoBB
+
+--------------------------------------------------------------------------------
+-- Parser Stack
+--------------------------------------------------------------------------------
+
+parameters {auto hs : HasStack s a}
+           {auto sk : s q}
+  ||| Returns the content of some mutable state implementing
+  ||| `HasStack`.
+  export %inline
+  getStack : F1 q a
+  getStack = read1 (stack sk)
+
+  ||| Overwrites the content of some mutable state implementing
+  ||| `HasStack`.
+  export %inline
+  putStack : a -> F1' q
+  putStack = write1 (stack sk)
+
+  ||| Like `putStack` but returns the given result.
+  export %inline
+  putStackAs : a -> v -> F1 q v
+  putStackAs = writeAs (stack sk)
+
+  ||| Like `putStack` but returns the given result.
+  export %inline
+  putStackAsC : Cast b v => a -> b -> F1 q v
+  putStackAsC res = putStackAs res . cast
+
+  export %inline
+  withStack : (a -> F1 q b) -> F1 q b
+  withStack f = getStack >>= f
+
+  export %inline
+  boundsWithStack : HasBytes s => (ByteBounds -> a -> F1 q b) -> F1 q b
+  boundsWithStack f = bounds >>= withStack . f
+
+  export %inline
+  boundedWithStack : HasBytes s => (ByteBounded x -> a -> F1 q b) -> x -> F1 q b
+  boundedWithStack f v = bounds >>= withStack . f . B v
+
+||| Reads and updates the stack.
+export %inline
+modStackAs : (0 s : _) -> HasStack s a => s q => (a -> a) -> v -> F1 q v
+modStackAs _ f v = getStack >>= \x => putStackAs (f x) v
 
 --------------------------------------------------------------------------------
 -- Error Handling
