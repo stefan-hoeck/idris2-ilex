@@ -288,20 +288,84 @@ parameters {auto sk   : s q}
 --------------------------------------------------------------------------------
 
 parameters {auto hae : HasBBErr s e}
+           {auto sk  : s q}
+
+  export %inline
+  ifNoErrorRaised : F1 q (BBErr e) -> F1 q (BBErr e)
+  ifNoErrorRaised raise = read1 (error sk) >>= maybe raise pure
+
+  export
+  unexpectedErr : HasBytes s => List String -> F1 q (InnerError e)
+  unexpectedErr ss = T1.do
+    bs <- getBytes
+    pure $ case bs of
+      BS 0 _  => EOI
+      BS 1 bv =>
+       let b := bv `at` 0
+           s := String.singleton (cast b)
+        in case isAscii b of
+             True  => Expected ss s
+             False => InvalidByte b
+      _ => Expected ss (toString bs)
+
+  export
+  unclosedErr : HasBytes s => String -> F1 q (BBErr e)
+  unclosedErr str = T1.do
+    bnds <- popAndGetBounds (length str)
+    pure $ B (Unclosed str) bnds
+
+  ||| Fails with `unclosed` if this is the end of input, otherwise
+  ||| invokes `unexpected`.
+  export
+  unclosedIfEOIErr : HasBytes s => String -> List String -> F1 q (BBErr e)
+  unclosedIfEOIErr s ss =
+    getBytes >>= \case
+      BS 0 _ => unclosedErr s
+      bs     => bounded (unexpectedErr ss)
+
+  ||| Fails with `unclosed` if this is the end of input or
+  ||| a linefeed character (`\n`, byte `0x0a`) was encountered,
+  ||| otherwise, invokes `unexpected`.
+  export
+  unclosedIfNLorEOIErr : HasBytes s => String -> List String -> F1 q (BBErr e)
+  unclosedIfNLorEOIErr s ss =
+    getBytes >>= \case
+      BS 0 _ => unclosedErr s
+      bs     =>
+        if elem 0x0a bs then unclosedErr s else bounded (unexpectedErr ss)
 
   ||| Writes the given exception to the `error` field of some
   ||| mutable state and returns the given result.
+  |||
+  ||| If another error occurred already (the content of `error sk` is
+  ||| not `Nothing`), the previous error will take precedence and will
+  ||| not be replaced.
   export %inline
-  failWith : (sk : s q) => BBErr e -> v -> F1 q v
-  failWith = writeAs (error sk) . Just
+  failWith : BBErr e -> v -> F1 q v
+  failWith x v =
+    read1 (error sk) >>= \case
+      Just _  => pure v
+      Nothing => writeAs (error sk) (Just x) v
 
   ||| Like `failWith`, but generates the bounds of the error from the
   ||| current position and the bytes read until the error occurred.
   export %inline
-  failHere : HasBytes s => (sk : s q) => InnerError e -> v -> F1 q v
+  failHere : HasBytes s => InnerError e -> v -> F1 q v
   failHere x res = T1.do
     bs <- bounds
     failWith (B x bs) res
+
+  export %inline
+  failUnexpected : HasBytes s => List String -> v -> F1 q v
+  failUnexpected vs v = unexpectedErr vs >>= flip failHere v
+
+  export %inline
+  failUnclosed : HasBytes s => String -> v -> F1 q v
+  failUnclosed s v = unclosedErr s >>= flip failWith v
+
+  export %inline
+  failUnclosedIfEOI : HasBytes s => String -> List String -> v -> F1 q v
+  failUnclosedIfEOI s ss v = unclosedIfEOIErr s ss >>= flip failWith v
 
 --------------------------------------------------------------------------------
 -- Terminals
@@ -518,48 +582,26 @@ parameters {auto he  : HasBBErr s e}
     ps <- startPos
     failWith (B err $ BB ps (incLen n ps)) res
 
-  export
+  export %inline
   unexpected : List String -> s q -> F1 q (BBErr e)
-  unexpected strs sk =
-    read1 (error sk) >>= \case
-      Just x  => pure x
-      Nothing => T1.do
-       bb <- bounds
-       bs <- getBytes
-       case bs of
-         BS 0 _  => pure (B EOI bb)
-         BS 1 bv =>
-          let b := bv `at` 0
-              s := String.singleton (cast b)
-           in case isAscii b of
-                True  => pure (B (Expected strs s) bb)
-                False => pure (B (InvalidByte b) bb)
-         _ => pure (B (Expected strs (toString bs)) bb)
+  unexpected strs sk = ifNoErrorRaised (bounded $ unexpectedErr strs)
 
-  export
+  export %inline
   unclosed : String -> s q -> F1 q (BBErr e)
-  unclosed str sk = T1.do
-    bnds <- popAndGetBounds (length str)
-    pure $ B (Unclosed str) bnds
+  unclosed str sk = ifNoErrorRaised (unclosedErr str)
 
   ||| Fails with `unclosed` if this is the end of input, otherwise
   ||| invokes `unexpected`.
-  export
+  export %inline
   unclosedIfEOI : String -> List String -> s q -> F1 q (BBErr e)
-  unclosedIfEOI s ss sk =
-    getBytes >>= \case
-      BS 0 _ => unclosed s sk
-      bs     => unexpected ss sk
+  unclosedIfEOI s ss sk = ifNoErrorRaised (unclosedIfEOIErr s ss)
 
   ||| Fails with `unclosed` if this is the end of input or
   ||| a linefeed character (`\n`, byte `0x0a`) was encountered,
   ||| otherwise, invokes `unexpected`.
-  export
+  export %inline
   unclosedIfNLorEOI : String -> List String -> s q -> F1 q (BBErr e)
-  unclosedIfNLorEOI s ss sk =
-    getBytes >>= \case
-      BS 0 _ => unclosed s sk
-      bs     => if elem 0x0a bs then unclosed s sk else unexpected ss sk
+  unclosedIfNLorEOI s ss sk = ifNoErrorRaised (unclosedIfNLorEOIErr s ss)
 
   export %inline
   errs :
