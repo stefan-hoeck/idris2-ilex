@@ -293,6 +293,10 @@ parameters {auto hs : HasStack s a}
   boundsWithStack f = bounds >>= withStack . f
 
   export %inline
+  posWithStack : HasBytes s => (BytePos -> a -> F1 q b) -> F1 q b
+  posWithStack f = startPos >>= withStack . f
+
+  export %inline
   boundedWithStack : HasBytes s => (ByteBounded x -> a -> F1 q b) -> x -> F1 q b
   boundedWithStack f v = bounds >>= withStack . f . B v
 
