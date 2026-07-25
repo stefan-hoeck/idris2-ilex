@@ -300,10 +300,25 @@ parameters {auto hs : HasStack s a}
   boundedWithStack : HasBytes s => (ByteBounded x -> a -> F1 q b) -> x -> F1 q b
   boundedWithStack f v = bounds >>= withStack . f . B v
 
+
 ||| Reads and updates the stack.
 export %inline
 modStackAs : (0 s : _) -> HasStack s a => s q => (a -> a) -> v -> F1 q v
 modStackAs _ f v = getStack >>= \x => putStackAs (f x) v
+
+export %inline
+posModStack :
+     (0 s : _)
+  -> {auto hb : HasBytes s}
+  -> {auto hs : HasStack s a}
+  -> {auto sk : s q}
+  -> (a -> BytePos -> a)
+  -> v
+  -> F1 q v
+posModStack s f v = T1.do
+  p <- startPos
+  x <- getStack
+  putStackAs (f x p) v
 
 --------------------------------------------------------------------------------
 -- Error Handling
