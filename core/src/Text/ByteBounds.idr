@@ -105,13 +105,13 @@ MapBounds a => MapBounds b => MapBounds (Either a b) where
   mapBounds f (Left x)  = Left $ mapBounds f x
   mapBounds f (Right x) = Right $ mapBounds f x
 
-export
-fromPos : BytePos -> ByteBounds -> ByteBounds
-fromPos p x = BB p p <+> x
+export %inline
+fromPos : Cast t ByteBounds => BytePos -> t -> ByteBounds
+fromPos p x = BB p p <+> cast x
 
-export
-tillPos : ByteBounds -> BytePos -> ByteBounds
-tillPos x p = x <+> BB p p
+export %inline
+tillPos : Cast t ByteBounds => t -> BytePos -> ByteBounds
+tillPos x p = cast x <+> BB p p
 
 export %inline
 Cast BytePos ByteBounds where cast b = BB b b
