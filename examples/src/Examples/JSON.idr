@@ -37,4 +37,4 @@ streamVals pths =
 
 covering
 main : IO ()
-main = runProg $ streamVals (P.tail args)
+main = runProg $ locError {x = InnerError Void} $ streamVals (P.tail args)

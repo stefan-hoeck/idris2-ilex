@@ -1,7 +1,7 @@
 module Text.ILex.FS
 
 import Data.Buffer
-import public FS
+import public FS.Posix
 import public Text.ILex
 import Syntax.T1
 import Text.ILex.Char.UTF8
@@ -15,7 +15,7 @@ import Text.ILex.Char.UTF8
 ||| This can be used with any non-backtracking parsers, but for large
 ||| amounts of data, the mutable parser stack must accumulate completely
 ||| parsed values and emit them after every chunk of bytes has been
-||| processed.
+||| processed in order not to overflow system memory.
 export
 streamParseErr :
      {auto has : Has ex es}
@@ -43,6 +43,8 @@ streamParseErr err prs pl = Prelude.do
           m   <- lift1 (prs.chunk st2.stack)
           consMaybe m (go st2 p2)
 
+||| Like `streamParseErr`, where the parse error is converted to
+||| an error of type `ByteError e`.
 export %inline
 streamParseFrom :
      {auto has : Has (ByteError e) es}
@@ -69,6 +71,8 @@ streamParse :
   -> Pull f a es x
 streamParse = streamParseErr id
 
+||| Runs a non-streaming parser to completion, emitting
+||| the last (and only) emitted value or the given default value.
 export %inline
 streamValErr :
      {auto has : Has ex es}
@@ -100,3 +104,25 @@ streamVal :
   -> Stream f es ByteString
   -> Pull f o es a
 streamVal = streamValErr id
+
+%inline
+adjBE : ByteError e -> (SnocList ByteString, x) -> ByteError e
+adjBE be z = {content := Just (fastConcat $ fst z <>> [])} be
+
+parameters {auto ph : PollH e}
+           {auto he : Has Errno es}
+
+  ||| Streams again the origin (if any) of a parsing error,
+  ||| adding the content to the error in order to provide an
+  ||| exact error location.
+  |||
+  ||| Attention: This will try and read the whole content of the
+  ||| origin into memory! If you are streaming a truly huge file,
+  ||| you will be better off with just accepting the less precise
+  ||| error message with only the byte bounds of the erroneous token.
+  export
+  locError : Has (ByteError x) es => AsyncPull e o es a -> AsyncPull e o es a
+  locError =
+    handleError (ByteError x) $ \x => case x.origin of
+      FileSrc p => readBytes p |> P.foldPair (:<) [<] |> (>>= throw . adjBE x)
+      Virtual   => throw x
