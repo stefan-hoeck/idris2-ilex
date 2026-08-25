@@ -4,7 +4,7 @@ authors = "stefan-hoeck"
 brief   = "Lexing streams of raw bytes"
 langversion >= 0.7
 depends = ilex
-        , streams
+        , streams-posix
         , elin
 
 sourcedir = "src"
