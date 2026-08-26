@@ -302,6 +302,9 @@ Interpolation e => Interpolation (ByteError e) where
 --          Conversion to (relative) Text Bounds
 --------------------------------------------------------------------------------
 
+MIN_LINES : Nat
+MIN_LINES = 5
+
 public export
 record Chunk where
   constructor CH
@@ -310,6 +313,21 @@ record Chunk where
   linesBefore : Nat
   lines       : Nat
 
+lineCount : ByteString -> Nat
+lineCount = foldr (\b,n => case b of {0xa => S n; _ => n}) 0
+
+export
+(.last) : Chunk -> BytePos
+b.last = incLen b.bytes.size b.first
+
+export
+(.next) : Chunk -> BytePos
+b.next = BP (b.first.pos + b.bytes.size)
+
+export
+(.linesAfter) : Chunk -> Nat
+b.linesAfter = b.linesBefore + b.lines
+
 public export
 data ByteRange : Type where
   Prefix : SnocList Chunk -> ByteRange
@@ -317,6 +335,41 @@ data ByteRange : Type where
   End    : SnocList Chunk -> ByteRange
   Done   : SnocList Chunk -> ByteRange
   None   : ByteRange
+
+containsEnd : ByteRange -> Bool
+containsEnd (End _)  = True
+containsEnd (Done _) = True
+containsEnd _        = False
+
+export
+chunks : ByteRange -> SnocList Chunk
+chunks (Prefix sx) = sx
+chunks (Start sx)  = sx
+chunks (End sx)    = sx
+chunks (Done sx)   = sx
+chunks None        = [<]
+
+lastChunk : SnocList Chunk -> Chunk
+lastChunk [<]    = CH empty 0 0 0
+lastChunk (_:<c) = c
+
+export
+nextChunk : Chunk -> ByteString -> Chunk
+
+pre : List Chunk -> SnocList Chunk -> Nat -> ByteRange
+
+export
+appendChunk : (s,e : BytePos) -> ByteRange -> ByteString -> ByteRange
+appendChunk s e br bs =
+ let cs  := chunks br
+     lc  := lastChunk cs
+     c   := nextChunk lc bs
+     cs2 := cs:<c
+  in case c.last >= e of
+       True  => if containsEnd br && c.lines > 0 then Done cs2 else End cs2
+       False => case c.first >= s of
+         True  => Start cs2
+         False => pre [] cs2 MIN_LINES
 
 ||| Given a sequence (or stream) of byte vectors, we want to find
 ||| a minimal chunk fully enclosing a given byte range, so that we
