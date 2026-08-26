@@ -32,6 +32,8 @@ jobs:
         run: pack typecheck ilex
       - name: Build examples
         run: pack --no-prompt typecheck ilex-examples
+      - name: Test ilex-core
+        run: pack --no-prompt test ilex-core
       - name: Test ilex
         run: pack --no-prompt test ilex
       - name: Run profiler
