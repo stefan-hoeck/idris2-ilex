@@ -3,6 +3,7 @@
 ||| errors when streaming large files.
 module Text.ByteRange
 
+import Debug.Trace
 import Derive.Prelude
 import public Data.ByteString
 import public Text.ByteBounds
@@ -117,10 +118,11 @@ appendChunk _ _ r          (BS 0 _)        = r
 appendChunk s e r          bs@(BS (S _) _) =
  let cs  := chunks r
      c   := nextChunk (lastChunk cs) bs
-     cs2 := cs:<c
+     cs2 := cs:< c
+     -- cs2 := cs:< trace "Current: \{show c}" c
   in case c.last >= e of
        True  => if containsEnd r && c.lines > 0 then Done cs2 else End cs2
-       False => case c.first >= s of
+       False => case c.last >= s of
          True  => Start cs2
          False => pre [] cs2 MIN_LINES
 

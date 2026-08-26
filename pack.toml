@@ -13,6 +13,7 @@ ipkg = "ilex-debug.ipkg"
 type = "local"
 path = "core"
 ipkg = "ilex-core.ipkg"
+test = "test/test.ipkg"
 
 [custom.all.ilex-streams]
 type = "local"
