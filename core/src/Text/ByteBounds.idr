@@ -297,3 +297,38 @@ prettyByteErr (BE o bb m err) =
 export %inline
 Interpolation e => Interpolation (ByteError e) where
   interpolate = prettyByteErr
+
+--------------------------------------------------------------------------------
+--          Conversion to (relative) Text Bounds
+--------------------------------------------------------------------------------
+
+public export
+record Chunk where
+  constructor CH
+  bytes       : ByteString
+  first       : BytePos
+  linesBefore : Nat
+  lines       : Nat
+
+public export
+data ByteRange : Type where
+  Prefix : SnocList Chunk -> ByteRange
+  Start  : SnocList Chunk -> ByteRange
+  End    : SnocList Chunk -> ByteRange
+  Done   : SnocList Chunk -> ByteRange
+  None   : ByteRange
+
+||| Given a sequence (or stream) of byte vectors, we want to find
+||| a minimal chunk fully enclosing a given byte range, so that we
+||| can pretty print that byte range.
+|||
+||| The chunk should fulfill the following prerequisites:
+|||  * fully contain all bytes given in the byte range
+|||  * contain the last five line breaks before the first
+|||    byte in the byte range, or - if there are not as many line breaks before
+|||    the error occurred - contain the first byte of the whole byte stream
+|||    so that we can print the whole line where
+|||    - for instance - an error occurred
+|||  * contain at least the next line-break *after* the last position
+export
+enclosingBytes : List ByteString -> (s,e : BytePos) -> ByteRange
