@@ -45,6 +45,11 @@ endPos from till =
     0 => BP till
     _ => BP (pred till)
 
+||| Returns the offset of the second byte position relative to the first.
+export
+offsetTo : (ref,p : BytePos) -> BytePos
+offsetTo ref p = BP (p.pos `minus` ref.pos)
+
 --------------------------------------------------------------------------------
 --          ByteBounds
 --------------------------------------------------------------------------------

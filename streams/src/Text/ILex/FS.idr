@@ -1,10 +1,12 @@
 module Text.ILex.FS
 
 import Data.Buffer
+import Data.SnocList
+import Syntax.T1
+import Text.ByteRange
+import Text.ILex.Char.UTF8
 import public FS.Posix
 import public Text.ILex
-import Syntax.T1
-import Text.ILex.Char.UTF8
 
 %hide Data.Linear.(.)
 %default total
@@ -105,12 +107,31 @@ streamVal :
   -> Pull f o es a
 streamVal = streamValErr id
 
-%inline
-adjBE : ByteError e -> (SnocList ByteString, x) -> ByteError e
-adjBE be z = {content := Just (fastConcat $ fst z <>> [])} be
+--------------------------------------------------------------------------------
+-- Error Localization
+--------------------------------------------------------------------------------
+
+||| Re-runs a stream of bytes to provide proper text bounds
+||| (start and end line as well as start and end column)
+||| of some byte bounds.
+export
+locateBounds :
+     {auto h : HasIO (f es)}
+  -> ByteBounds
+  -> Stream f es ByteString
+  -> Pull f o es (Maybe TextBounds)
+locateBounds NoBB           bs = pure Nothing
+locateBounds (BB start end) bs =
+     P.scans1 None (appendChunk start end) bs
+  |> P.takeThrough (not . isDone)
+  |> P.lastOr None
+  |> map (textBounds start end)
 
 parameters {auto ph : PollH e}
            {auto he : Has Errno es}
+           (0 x     : Type)
+           {auto hb : Has (ByteError x) es}
+           {auto hf : Has (FCErr x) es}
 
   ||| Streams again the origin (if any) of a parsing error,
   ||| adding the content to the error in order to provide an
@@ -121,8 +142,10 @@ parameters {auto ph : PollH e}
   ||| you will be better off with just accepting the less precise
   ||| error message with only the byte bounds of the erroneous token.
   export
-  locError : Has (ByteError x) es => AsyncPull e o es a -> AsyncPull e o es a
+  locError : AsyncPull e o es a -> AsyncPull e o es a
   locError =
     handleError (ByteError x) $ \x => case x.origin of
-      FileSrc p => readBytes p |> P.foldPair (:<) [<] |> (>>= throw . adjBE x)
+      FileSrc p => Prelude.do
+        m <- locateBounds x.bounds (readBytes p)
+        maybe (throw x) (throw . toFCErr x) m
       Virtual   => throw x

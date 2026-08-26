@@ -10,5 +10,6 @@ sourcedir = "src"
 
 modules = Text.Bounds
         , Text.ByteBounds
+        , Text.ByteRange
         , Text.FC
         , Text.ParseError
