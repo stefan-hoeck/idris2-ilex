@@ -3,10 +3,12 @@
 ||| errors when streaming large files.
 module Text.ByteRange
 
+import Derive.Prelude
 import public Data.ByteString
 import public Text.ByteBounds
 
 %default total
+%language ElabReflection
 
 MIN_LINES : Nat
 MIN_LINES = 5
@@ -29,6 +31,8 @@ record Chunk where
   lines       : Nat
 
   {auto 0 prf : IsSucc bytes.size}
+
+%runElab derive "Chunk" [Show]
 
 %inline
 lineCount : ByteString -> Nat
@@ -60,7 +64,7 @@ dropPartialLine : Chunk -> SnocList Chunk
 dropPartialLine c =
  let (pre, BS (S $ S k) pst) := break (0xa ==) c.bytes | _ => [<]
      p         := BP $ c.first.pos + pre.size + 1
-  in [<CH (BS (S k) $ tail pst) 1 (S c.linesBefore) (pred c.lines)]
+  in [<CH (BS (S k) $ tail pst) p (S c.linesBefore) (pred c.lines)]
 
 ||| A sequence of chunks, describing if it holds some start
 ||| and end position.
@@ -72,6 +76,9 @@ data ByteRange : Type where
   Done   : SnocList Chunk -> ByteRange
   None   : ByteRange
 
+%runElab derive "ByteRange" [Show]
+
+export %inline
 isDone : ByteRange -> Bool
 isDone (Done _) = True
 isDone _        = False
@@ -149,6 +156,8 @@ record TextBounds where
   ||| byte sequence.
   relative : Bounds
 
+%runElab derive "TextBounds" [Show,Eq]
+
 bounds : (line : Nat) -> ByteBounds -> ByteString -> TextBounds
 bounds line bb bs =
  let ini := P line 0
@@ -161,9 +170,8 @@ bounds line bb bs =
 ||| returns the proper text bounds - or `Nothing` if
 ||| something went wrong.
 export
-textBounds : ByteBounds -> ByteRange -> Maybe TextBounds
-textBounds NoBB     _ = Nothing
-textBounds (BB s e) r =
+textBounds : (start, end : BytePos) -> ByteRange -> Maybe TextBounds
+textBounds s e r =
   case containsEnd r of
     False => Nothing
     True  =>
@@ -172,7 +180,6 @@ textBounds (BB s e) r =
          o     := c.first
       in Just $ bounds c.linesBefore (BB (offsetTo o s) (offsetTo o e)) bs
 
-export
-toFCErr : ByteError e -> ByteRange -> Maybe (FCErr e)
-toFCErr (BE o bs m x) r =
-  (\(TB c a r) => PE o a r (Just c) x) <$> textBounds bs r
+export %inline
+toFCErr : ByteError e -> TextBounds -> FCErr e
+toFCErr (BE o _ _ x) (TB c a r) = PE o a r (Just c) x

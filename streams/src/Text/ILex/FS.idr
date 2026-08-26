@@ -3,6 +3,7 @@ module Text.ILex.FS
 import Data.Buffer
 import Data.SnocList
 import Syntax.T1
+import Text.ByteRange
 import Text.ILex.Char.UTF8
 import public FS.Posix
 import public Text.ILex
@@ -110,88 +111,27 @@ streamVal = streamValErr id
 -- Error Localization
 --------------------------------------------------------------------------------
 
-MIN_LINES : Nat
-MIN_LINES = 10
-
--- When reconstructing the exact location of an error in a file
--- from its byte positions, we stream the file again keeping track
--- of the number of lines encountered and the start and end
--- position of each chunk of bytes.
---
--- In order to be memory efficient, we hold onto at most the last
--- ten lines encountered but make sure to include the whole byte sequence
--- where the error occurred.
-record Bytes where
-  constructor B
-  bytes       : ByteString
-  first       : BytePos
-  linesBefore : Nat
-  lines       : Nat
-
-lineCount : ByteString -> Nat
-lineCount = foldr (\b,n => case b of {0xa => S n; _ => n}) 0
-
-(.last) : Bytes -> BytePos
-b.last = incLen b.bytes.size b.first
-
-(.next) : Bytes -> BytePos
-b.next = BP (b.first.pos + b.bytes.size)
-
-(.linesAfter) : Bytes -> Nat
-b.linesAfter = b.linesBefore + b.lines
-
--- keep chunks until we have enough linebreak characters
--- but make sure that we do not drop any chunks that come
--- after the start position
-takeLines : BytePos -> List Bytes -> SnocList Bytes -> Nat -> SnocList Bytes
-takeLines _ bs [<]     _ = [<] <>< bs
-takeLines s bs (sb:<b) 0 =
-  if b.first > s then takeLines s (b::bs) sb 0 else [<] <>< bs
-takeLines s bs (sb:<b) n = takeLines s (b::bs) sb (n `minus` b.lines)
-
-appendBytes : BytePos -> SnocList Bytes -> ByteString -> SnocList Bytes
-appendBytes s [<]     bs = [<B bs 0 0 $ lineCount bs]
-appendBytes s (sb:<b) bs =
-  takeLines s [] (sb:<b:< B bs b.next b.linesAfter (lineCount bs)) MIN_LINES
-
-done : BytePos -> SnocList Bytes -> Bool
-done e [<]      = False
-done e (_ :< b) = b.last >= e
-
-%inline
-adjBE : ByteError e -> (SnocList ByteString, x) -> ByteError e
-adjBE be z = {content := Just (fastConcat $ fst z <>> [])} be
-
-public export
-data TextBounds : Type where
-  None : TextBounds
-  TB   : String -> (absolute, relative : Bounds) -> TextBounds
-
-adjustBounds : (s,e : BytePos) -> SnocList Bytes -> TextBounds
-adjustBounds s e sb =
-  case sum (map lines sb) >= MIN_LINES of
-    -- we did not encounter the minimum number of lines requires,
-    -- so `sb` will hold all the byte chunks we streamed.
-    False => ?falsecase
-
-    -- we are in the middle of the byte stream and must figure out
-    -- our current position.
-    True  => ?truecase
-
 ||| Re-runs a stream of bytes to provide proper text bounds
 ||| (start and end line as well as start and end column)
 ||| of some byte bounds.
 export
-locateBounds : ByteBounds -> Stream f es ByteString -> Pull f o es TextBounds
-locateBounds NoBB           bs = pure None
+locateBounds :
+     {auto h : HasIO (f es)}
+  -> ByteBounds
+  -> Stream f es ByteString
+  -> Pull f o es (Maybe TextBounds)
+locateBounds NoBB           bs = pure Nothing
 locateBounds (BB start end) bs =
-     P.scans1 [<] (appendBytes start) bs
-  |> P.takeThrough (done end)
-  |> P.lastOr [<]
-  |> map (adjustBounds start end)
+     P.scans1 None (appendChunk start end) bs
+  |> P.takeThrough (not . isDone)
+  |> P.lastOr None
+  |> map (textBounds start end)
 
 parameters {auto ph : PollH e}
            {auto he : Has Errno es}
+           (0 x     : Type)
+           {auto hb : Has (ByteError x) es}
+           {auto hf : Has (FCErr x) es}
 
   ||| Streams again the origin (if any) of a parsing error,
   ||| adding the content to the error in order to provide an
@@ -202,8 +142,10 @@ parameters {auto ph : PollH e}
   ||| you will be better off with just accepting the less precise
   ||| error message with only the byte bounds of the erroneous token.
   export
-  locError : Has (ByteError x) es => AsyncPull e o es a -> AsyncPull e o es a
+  locError : AsyncPull e o es a -> AsyncPull e o es a
   locError =
     handleError (ByteError x) $ \x => case x.origin of
-      FileSrc p => readBytes p |> P.foldPair (:<) [<] |> (>>= throw . adjBE x)
+      FileSrc p => Prelude.do
+        m <- locateBounds x.bounds (readBytes p)
+        maybe (throw x) (throw . toFCErr x) m
       Virtual   => throw x
