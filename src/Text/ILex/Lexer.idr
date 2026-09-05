@@ -1,6 +1,7 @@
 module Text.ILex.Lexer
 
 import public Data.Array
+import public Data.Enum
 import public Data.List
 import public Data.Prim.Bits32
 import public Text.ILex.RExp
@@ -18,29 +19,6 @@ import Text.ILex.Internal.Types
 
 %default total
 %language ElabReflection
-
-public export
-record Index (n : Bits32) where
-  constructor I
-  val : Bits32
-  {auto 0 prf : val < n}
-
-%runElab deriveIndexed "Index" [Show,Eq,Ord]
-
-export
-toIndex : {r : _} -> Bits32 -> Maybe (Index r)
-toIndex n =
-  case lt n r of
-    Nothing0 => Nothing
-    Just0 v  => Just (I n)
-
-public export
-fromInteger : (n : Integer) -> (0 p : cast n < r) => Index r
-fromInteger n = I (cast n)
-
-public export
-Ini : (0 prf : 0 < n) => Index n
-Ini = I 0
 
 public export
 record Env (q : Type) (s : Type -> Type) where
