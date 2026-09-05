@@ -456,7 +456,7 @@ QSz = 2
 ```
 
 Our lexer can be in one of two states: `0`, which is the default
-state and is predefined as `Ini`, and `InStr`, which let's us know
+state and is predefined as `Zero`, and `InStr`, which let's us know
 that we are currently inside a quoted string token:
 
 ```idris
@@ -531,14 +531,14 @@ lexStr =
 
 Function `closeStr` is more involved: In this case, we need to manually
 construct the token bounds, append the bounded token to the list of
-recognized tokens, and change the parser state back to `Ini`:
+recognized tokens, and change the parser state back to `Zero`:
 
 ```idris
 closeStr = T1.do
   bs <- closeBounds
   s  <- getStr
   push1 x.stack_ (B (Txt1 s) bs)
-  pure Ini
+  pure Zero
 ```
 
 We now wrap up the different lexers in an array of lexers, which
@@ -546,7 +546,7 @@ describes the possible state transformations for every parser state.
 
 ```idris
 quotedTrans : Lex1 q QSz QSTCK
-quotedTrans = lex1 [E Ini lexInit, E InStr lexStr]
+quotedTrans = lex1 [E Zero lexInit, E InStr lexStr]
 ```
 
 ### Error Handling
@@ -573,7 +573,7 @@ a result or fail with an error:
 ```idris
 quotedEOI : QST -> QSTCK q -> F1 q (Either (BBErr Void) (Toks CSV1))
 quotedEOI st x =
-  case st == Ini of
+  case st == Zero of
     False => arrFail QSTCK quotedErr st x
     True  => getList x.stack_ >>= pure . Right
 ```
@@ -584,7 +584,7 @@ streaming large amounts of data:
 
 ```idris
 csv1_3 : P1 q (BBErr Void) (Toks CSV1)
-csv1_3 = P Ini (init [<]) quotedTrans snocChunk quotedErr quotedEOI
+csv1_3 = P Zero (init [<]) quotedTrans snocChunk quotedErr quotedEOI
 ```
 
 ## Parsing CSV Files
@@ -704,7 +704,7 @@ sure we add an empty `Null` cell in case we encounter two
 consecutive commas or a comma followed by a line break. Also,
 there must not be two consecutive values, and we want to know
 whether we are currently parsing a quoted string or not. This
-leads to four distinct parser states (the initial state `Ini`
+leads to four distinct parser states (the initial state `Zero`
 marks the beginning of a line). However, we add one more state,
 which will only be reached when we encounter an unescaped line break
 inside a quoted string: In our case, this is interpreted as an error,
@@ -755,10 +755,10 @@ onNL : (x : CSTCK q) => (afterComma : Bool) -> F1 q CST
 onNL afterComma = T1.do
   mod1 x.line S
   when1 afterComma (push1 x.cells Null)
-  cs@(_::_) <- getList x.cells | [] => pure Ini
+  cs@(_::_) <- getList x.cells | [] => pure Zero
   ln <- read1 x.line
   push1 x.lines (L ln cs)
-  pure Ini
+  pure Zero
 ```
 
 With the above, we can already define the default lexer.
@@ -816,7 +816,7 @@ it will automatically be given the empty automaton that always fails):
 csvSteps : Lex1 q CSz CSTCK
 csvSteps =
   lex1
-    [ E Ini (csvDflt False)
+    [ E Zero (csvDflt False)
     , E Val $ dfa [step' ',' Com, step linebreak (onNL False)]
     , E Str csvStr
     , E Com (csvDflt True)
@@ -851,7 +851,7 @@ And here's the final CSV parser:
 
 ```idris
 csv : P1 q (BBErr Void) Table
-csv = P Ini cinit csvSteps snocChunk csvErr csvEOI
+csv = P Zero cinit csvSteps snocChunk csvErr csvEOI
 ```
 
 A quick note about the `snocChunk` part: Since the parsers
