@@ -125,13 +125,13 @@ lexEOI :
   -> s q
   -> F1 q (Either (BBErr e) $ List a)
 lexEOI i sk =
-  if i == Ini
+  if i == Zero
      then getList (stack sk) >>= pure . Right
      else unexpected [] sk >>= pure . Left
 
 export
 lexer : {r : _} -> (0 lt : 0 < r) => Steps q r (Stack e (Skot a) r) -> L1 q e a
-lexer m = P Ini (init [<]) (lex1 [E Ini $ dfa m]) snocChunk (errs []) lexEOI
+lexer m = P Zero (init [<]) (lex1 [E Zero $ dfa m]) snocChunk (errs []) lexEOI
 
 --------------------------------------------------------------------------------
 -- Values
