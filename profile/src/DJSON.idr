@@ -2,7 +2,7 @@ module DJSON
 
 import Data.String
 import Derive.Prelude
-import Text.ILex.Derive
+import Text.ILex.State.Derive
 import JSON.Parser
 import Text.ILex
 import Syntax.T1
@@ -77,7 +77,7 @@ record DSK (q : Type) where
   -- Error handling
   error_     : Ref q (Maybe $ BBErr Void)
 
-%runElab derive "DSK" [FullStack]
+%runElab derive "DSK" [FullState]
 
 ||| Initializes a new parser stack.
 export

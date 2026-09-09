@@ -1,9 +1,9 @@
-module Text.ILex.Stack
+module Text.ILex.State.Regular
 
 import Data.Linear.Ref1
 import Syntax.T1
 import Text.ByteBounds
-import Text.ILex.Derive
+import Text.ILex.State.Derive
 import Text.ILex.Interfaces
 import Text.ILex.Parser
 import Text.ILex.Util
@@ -16,10 +16,10 @@ import Text.ParseError
 %language ElabReflection
 
 --------------------------------------------------------------------------------
--- General Purpose Stack
+-- General Purpose Parser State
 --------------------------------------------------------------------------------
 
-||| A general-purpose mutable parser stack that can be used in many common
+||| A general-purpose mutable parser state that can be used in many common
 ||| situation, such as when needing just a lexer or wanting to parse
 ||| a single value of a simple type.
 |||
@@ -30,7 +30,7 @@ import Text.ParseError
 ||| language, you're probably going to need quite a few custom fields, so
 ||| feel free to come up with your own.
 public export
-record Stack (e,a : Type) (r : Bits32) (q : Type) where
+record State (e,a : Type) (r : Bits32) (q : Type) where
   [search q]
   constructor S
   -- Position and token bounds
@@ -55,11 +55,11 @@ record Stack (e,a : Type) (r : Bits32) (q : Type) where
   -- Error handling
   error_     : Ref q (Maybe $ BBErr e)
 
-%runElab derive "Stack" [FullStack]
+%runElab derive "State" [FullState]
 
 ||| Initializes a new parser stack.
 export
-init : (0 p : 0 < r) => a -> (n : Nat) -> IBuffer n -> F1 q (Stack e a r q)
+init : (0 p : 0 < r) => a -> (n : Nat) -> IBuffer n -> F1 q (State e a r q)
 init v n buf = T1.do
   rf <- ref1 (first n)
   rt <- ref1 (first n)
@@ -130,7 +130,7 @@ lexEOI i sk =
      else unexpected [] sk >>= pure . Left
 
 export
-lexer : {r : _} -> (0 lt : 0 < r) => Steps q r (Stack e (Skot a) r) -> L1 q e a
+lexer : {r : _} -> (0 lt : 0 < r) => Steps q r (State e (Skot a) r) -> L1 q e a
 lexer m = P Zero (init [<]) (lex1 [E Zero $ dfa m]) snocChunk (errs []) lexEOI
 
 --------------------------------------------------------------------------------
@@ -170,7 +170,7 @@ bytes f = Bytes (Right . f)
 
 toStep :
      (RExpOf True b, Token e a)
-  -> (RExpOf True b, Step q VSz (Stack e (Maybe a) VSz))
+  -> (RExpOf True b, Step q VSz (State e (Maybe a) VSz))
 toStep (x,c) =
   case c of
     Ignore  => ignore x
@@ -186,11 +186,11 @@ toStep (x,c) =
 
 ignore :
      (RExpOf True b, Token e a)
-  -> Maybe (RExpOf True b, Step q VSz (Stack e (Maybe a) VSz))
+  -> Maybe (RExpOf True b, Step q VSz (State e (Maybe a) VSz))
 ignore (x,Ignore) = Just $ ignore x
 ignore _          = Nothing
 
-valEOI : VST -> Stack e (Maybe a) VSz q -> F1 q (Either (BBErr e) a)
+valEOI : VST -> State e (Maybe a) VSz q -> F1 q (Either (BBErr e) a)
 valEOI i sk =
   if i == VDone || i == VIni
      then replace1 sk.stack_ Nothing >>= \case

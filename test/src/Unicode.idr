@@ -5,6 +5,7 @@ import Hedgehog
 import Hedgehog.Gen.Unicode as HU
 import Runner
 import Text.ILex
+import Text.ILex.State.Regular
 import Text.ILex.RExp.Unicode as U
 
 %default total

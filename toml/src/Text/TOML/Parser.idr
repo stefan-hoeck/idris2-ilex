@@ -3,14 +3,16 @@ module Text.TOML.Parser
 import Data.SortedMap
 import Data.String
 import Data.Linear.Ref1
-import Text.ILex.Derive
 import Text.ILex
+import Text.ILex.State.Derive
+import Text.ILex.State.Regular
 import Text.TOML.Lexer
 import Text.TOML.Types
 import Text.TOML.Internal.TStack
 import Syntax.T1
 
 %hide Data.Linear.(.)
+%hide Data.Linear.Ref1.ST
 %default total
 %language ElabReflection
 
@@ -54,14 +56,14 @@ empty = STop VR [<] empty
   ]
 
 public export
-0 TSTCK : Type -> Type
-TSTCK = Stack TomlParseError TStack TSz
+0 ST : Type -> Type
+ST = State TomlParseError TStack TSz
 
 --------------------------------------------------------------------------------
 -- Tables and Values
 --------------------------------------------------------------------------------
 
-parameters {auto sk : TSTCK q}
+parameters {auto sk : ST q}
 
   addkey : KeyType -> ByteBounded String -> F1 q TST
   addkey kt (B s bs) =
@@ -128,37 +130,37 @@ parameters {auto sk : TSTCK q}
   qstr s = getStack >>= onval (TStr s)
 
 %inline
-val : a -> (ByteString -> TomlValue) -> (a, Step q TSz TSTCK)
+val : a -> (ByteString -> TomlValue) -> (a, Step q TSz ST)
 val x f = bytes x $ \bs => getStack >>= onval (f bs)
 
-valE : a -> (ByteString -> AnyTime) -> (a, Step q TSz TSTCK)
+valE : a -> (ByteString -> AnyTime) -> (a, Step q TSz ST)
 valE x f =
   bytes x $ \bs => case extraCheckDate (f bs) of
     Right v => getStack >>= onval (TTime v)
     Left  x => raise (Custom $ InvalidLeapDay x) (size bs) Err
 
 %inline
-val' : a -> TomlValue -> (a, Step q TSz TSTCK)
+val' : a -> TomlValue -> (a, Step q TSz ST)
 val' x = val x . const
 
 --------------------------------------------------------------------------------
 -- Lexer Steps
 --------------------------------------------------------------------------------
 
-tomlSpaced : Steps q TSz TSTCK -> DFA q TSz TSTCK
+tomlSpaced : Steps q TSz ST -> DFA q TSz ST
 tomlSpaced ss = dfa $ ignore (plus wschar) :: ss
 
-tomlIgnore : TST -> Steps q TSz TSTCK -> DFA q TSz TSTCK
+tomlIgnore : TST -> Steps q TSz ST -> DFA q TSz ST
 tomlIgnore nl ss = tomlSpaced $ [ignore comment, step' newline nl] ++ ss
 
-keySteps : Steps q TSz TSTCK
+keySteps : Steps q TSz ST
 keySteps =
   [ string unquotedKey onkey
   , opn' '\'' LKey
   , opn' '"'  QKey
   ]
 
-valSteps : Steps q TSz TSTCK
+valSteps : Steps q TSz ST
 valSteps =
   [ val' "true"  (TBool True)
   , val' "false" (TBool False)
@@ -197,7 +199,7 @@ valSteps =
   , val' #"''"# (TStr "")
   ]
 
-escapes : TST -> Steps q TSz TSTCK
+escapes : TST -> Steps q TSz ST
 escapes res =
     [ string (plus basicUnescaped) (pushStr res)
     , step #"\""# (pushStr res "\"")
@@ -212,7 +214,7 @@ escapes res =
     , bytes ("\\U" >> repeat 8 hexdigit) (escape res)
     ]
 
-mlqDFA : DFA q TSz TSTCK
+mlqDFA : DFA q TSz ST
 mlqDFA =
   dfa $
     [ closeStr #"""""# qstr
@@ -224,7 +226,7 @@ mlqDFA =
     , step' mlbEscapedNL MLQStr
     ] ++ escapes MLQStr
 
-mllDFA : DFA q TSz TSTCK
+mllDFA : DFA q TSz ST
 mllDFA =
   dfa $
     [ closeStr "'''" qstr
@@ -240,7 +242,7 @@ mllDFA =
 -- State Transitions
 --------------------------------------------------------------------------------
 
-tomlTrans : Lex1 q TSz TSTCK
+tomlTrans : Lex1 q TSz ST
 tomlTrans =
   lex1
     [ E TIni $ tomlIgnore TIni (keySteps ++ [opn '[' openStdTable, opn "[[" openArrayTable])
@@ -264,7 +266,7 @@ tomlTrans =
     , E EOL  $ tomlIgnore TIni []
     ]
 
-tomlErr : Arr32 TSz (TSTCK q -> F1 q TErr)
+tomlErr : Arr32 TSz (ST q -> F1 q TErr)
 tomlErr =
   arr32 TSz (unexpected [])
     [ E ANew $ unclosedIfEOI "[" []
@@ -284,12 +286,12 @@ tomlErr =
     , E ASep $ unclosedIfNLorEOI "[[" [".", "]]"]
     ]
 
-tomlEOI : TST -> TSTCK q -> F1 q (Either TErr TomlTable)
+tomlEOI : TST -> ST q -> F1 q (Either TErr TomlTable)
 tomlEOI st sk =
   case st == TIni || st == EOL of
-    False => arrFail TSTCK tomlErr st sk
+    False => arrFail ST tomlErr st sk
     True  => getStack >>= pure . toTable
 
-public export
+export
 toml : P1 q TErr TomlTable
 toml = P TIni (init empty) tomlTrans (\x => (Nothing #)) tomlErr tomlEOI
