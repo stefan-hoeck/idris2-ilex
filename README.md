@@ -55,6 +55,7 @@ import IO.Async.Loop.Epoll
 import IO.Async.Loop.Posix
 import Syntax.T1
 import Text.ILex.FS
+import Text.ILex.State.Regular
 
 %default total
 %language ElabReflection
@@ -432,11 +433,11 @@ lexers, depending on whether we are currently
 in a quoted string token or not.
 
 ```idris
-0 QSTCK : Type -> Type
-QSTCK = Stack Void (Skot CSV1) 2
+0 QST : Type -> Type
+QST = State Void (Skot CSV1) 2
 ```
 
-Parser stack `QSTCK q` is a wrapper around several mutable references
+Parser state `QST q` is a wrapper around several mutable references
 that can be manipulated in state-thread `q`. `Skot a` is an alias
 for `SnocList (ByteBounded a)` (its `Toks` in reverse, `Toks` being
 an alias for `List . ByteBounded`).
@@ -460,10 +461,10 @@ state and is predefined as `Zero`, and `InStr`, which let's us know
 that we are currently inside a quoted string token:
 
 ```idris
-QST : Type
-QST = Index QSz
+QLexer : Type
+QLexer = Index QSz
 
-InStr : QST
+InStr : QLexer
 InStr = 1
 ```
 
@@ -481,7 +482,7 @@ was recognized. For the initial state, almost nothing changes
 compared to `csv1_2`:
 
 ```idris
-lexInit : DFA q 2 QSTCK
+lexInit : DFA q 2 QST
 lexInit =
   dfa
     [ tok ',' Comma1
@@ -498,7 +499,7 @@ lexInit =
 converts a list of pairs (regular expressions plus state transformations)
 to such an automaton.
 
-As you can see, since `QSTCK` implements interfaces `LC` and `LexST`,
+As you can see, since `QST` implements interfaces `LC` and `LexST`,
 we can just reuse the utilities from the previous example. However,
 we no longer recognize a whole quoted string but just the opening
 quote. We use the `copen` utility, which will push the current
@@ -515,9 +516,9 @@ and append the recognized, concatenated string to the list of tokens.
 Here are the necessary utilities and token map:
 
 ```idris
-closeStr : (x : QSTCK q) => F1 q QST
+closeStr : (x : QST q) => F1 q QLexer
 
-lexStr : DFA q QSz QSTCK
+lexStr : DFA q QSz QST
 lexStr =
   dfa
     [ step #""""# $ pushStr InStr "\""
@@ -545,7 +546,7 @@ We now wrap up the different lexers in an array of lexers, which
 describes the possible state transformations for every parser state.
 
 ```idris
-quotedTrans : Lex1 q QSz QSTCK
+quotedTrans : Lex1 q QSz QST
 quotedTrans = lex1 [E Zero lexInit, E InStr lexStr]
 ```
 
@@ -561,7 +562,7 @@ from the array and passed the parser stack and byte sequence
 parsed so far:
 
 ```idris
-quotedErr : Arr32 QSz (QSTCK q -> F1 q (BBErr Void))
+quotedErr : Arr32 QSz (QST q -> F1 q (BBErr Void))
 quotedErr = arr32 QSz (unexpected []) [E InStr $ unclosedIfEOI "\"" []]
 ```
 
@@ -571,10 +572,10 @@ end in any state except within a quoted string) and either produce
 a result or fail with an error:
 
 ```idris
-quotedEOI : QST -> QSTCK q -> F1 q (Either (BBErr Void) (Toks CSV1))
+quotedEOI : QLexer -> QST q -> F1 q (Either (BBErr Void) (Toks CSV1))
 quotedEOI st x =
   case st == Zero of
-    False => arrFail QSTCK quotedErr st x
+    False => arrFail QST quotedErr st x
     True  => getList x.stack_ >>= pure . Right
 ```
 

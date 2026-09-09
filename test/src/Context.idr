@@ -7,6 +7,7 @@ import Hedgehog
 import Runner
 import Syntax.T1
 import Text.ILex
+import Text.ILex.State.Regular
 
 %default total
 %hide Data.Linear.(.)
@@ -34,14 +35,14 @@ SLit, SStr : Index 2
 SLit = 0
 SStr = 1
 
-0 SK : Type -> Type
-SK = Stack Void (SnocList $ ByteBounded Lit) 2
+0 ST : Type -> Type
+ST = State Void (SnocList $ ByteBounded Lit) 2
 
 --------------------------------------------------------------------------------
 -- Transformations
 --------------------------------------------------------------------------------
 
-closeStr : (x : SK q) => ByteBounds -> F1 q (Index 2)
+closeStr : (x : ST q) => ByteBounds -> F1 q (Index 2)
 closeStr bs = T1.do
   s  <- getStr
   push1 x.stack_ (B (SL s) bs)
@@ -50,7 +51,7 @@ closeStr bs = T1.do
 chars : RExp True
 chars = plus $ dot && not '"' && not '\\'
 
-lit1 : Lex1 q 2 SK
+lit1 : Lex1 q 2 ST
 lit1 =
   lex1
     [ E SLit $ dfa $ jsonSpaced
@@ -65,13 +66,13 @@ lit1 =
         ]
     ]
 
-litErr : Arr32 2 (SK q -> F1 q (BBErr Void))
+litErr : Arr32 2 (ST q -> F1 q (BBErr Void))
 litErr = errs [E SStr $ unclosedIfEOI "\"" []]
 
-leoi : Index 2 -> SK q -> F1 q (Either (BBErr Void) $ List (ByteBounded Lit))
+leoi : Index 2 -> ST q -> F1 q (Either (BBErr Void) $ List (ByteBounded Lit))
 leoi sk s =
   case sk == SLit of
-    False => arrFail SK litErr sk s
+    False => arrFail ST litErr sk s
     True  => replace1 s.stack_ [<] >>= pure . Right . (<>> [])
 
 export

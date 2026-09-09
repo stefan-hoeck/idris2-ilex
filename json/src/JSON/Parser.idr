@@ -5,11 +5,13 @@ import Data.Buffer
 import Data.Linear.Ref1
 import Derive.Prelude
 import Syntax.T1
-import Text.ILex.Derive
+import Text.ILex.State.Derive
+import Text.ILex.State.Regular
 import public Text.ILex
 
 %default total
 %hide Data.Linear.(.)
+%hide Data.Linear.Ref1.ST
 %language ElabReflection
 
 ||| We cannot use `cast` to convert all valid JSON numbers
@@ -128,26 +130,26 @@ dropNull x            = x
 %runElab deriveParserState "JSz" "JST"
   ["JIni","ANew","AVal","ACom","ONew","OVal","OCom","OLbl","OCol","JStr","JDone"]
 
-data Part : Type where
-  PA : Part -> SnocList JSON -> Part -- partial array
-  PO : Part -> SnocList (String,JSON) -> Part -- partial object
-  PL : Part -> SnocList (String,JSON) -> String -> Part -- partial object
-  PI : Part -- initial value
-  PV : SnocList JSON -> Part -- initial value for value streaming
-  PF : JSON -> Part -- final value
+data Stack : Type where
+  PA : Stack -> SnocList JSON -> Stack -- partial array
+  PO : Stack -> SnocList (String,JSON) -> Stack -- partial object
+  PL : Stack -> SnocList (String,JSON) -> String -> Stack -- partial object
+  PI : Stack -- initial value
+  PV : SnocList JSON -> Stack -- initial value for value streaming
+  PF : JSON -> Stack -- final value
 
 public export
-0 SK : Type -> Type
-SK = Stack Void Part JSz
+0 ST : Type -> Type
+ST = State Void Stack JSz
 
 --------------------------------------------------------------------------------
 -- Transformations
 --------------------------------------------------------------------------------
 
-parameters {auto sk : SK q}
+parameters {auto sk : ST q}
 
   %inline
-  part : JSON -> Part -> F1 q JST
+  part : JSON -> Stack -> F1 q JST
   part v (PA p sy)   = putStackAs (PA p (sy :< v)) AVal
   part v (PL p sy l) = putStackAs (PO p (sy :< (l,v))) OVal
   part v (PV sy)     = putStackAs (PV (sy :< v)) JIni
@@ -177,7 +179,7 @@ parameters {auto sk : SK q}
 --------------------------------------------------------------------------------
 
 %inline
-spaced : Steps q r SK -> DFA q r SK
+spaced : Steps q r ST -> DFA q r ST
 spaced = dfa . jsonSpaced
 
 export
@@ -188,7 +190,7 @@ jsonDouble =
    in opt '-' >> decimal >> opt frac >> opt exp
 
 %inline
-valTok : Steps q JSz SK -> DFA q JSz SK
+valTok : Steps q JSz ST -> DFA q JSz ST
 valTok ts =
   spaced $
     [ step "null"  (onVal JNull)
@@ -196,8 +198,8 @@ valTok ts =
     , step "false" (onVal $ JBool False)
     , bytes (opt '-' >> decimal) (onVal . JInteger . Util.integer)
     , string jsonDouble (onVal . JDouble . jdouble)
-    , opn '{' (modStackAs SK (`PO` [<]) ONew)
-    , opn '[' (modStackAs SK (`PA` [<]) ANew)
+    , opn '{' (modStackAs ST (`PO` [<]) ONew)
+    , opn '[' (modStackAs ST (`PA` [<]) ANew)
     , opn' '"' JStr
     ] ++ ts
 
@@ -217,7 +219,7 @@ jchar : RExp True
 jchar = range32 0x20 0x10ffff && not '"' && not '\\'
 
 %inline
-strTok : DFA q JSz SK
+strTok : DFA q JSz ST
 strTok =
   dfa
     [ closeStr '"' endStr
@@ -237,7 +239,7 @@ strTok =
 -- Parsers
 --------------------------------------------------------------------------------
 
-jsonTrans : Lex1 q JSz SK
+jsonTrans : Lex1 q JSz ST
 jsonTrans =
   lex1
     [ E JIni (valTok [])
@@ -256,7 +258,7 @@ jsonTrans =
     , E JStr strTok
     ]
 
-jsonErr : Arr32 JSz (SK q -> F1 q (BBErr Void))
+jsonErr : Arr32 JSz (ST q -> F1 q (BBErr Void))
 jsonErr =
   arr32 JSz (unexpected [])
     [ E ANew $ unclosedIfEOI "[" []
@@ -270,10 +272,10 @@ jsonErr =
     , E JStr $ unclosedIfNLorEOI "\"" []
     ]
 
-jsonEOI : JST -> SK q -> F1 q (Either (BBErr Void) JSON)
+jsonEOI : JST -> ST q -> F1 q (Either (BBErr Void) JSON)
 jsonEOI sk s t =
   case sk == JDone of
-    False => arrFail SK jsonErr sk s t
+    False => arrFail ST jsonErr sk s t
     True  => case getStack t of
       PF v # t => Right v # t
       _    # t => Right JNull # t
@@ -290,7 +292,7 @@ parseJSON = parseString json
 -- Streaming
 --------------------------------------------------------------------------------
 
-extract : Part -> (Part, Maybe $ List JSON)
+extract : Stack -> (Stack, Maybe $ List JSON)
 extract (PF (JArray vs)) = (PF (JArray []), Just vs)
 extract (PA PI sv)       = (PA PI [<], maybeList sv)
 extract (PV sv)          = (PV [<], maybeList sv)
@@ -299,13 +301,13 @@ extract (PO p sv)        = let (p2,m) := extract p in (PO p2 sv, m)
 extract (PL p sv l)      = let (p2,m) := extract p in (PL p2 sv l, m)
 extract p                = (p, Nothing)
 
-arrChunk : SK q -> F1 q (Maybe $ List JSON)
+arrChunk : ST q -> F1 q (Maybe $ List JSON)
 arrChunk sk = T1.do
   p <- getStack
   let (p2,res) := extract p
   putStackAs p2 res
 
-arrEOI : JST -> SK q -> F1 q (Either (BBErr Void) (List JSON))
+arrEOI : JST -> ST q -> F1 q (Either (BBErr Void) (List JSON))
 arrEOI st sk t =
   case st == JIni of
     True  => case getStack t of
@@ -318,7 +320,7 @@ arrEOI st sk t =
 
 ||| A parser that is capable of streaming a single large
 ||| array of JSON values.
-public export
+export
 jsonArray : P1 q (BBErr Void) (List JSON)
 jsonArray = P JIni (init PI) jsonTrans arrChunk jsonErr arrEOI
 
@@ -327,6 +329,6 @@ jsonArray = P JIni (init PI) jsonTrans arrChunk jsonErr arrEOI
 |||
 ||| Values need not be separated by whitespace but the longest
 ||| possible value will always be consumed.
-public export
+export
 jsonValues : P1 q (BBErr Void) (List JSON)
 jsonValues = P JIni (init $ PV [<]) jsonTrans arrChunk jsonErr arrEOI

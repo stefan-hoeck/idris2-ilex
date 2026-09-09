@@ -3,6 +3,7 @@ module Runner
 import Data.Buffer
 import Derive.Prelude
 import Text.ILex
+import Text.ILex.State.Regular
 import Hedgehog
 
 %default total

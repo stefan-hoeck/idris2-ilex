@@ -4,6 +4,7 @@ import Data.Either
 import Derive.Prelude
 import Hedgehog
 import Text.ILex
+import Text.ILex.State.Regular
 import Runner
 
 %default total

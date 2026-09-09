@@ -26,12 +26,14 @@ modules = Text.ILex
         , Text.ILex.Internal.Runner
         , Text.ILex.Internal.Types
 
-        , Text.ILex.DStack
+        , Text.ILex.State.Dependent
+        , Text.ILex.State.Derive
+        , Text.ILex.State.Regular
+
         , Text.ILex.Interfaces
         , Text.ILex.Lexer
         , Text.ILex.Parser
         , Text.ILex.RExp
         , Text.ILex.RExp.Unicode
         , Text.ILex.Runner
-        , Text.ILex.Stack
         , Text.ILex.Util
