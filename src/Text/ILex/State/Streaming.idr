@@ -17,6 +17,10 @@ import Text.ParseError
 |||
 ||| The parser stack is stored in mutable field `stack_`, while
 ||| the values parsed so far are stored in `values_`.
+|||
+||| In addition, support for working with nested block comments
+||| is included. This is somewhat opinionated, but client code
+||| can just ignore it and use an error lexer for the comment field.
 public export
 record State (e,s,a : Type) (r : Bits32) (q : Type) where
   [search q]
@@ -32,19 +36,19 @@ record State (e,s,a : Type) (r : Bits32) (q : Type) where
   positions_  : Ref q (SnocList BytePos)
 
   -- Current state
-  stack_     : Ref q s
-  state_     : Ref q (Index r)
-  values_    : Ref q (SnocList a)
+  stack_      : Ref q s
+  state_      : Ref q (Index r)
+  values_     : Ref q (SnocList a)
 
   -- Working with string literals
-  strings_   : Ref q (SnocList String)
+  strings_    : Ref q (SnocList String)
 
   -- Error handling
-  error_     : Ref q (Maybe $ BBErr e)
+  error_      : Ref q (Maybe $ BBErr e)
 
   -- Block comments
-  comment    : Index r
-  depth      : Ref q Nat
+  comment     : Index r
+  depth       : Ref q Nat
 
 %runElab derive "State" [FullState]
 
