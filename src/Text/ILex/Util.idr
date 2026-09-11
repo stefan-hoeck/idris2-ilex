@@ -158,39 +158,8 @@ integer : ByteString -> Integer
 integer (BS n $ BV buf o _) = integerBV (take (o+n) buf) n @{offset n o}
 
 --------------------------------------------------------------------------------
--- Operator Precedence
+-- List Conversions
 --------------------------------------------------------------------------------
-
-||| Utility for combining a snoc-list of expressions combined
-||| via left-binding operators of different fixity into a single
-||| expression.
-export
-mergeL : Ord o => (o -> e -> e -> e) -> SnocList (e,o) -> e -> e
-mergeL merge sp y =
-  case sp <>> [] of
-    []        => y
-    (x,ox)::t => go [<] x ox t y
-
-  where
-    app : SnocList (e,o) -> e -> o -> List (e,o) -> e -> e
-
-    go : SnocList (e,o) -> e -> o -> List (e,o) -> e -> e
-    go sx x ox []        z =
-      case sx of
-        [<]        => merge ox x z
-        sp:<(w,ow) => go sp w ow [] (merge ox x z)
-
-    go sx x ox ((y,oy) :: xs) z =
-      case compare ox oy of
-        LT => go (sx:<(x,ox)) y oy xs z
-        EQ => go sx (merge ox x y) oy xs z
-        GT => app sx (merge ox x y) oy xs z
-
-    app [<]                x ox xs z = go [<] x ox xs z
-    app outer@(sp:<(w,ow)) x ox xs z =
-      case compare ow ox of
-        LT => go outer x ox xs z
-        _  => app sp (merge ow w x) ox xs z
 
 ||| Utility for converting a snoc list into a list.
 |||
