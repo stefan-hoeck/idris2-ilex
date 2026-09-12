@@ -34,6 +34,20 @@ prec v =
     Prefix p  => p
     Infix p _ => p
 
+export
+nonAssoc : Cast o Precedence => o -> Bool
+nonAssoc v =
+  case toPrec v of
+    Infix _ None => True
+    _            => False
+
+export
+isInfixL : Cast o Precedence => o -> Bool
+isInfixL v =
+  case toPrec v of
+    Infix _ InfixL => True
+    _              => False
+
 public export
 data ShuntingErr : Type -> Type where
   AssocNone      : (op : o) -> (prec : Precedence) -> ShuntingErr o
@@ -42,9 +56,23 @@ data ShuntingErr : Type -> Type where
 
 %runElab derive "ShuntingErr" [Show,Eq]
 
+||| Shunting yard algorithm input token.
+||| A token is either a term followed by an infix operator
+||| or a single prefix operator
 public export
-0 Tok : (t,o : Type) -> Type
-Tok t o = Either o (t,o)
+data Tok : (t,o : Type) -> Type where
+  TPre : o -> (prec : Nat) -> Tok t o
+  TInf : t -> o -> (prec : Nat) -> Assoc -> Tok t o
+
+export
+Cast (Tok t o) Precedence where
+  cast (TPre _ p)     = Prefix p
+  cast (TInf _ _ p a) = Infix p a
+
+export
+Cast (Tok t o) o where
+  cast (TPre o _)     = o
+  cast (TInf _ o _ _) = o
 
 public export
 0 Toks : (t,o : Type) -> Type
@@ -57,66 +85,42 @@ Skot t o = SnocList (Tok t o)
 --------------------------------------------------------------------------------
 -- Shunting Yard Implementation
 --------------------------------------------------------------------------------
-
-0 Stack : Type -> Type
-Stack o = SnocList (o, Precedence)
-
-0 Itm : (o, Precedence) -> Type -> Type
-Itm (_,Prefix _) t = ()
-Itm _            t = t
-
-%inline
-Cast (o,Precedence) Precedence where cast = snd
-
-data Queue : (so : Stack o) -> Type -> Type where
-  Lin  : Queue [<] t
-  (:<) : {0 p : _} -> Queue s t -> Itm p t -> Queue (s:<p) t
-
-record Insert (t,o : Type) where
-  constructor I
-  ops   : Stack o
-  terms : Queue ops t
-
 parameters {0 t,o    : Type}
            {auto cst : Cast o Precedence}
            (inf      : t -> o -> t -> t)
            (pre      : o -> t -> t)
 
   0 Res : Type
-  Res = Either (ShuntingErr o) (Insert t o)
+  Res = Either (ShuntingErr o) (Skot t o)
 
-  app : (p : (o,Precedence)) -> Itm p t -> t -> t
-  app (op, Prefix {}) _ y = pre op y
-  app (op, Infix {})  x y = inf x op y
+  app : Tok t o -> t -> t
+  app (TPre op _)     y = pre op y
+  app (TInf x op _ _) y = inf x op y
 
-  apply : (s : Stack o) -> Queue s t -> t -> t
-  apply [<]     [<]     lst = lst
-  apply (sp:<p) (si:<i) lst = apply sp si (app p i lst)
+  apply : Skot t o -> t -> t
+  apply [<]     lst = lst
+  apply (si:<i) lst = apply si (app i lst)
 
-  insInf : (s : Stack o) -> Queue s t -> t -> o -> Nat -> Assoc -> Res
-  insInf [<]     [<]     lst op n a = Right $ I [<(op,Infix n a)] [<lst]
-  insInf (sp:<p) (si:<i) lst op n a =
-    case compare (prec p) n of
-      LT => Right $ I (sp:<p:<(op,Infix n a)) (si:<i:<lst)
-      GT => insInf sp si (app p i lst) op n a
-      EQ => ?eqcase
---        let False := isLeftAssoc op | True => insert st so (app t o lst) op
---            False := notAssoc op    | True => Left (AssocNone op $ cast op)
---            False := notAssoc o     | True => Left (AssocNone o $ cast o)
---         in Right $ I (st:<t:<lst) (so:<o:<op)
+  insInf : Skot t o -> t -> o -> Nat -> Assoc -> Res
+  insInf [<]     lst op n a = Right $ [<TInf lst op n a]
+  insInf (si:<i) lst op n a =
+    case compare (prec i) n of
+      LT => Right $ si:<i:<TInf lst op n a
+      GT => insInf si (app i lst) op n a
+      EQ =>
+       let False := isInfixL op | True => insInf si (app i lst) op n a
+           False := nonAssoc op | True => Left (AssocNone op $ cast op)
+           False := nonAssoc i  | True => Left (AssocNone (cast i) (cast i))
+        in Right $ si:<i:<TInf lst op n a
 
-  impl : (s : Stack o) -> Queue s t -> Toks t o -> t -> Either (ShuntingErr o) t
-  impl s q []      lst = Right $ apply s q lst
-  impl s q (i::is) lst =
+  impl : Skot t o -> Toks t o -> t -> Either (ShuntingErr o) t
+  impl si []      lst = Right $ apply si lst
+  impl si (i::is) lst =
     case i of
-      Left op      => case cast {to = Precedence} op of
-        Prefix n => impl (s:<(op,Prefix n)) (q:<()) is lst
-        p        => Left (ExpectedPrefix op p)
-      Right (t,op) => case cast {to = Precedence} op of
-        Infix n a => case insInf s q t op n a of
-          Left err        => Left err
-          Right (I s2 q2) => impl s2 q2 is lst
-        p         => Left (ExpectedInfix op p)
+      TPre op n     => impl (si:<TPre op n) is lst
+      TInf t op n a => case insInf si t op n a of
+        Left err  => Left err
+        Right si2 => impl si2 is lst
 
   ||| An implementation of the
   ||| [shunting yard algorithm](https://en.wikipedia.org/wiki/Shunting_yard_algorithm)
@@ -124,4 +128,4 @@ parameters {0 t,o    : Type}
   ||| syntax trees based on the operators' associativity and precedence.
   export %inline
   shuntingYard : Skot t o -> t -> Either (ShuntingErr o) t
-  shuntingYard = impl [<] [<] . (<>> [])
+  shuntingYard = impl [<] . (<>> [])
