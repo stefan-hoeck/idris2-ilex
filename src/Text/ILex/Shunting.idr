@@ -82,9 +82,36 @@ public export
 0 Skot : (t,o : Type) -> Type
 Skot t o = SnocList (Tok t o)
 
+public export
+data IsInfix : Precedence -> Type where
+  ItIsInfix : IsInfix (Infix p a)
+
+public export
+data IsPrefix : Precedence -> Type where
+  ItIsPrefix : IsPrefix (Prefix p)
+
+%inline
+tinf_ : t -> o -> (p : Precedence) -> (0 prf : IsInfix p) => Tok t o
+tinf_ x y (Infix p a) = TInf x y p a
+
+||| Smart constructor for `TInf`.
+export %inline
+tinf : Cast o Precedence => t -> (v : o) -> (0 prf : IsInfix (cast v)) => Tok t o
+tinf x v = tinf_ x v (cast v)
+
+%inline
+tpre_ : o -> (p : Precedence) -> (0 prf : IsPrefix p) => Tok t o
+tpre_ y (Prefix p) = TPre y p
+
+||| Smart constructor for `TPre`.
+export %inline
+tpre : Cast o Precedence => (v : o) -> (0 prf : IsPrefix (cast v)) => Tok t o
+tpre x = tpre_ x (cast x)
+
 --------------------------------------------------------------------------------
 -- Shunting Yard Implementation
 --------------------------------------------------------------------------------
+
 parameters {0 t,o    : Type}
            {auto cst : Cast o Precedence}
            (inf      : t -> o -> t -> t)
