@@ -169,7 +169,7 @@ HasStringLits nms p =
     dfn impl = def impl [patClause (var impl) `(MkHSL strings_)]
 
 errErr : Res a
-errErr = Left "HasError can only be derived for a record type with a field name `error_`"
+errErr = Left "HasBBErr can only be derived for a record type with a field name `error_`"
 
 errType : ParamTypeInfo -> Res TTImp
 errType p =
@@ -187,31 +187,6 @@ errType p =
           -- `Ref q (Maybe (BoundedErr e))`
           (PApp refq (PApp m (PApp b z))) => Right (ttimp p.paramNames z)
           _                               => errErr
-
-||| Derives an implementation of `HasError` for a record type with the
-||| following field:
-|||
-||| ```idris
-||| error_     : Ref q (Maybe $ BoundedErr e)
-||| ```
-|||
-||| The error type `e` can be freely chosen (it can also be a parameter) and
-||| will be determined when deriving the implementation.
-export
-HasError : List Name -> ParamTypeInfo -> Res (List TopLevel)
-HasError nms p =
- let impl := implName p "HasError"
-     Right c := clm impl | Left x => Left x
-  in Right [TL c (dfn impl)]
-  where
-    clm : (impl : Name) -> Res Decl
-    clm impl =
-     let arg      := unapply1 p.applied
-         Right te := errType p | Left x => Left x
-      in Right $ implClaimVis Export impl (ifaceType p $ appAll "HasError" [arg,te])
-
-    dfn : (impl : Name) -> Decl
-    dfn impl = def impl [patClause (var impl) `(MkHE error_)]
 
 ||| Derives an implementation of `HasBBEr` for a record type with the
 ||| following field:
