@@ -30,3 +30,18 @@ data Syntax : Type where
   SInt  : Integer -> Syntax
 
 %runElab derive "Syntax" [Show,Eq]
+
+public export
+Cast Op Precedence where
+  cast PLUS  = Infix 8 InfixL
+  cast MINUS = Infix 8 InfixL
+  cast TIMES = Infix 9 InfixL
+  cast EQ    = Infix 6 None
+  cast LT    = Infix 6 None
+  cast LTE   = Infix 6 None
+  cast GT    = Infix 6 None
+  cast GTE   = Infix 6 None
+  cast AND   = Infix 5 InfixR
+  cast OR    = Infix 4 InfixR
+  cast NEG   = Prefix 10
+  cast NOT   = Prefix 10

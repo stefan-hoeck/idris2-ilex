@@ -9,39 +9,31 @@ import Text.ILex.State.Streaming
 %language ElabReflection
 
 %runElab deriveParserState "Lexers" "Lexer"
-  ["TOP","TERM","IMPORT","OP","EQUAL","ERR"]
+  ["TERM","INFIX","ERR"]
 
 data STACK : Type where
   Top   : STACK
-  Seq   : STACK -> SnocList (Either Syntax Op) -> STACK
+  Seq   : STACK -> SnocList (Skot Syntax Op) -> STACK
+  SeqT  : STACK -> SnocList (Skot Syntax Op) -> Syntax -> STACK
   Open  : STACK -> STACK
 
-0 SK : Type -> Type
-SK = State Void STACK Lexers
+0 ST : Type -> Type
+ST = State Void STACK Syntax Lexers
 
--- parameters {auto sk : SK q}
---
---   putTerm : Syntax -> STACK -> F1 q Lexer
---   putTerm trm (SeqOp p sx) = putStackAs (Seq p sx trm) OP
---   putTerm trm p            = putStackAs (Seq p [<] trm) OP
---
---   %inline
---   onTerm : Syntax -> F1 q Lexer
---   onTerm = withStack . putTerm
---
---   %inline
---   onImport : String -> F1 q Lexer
---   onImport s =
---     getStack >>= \case
---       Top sd => putStackAs (Top $ sd:< Import s) TOP
---       _      => failUnexpected [] ERR
---
---   onOp : Op -> F1 q Lexer
---   onOp op =
---     getStack >>= \case
---       Seq p sx s => putStackAs (SeqOp p (sx:<(s,op))) TERM
---       p          => failUnexpected [] ERR
---
+parameters {auto sk : ST q}
+
+  putTerm : Syntax -> STACK -> F1 q Lexer
+  putTerm trm (Seq p sx) = putStackAs (SeqT p sx trm) INFIX
+  putTerm trm p          = putStackAs (SeqT p [<] trm) INFIX
+
+  %inline
+  onTerm : Syntax -> F1 q Lexer
+  onTerm = withStack . putTerm
+
+  onInfix : (o : Op) -> (0 p : IsInfix (cast o)) => F1 q Lexer
+
+  onPrefix : (o : Op) -> (0 p : IsPrefix (cast o)) => F1 q Lexer
+
 --   onClose : F1 q Lexer
 --   onClose =
 --     getStack >>= \case
