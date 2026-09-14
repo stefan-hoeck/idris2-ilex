@@ -64,6 +64,8 @@ data Tok : (t,o : Type) -> Type where
   TPre : o -> (prec : Nat) -> Tok t o
   TInf : t -> o -> (prec : Nat) -> Assoc -> Tok t o
 
+%runElab derive "Tok" [Show,Eq]
+
 export
 Cast (Tok t o) Precedence where
   cast (TPre _ p)     = Prefix p
