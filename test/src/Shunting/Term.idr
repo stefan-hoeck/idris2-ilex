@@ -60,18 +60,23 @@ data Term : Type where
 
 %runElab derive "Term" [Show,Eq]
 
-skot : Skot Syntax Op -> Either (ShuntingErr Op) (Skot Term Op)
+shuntTok : Tok Syntax Op -> Either (ShuntingErr Op) (Tok Term Op)
+
+skot : Toks Term Op -> Skot Syntax Op -> Either (ShuntingErr Op) (Skot Term Op)
+skot is [<]     = Right ([<] <>< is)
+skot is (si:<i) =
+ let Right i2 := shuntTok i | Left x => Left x
+  in skot (i2::is) si
 
 shunt : Syntax -> Either (ShuntingErr Op) Term
 shunt (SSeq sk s) = Prelude.do
-  skt <- skot sk
+  skt <- skot [] sk
   t   <- shunt s
   shuntingYard TI TP skt t
 shunt (SBool b)   = Right (TBool b)
 shunt (SNat n)    = Right (TNat n)
 
-skot [<] = Right [<]
-skot (si:<i) =
-  case i of
-    TPre o   n   => ?precase
-    TInf s o n a => ?infcase
+shuntTok (TPre o n) = Right (TPre o n)
+shuntTok (TInf t o n a) =
+ let Right s := shunt t | Left x => Left x
+  in Right (TInf s o n a)
