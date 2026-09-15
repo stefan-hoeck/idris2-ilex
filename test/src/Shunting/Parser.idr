@@ -76,6 +76,7 @@ ptrans =
         , step "+"  $ onInfix PLUS
         , step "-"  $ onInfix MINUS
         , step "*"  $ onInfix TIMES
+        , step "^"  $ onInfix POW
         , step "==" $ onInfix EQ
         , step ">"  $ onInfix GT
         , step "<"  $ onInfix LT
@@ -98,8 +99,11 @@ export
 terms : P1 q (BBErr Void) (List Syntax)
 terms = P TERM (init TERM Top) ptrans valuesChunk perr peoi
 
+convert : Syntax -> String
+convert = either show interpolate . desugar
+
 test : String -> IO ()
 test s =
   case parseString terms Virtual s of
     Left x   => putStrLn "\{x}"
-    Right ts => traverse_ printLn ts
+    Right ts => traverse_ (putStrLn . convert) ts
