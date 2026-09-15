@@ -1,5 +1,6 @@
 module Text.ILex.Shunting
 
+import Text.ByteBounds
 import Derive.Prelude
 
 %default total
@@ -15,6 +16,12 @@ data Assoc = None | InfixR | InfixL
 
 %runElab derive "Assoc" [Show,Eq,Ord]
 
+export
+Interpolation Assoc where
+  interpolate None   = "infix"
+  interpolate InfixR = "infixr"
+  interpolate InfixL = "infixl"
+
 ||| Infix operator associativity and precedence
 public export
 data Precedence : Type where
@@ -22,6 +29,15 @@ data Precedence : Type where
   Infix  : (prec : Nat) -> (assoc : Assoc) -> Precedence
 
 %runElab derive "Precedence" [Show,Eq]
+
+export
+Interpolation Precedence where
+  interpolate (Prefix p)  = "prefix \{show p}"
+  interpolate (Infix p a) = "\{a} \{show p}"
+
+export %inline
+Cast a Precedence => Cast (ByteBounded a) Precedence where
+  cast = cast . val
 
 export %inline
 toPrec : Cast o Precedence => o -> Precedence
@@ -41,20 +57,15 @@ nonAssoc v =
     Infix _ None => True
     _            => False
 
-export
-isInfixL : Cast o Precedence => o -> Bool
-isInfixL v =
-  case toPrec v of
-    Infix _ InfixL => True
-    _              => False
-
 public export
 data ShuntingErr : Type -> Type where
   AssocNone      : (op : o) -> (prec : Precedence) -> ShuntingErr o
-  ExpectedInfix  : (op : o) -> (prec : Precedence) -> ShuntingErr o
-  ExpectedPrefix : (op : o) -> (prec : Precedence) -> ShuntingErr o
 
 %runElab derive "ShuntingErr" [Show,Eq]
+
+export
+Interpolation o => Interpolation (ShuntingErr o) where
+  interpolate (AssocNone op p) = "operator '\{op}' (\{p}) is non-associative"
 
 ||| Shunting yard algorithm input token.
 ||| A token is either a term followed by an infix operator
@@ -63,6 +74,8 @@ public export
 data Tok : (t,o : Type) -> Type where
   TPre : o -> (prec : Nat) -> Tok t o
   TInf : t -> o -> (prec : Nat) -> Assoc -> Tok t o
+
+%runElab derive "Tok" [Show,Eq]
 
 export
 Cast (Tok t o) Precedence where
@@ -82,38 +95,11 @@ public export
 0 Skot : (t,o : Type) -> Type
 Skot t o = SnocList (Tok t o)
 
-public export
-data IsInfix : Precedence -> Type where
-  ItIsInfix : IsInfix (Infix p a)
-
-public export
-data IsPrefix : Precedence -> Type where
-  ItIsPrefix : IsPrefix (Prefix p)
-
-%inline
-tinf_ : t -> o -> (p : Precedence) -> (0 prf : IsInfix p) => Tok t o
-tinf_ x y (Infix p a) = TInf x y p a
-
-||| Smart constructor for `TInf`.
-export %inline
-tinf : Cast o Precedence => t -> (v : o) -> (0 prf : IsInfix (cast v)) => Tok t o
-tinf x v = tinf_ x v (cast v)
-
-%inline
-tpre_ : o -> (p : Precedence) -> (0 prf : IsPrefix p) => Tok t o
-tpre_ y (Prefix p) = TPre y p
-
-||| Smart constructor for `TPre`.
-export %inline
-tpre : Cast o Precedence => (v : o) -> (0 prf : IsPrefix (cast v)) => Tok t o
-tpre x = tpre_ x (cast x)
-
 --------------------------------------------------------------------------------
 -- Shunting Yard Implementation
 --------------------------------------------------------------------------------
 
 parameters {0 t,o    : Type}
-           {auto cst : Cast o Precedence}
            (inf      : t -> o -> t -> t)
            (pre      : o -> t -> t)
 
@@ -135,8 +121,8 @@ parameters {0 t,o    : Type}
       LT => Right $ si:<i:<TInf lst op n a
       GT => insInf si (app i lst) op n a
       EQ =>
-       let False := isInfixL op | True => insInf si (app i lst) op n a
-           False := nonAssoc op | True => Left (AssocNone op $ cast op)
+       let False := InfixL == a | True => insInf si (app i lst) op n a
+           False := None == a   | True => Left (AssocNone op $ Infix n a)
            False := nonAssoc i  | True => Left (AssocNone (cast i) (cast i))
         in Right $ si:<i:<TInf lst op n a
 

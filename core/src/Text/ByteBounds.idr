@@ -234,6 +234,10 @@ public export
 0 BBErr : Type -> Type
 BBErr e = ByteBounded (InnerError e)
 
+export %inline
+injectBBErr : Cast e f => ByteBounded e -> BBErr f
+injectBBErr = map (Custom . cast)
+
 ||| Converts an error with byte bounds to a `ParseError` by pairing it with
 ||| an origin and the parsed string.
 export
