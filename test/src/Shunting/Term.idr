@@ -1,6 +1,7 @@
 module Shunting.Term
 
 import Derive.Prelude
+import Text.ILex
 import public Text.ILex.Shunting
 
 %default total
@@ -24,58 +25,75 @@ data Op : Type where
 
 %runElab derive "Op" [Show,Eq]
 
+export
+Interpolation Op where
+  interpolate PLUS  = "+"
+  interpolate MINUS = "-"
+  interpolate TIMES = "*"
+  interpolate POW   = "^"
+  interpolate EQ    = "=="
+  interpolate LT    = "<"
+  interpolate LTE   = "<="
+  interpolate GT    = ">"
+  interpolate GTE   = ">="
+  interpolate AND   = "&&"
+  interpolate OR    = "||"
+  interpolate NEG   = "-"
+  interpolate NOT   = "~"
+
+public export
+0 BOp : Type
+BOp = ByteBounded Op
+
 public export
 data Syntax : Type where
-  SSeq  : Skot Syntax Op -> Syntax -> Syntax
+  SSeq  : Skot Syntax BOp -> Syntax -> Syntax
   SBool : Bool -> Syntax
   SNat  : Nat -> Syntax
 
 %runElab derive "Syntax" [Show,Eq]
 
 export
-sseq : Skot Syntax Op -> Syntax -> Syntax
+sseq : Skot Syntax BOp -> Syntax -> Syntax
 sseq [<] s = s
 sseq sk  s = SSeq sk s
 
 public export
-Cast Op Precedence where
-  cast PLUS  = Infix 8 InfixL
-  cast MINUS = Infix 8 InfixL
-  cast TIMES = Infix 9 InfixL
-  cast POW   = Infix 10 InfixR
-  cast EQ    = Infix 6 None
-  cast LT    = Infix 6 None
-  cast LTE   = Infix 6 None
-  cast GT    = Infix 6 None
-  cast GTE   = Infix 6 None
-  cast AND   = Infix 5 InfixR
-  cast OR    = Infix 4 InfixR
-  cast NEG   = Prefix 11
-  cast NOT   = Prefix 11
-
-public export
 data Term : Type where
-  TI    : Term -> Op -> Term -> Term
-  TP    : Op -> Term -> Term
+  TI    : Term -> BOp -> Term -> Term
+  TP    : BOp -> Term -> Term
   TBool : Bool -> Term
   TNat  : Nat -> Term
 
 %runElab derive "Term" [Show,Eq]
 
-shuntTok : Tok Syntax Op -> Either (ShuntingErr Op) (Tok Term Op)
+export
+MapBounds Term where
+  mapBounds f (TI x y z) = TI (mapBounds f x) (mapBounds f y) (mapBounds f z)
+  mapBounds f (TP x y)   = TP (mapBounds f x) (mapBounds f y)
+  mapBounds f t          = t
 
-skot : Toks Term Op -> Skot Syntax Op -> Either (ShuntingErr Op) (Skot Term Op)
+public export
+0 TErr : Type
+TErr = BBErr (ShuntingErr Op)
+
+toErr : ShuntingErr BOp -> TErr
+toErr (AssocNone bo p) = B (Custom $ AssocNone bo.val p) bo.bounds
+
+shuntTok : Tok Syntax BOp -> Either TErr (Tok Term BOp)
+
+skot : Toks Term BOp -> Skot Syntax BOp -> Either TErr (Skot Term BOp)
 skot is [<]     = Right ([<] <>< is)
 skot is (si:<i) =
  let Right i2 := shuntTok i | Left x => Left x
   in skot (i2::is) si
 
 export
-desugar : Syntax -> Either (ShuntingErr Op) Term
+desugar : Syntax -> Either TErr Term
 desugar (SSeq sk s) = Prelude.do
   skt <- skot [] sk
   t   <- desugar s
-  shuntingYard TI TP skt t
+  mapFst toErr $ shuntingYard TI TP skt t
 desugar (SBool b)   = Right (TBool b)
 desugar (SNat n)    = Right (TNat n)
 
@@ -93,25 +111,10 @@ isAtom (TBool x)  = True
 isAtom (TNat k)   = True
 isAtom _          = False
 
-prettyOp : Op -> String
-prettyOp PLUS  = "+"
-prettyOp MINUS = "-"
-prettyOp TIMES = "*"
-prettyOp POW   = "^"
-prettyOp EQ    = "=="
-prettyOp LT    = "<"
-prettyOp LTE   = "<="
-prettyOp GT    = ">"
-prettyOp GTE   = ">="
-prettyOp AND   = "&&"
-prettyOp OR    = "||"
-prettyOp NEG   = "-"
-prettyOp NOT   = "~"
-
 prettyPar, pretty : Term -> String
 
-pretty (TI x y z) = "\{prettyPar x} \{prettyOp y} \{prettyPar z}"
-pretty (TP x y)   = "\{prettyOp x}\{prettyPar y}"
+pretty (TI x y z) = "\{prettyPar x} \{y.val} \{prettyPar z}"
+pretty (TP x y)   = "\{x.val}\{prettyPar y}"
 pretty (TBool x)  = toLower (show x)
 pretty (TNat k)   = show k
 
