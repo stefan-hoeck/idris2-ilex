@@ -60,18 +60,23 @@ sseq sk  s = SSeq sk s
 
 public export
 data Term : Type where
-  TI    : Term -> BOp -> Term -> Term
-  TP    : BOp -> Term -> Term
+  TI    : Term -> Op -> Term -> Term
+  TP    : Op -> Term -> Term
   TBool : Bool -> Term
   TNat  : Nat -> Term
 
 %runElab derive "Term" [Show,Eq]
 
 export
-MapBounds Term where
-  mapBounds f (TI x y z) = TI (mapBounds f x) (mapBounds f y) (mapBounds f z)
-  mapBounds f (TP x y)   = TP (mapBounds f x) (mapBounds f y)
-  mapBounds f t          = t
+Num Term where
+  fromInteger = TNat . cast
+  x + y = TI x PLUS y
+  x * y = TI x TIMES y
+
+export
+Neg Term where
+  negate = TP NEG
+  x - y  = TI x MINUS y
 
 public export
 0 TErr : Type
@@ -93,7 +98,7 @@ desugar : Syntax -> Either TErr Term
 desugar (SSeq sk s) = Prelude.do
   skt <- skot [] sk
   t   <- desugar s
-  mapFst toErr $ shuntingYard TI TP skt t
+  mapFst toErr $ shuntingYard (\x,y => TI x y.val) (\x => TP x.val) skt t
 desugar (SBool b)   = Right (TBool b)
 desugar (SNat n)    = Right (TNat n)
 
@@ -113,8 +118,8 @@ isAtom _          = False
 
 prettyPar, pretty : Term -> String
 
-pretty (TI x y z) = "\{prettyPar x} \{y.val} \{prettyPar z}"
-pretty (TP x y)   = "\{x.val}\{prettyPar y}"
+pretty (TI x y z) = "\{prettyPar x} \{y} \{prettyPar z}"
+pretty (TP x y)   = "\{x}\{prettyPar y}"
 pretty (TBool x)  = toLower (show x)
 pretty (TNat k)   = show k
 
