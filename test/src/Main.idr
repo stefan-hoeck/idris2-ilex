@@ -7,6 +7,7 @@ import Range
 import Repeat
 import Runner
 import Set
+import Shunting
 import Stream
 import Unicode
 
@@ -23,4 +24,5 @@ main =
     , Range.props
     , Repeat.props
     , Stream.props
+    , Shunting.props
     ]
