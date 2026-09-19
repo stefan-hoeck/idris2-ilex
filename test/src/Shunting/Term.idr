@@ -8,25 +8,30 @@ import public Text.ILex.Shunting
 %language ElabReflection
 
 public export
-data Op : Type where
-  PLUS  : Op
-  MINUS : Op
-  TIMES : Op
-  POW   : Op
-  EQ    : Op
-  LT    : Op
-  LTE   : Op
-  GT    : Op
-  GTE   : Op
-  AND   : Op
-  OR    : Op
-  NEG   : Op
-  NOT   : Op
+data IOp : Type where
+  PLUS  : IOp
+  MINUS : IOp
+  TIMES : IOp
+  POW   : IOp
+  EQ    : IOp
+  LT    : IOp
+  LTE   : IOp
+  GT    : IOp
+  GTE   : IOp
+  AND   : IOp
+  OR    : IOp
 
-%runElab derive "Op" [Show,Eq]
+%runElab derive "IOp" [Show,Eq]
+
+public export
+data POp : Type where
+  NEG   : POp
+  NOT   : POp
+
+%runElab derive "POp" [Show,Eq]
 
 export
-Interpolation Op where
+Interpolation IOp where
   interpolate PLUS  = "+"
   interpolate MINUS = "-"
   interpolate TIMES = "*"
@@ -38,30 +43,37 @@ Interpolation Op where
   interpolate GTE   = ">="
   interpolate AND   = "&&"
   interpolate OR    = "||"
+
+export
+Interpolation POp where
   interpolate NEG   = "-"
   interpolate NOT   = "~"
 
 public export
-0 BOp : Type
-BOp = ByteBounded Op
+0 BIOp : Type
+BIOp = ByteBounded IOp
+
+public export
+0 BPOp : Type
+BPOp = ByteBounded POp
 
 public export
 data Syntax : Type where
-  SSeq  : Skot Syntax BOp -> Syntax -> Syntax
+  SSeq  : Skot Syntax BPOp BIOp -> Syntax -> Syntax
   SBool : Bool -> Syntax
   SNat  : Nat -> Syntax
 
 %runElab derive "Syntax" [Show,Eq]
 
 export
-sseq : Skot Syntax BOp -> Syntax -> Syntax
+sseq : Skot Syntax BPOp BIOp -> Syntax -> Syntax
 sseq [<] s = s
 sseq sk  s = SSeq sk s
 
 public export
 data Term : Type where
-  TI    : Term -> Op -> Term -> Term
-  TP    : Op -> Term -> Term
+  TI    : Term -> IOp -> Term -> Term
+  TP    : POp -> Term -> Term
   TBool : Bool -> Term
   TNat  : Nat -> Term
 
@@ -80,14 +92,17 @@ Neg Term where
 
 public export
 0 TErr : Type
-TErr = BBErr (ShuntingErr Op)
+TErr = BBErr (ShuntingErr IOp)
 
-toErr : ShuntingErr BOp -> TErr
+toErr : ShuntingErr BIOp -> TErr
 toErr (AssocNone bo p) = B (Custom $ AssocNone bo.val p) bo.bounds
 
-shuntTok : Tok Syntax BOp -> Either TErr (Tok Term BOp)
+shuntTok : Tok Syntax BPOp BIOp -> Either TErr (Tok Term BPOp BIOp)
 
-skot : Toks Term BOp -> Skot Syntax BOp -> Either TErr (Skot Term BOp)
+skot :
+     Toks Term BPOp BIOp
+  -> Skot Syntax BPOp BIOp
+  -> Either TErr (Skot Term BPOp BIOp)
 skot is [<]     = Right ([<] <>< is)
 skot is (si:<i) =
  let Right i2 := shuntTok i | Left x => Left x

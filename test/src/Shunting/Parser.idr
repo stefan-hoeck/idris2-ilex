@@ -14,12 +14,12 @@ import Syntax.T1
 
 data STACK : Type where
   Top   : STACK
-  Seq   : STACK -> Skot Syntax BOp -> STACK
-  SeqT  : STACK -> Skot Syntax BOp -> Syntax -> STACK
+  Seq   : STACK -> Skot Syntax BPOp BIOp -> STACK
+  SeqT  : STACK -> Skot Syntax BPOp BIOp -> Syntax -> STACK
   Open  : STACK -> STACK
 
 0 ST : Type -> Type
-ST = State (ShuntingErr Op) STACK Syntax Lexers
+ST = State (ShuntingErr IOp) STACK Syntax Lexers
 
 parameters {auto sk : ST q}
 
@@ -31,13 +31,13 @@ parameters {auto sk : ST q}
   onTerm : Syntax -> F1 q Lexer
   onTerm = withStack . putTerm
 
-  onInfix : Op -> Nat -> Assoc -> F1 q Lexer
+  onInfix : IOp -> Nat -> Assoc -> F1 q Lexer
   onInfix o n a =
     bounds >>= \b => withStack $ \case
       SeqT p st t => putStackAs (Seq p $ st:<TInf t (B o b) n a) TERM
       _           => failUnexpected [] ERR
 
-  onPrefix : Op -> Nat -> F1 q Lexer
+  onPrefix : POp -> Nat -> F1 q Lexer
   onPrefix o n = T1.do
     b <- bounds
     withStack $ \case
