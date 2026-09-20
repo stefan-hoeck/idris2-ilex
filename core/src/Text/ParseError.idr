@@ -98,6 +98,10 @@ data InnerError : (err : Type) -> Type where
 
 %runElab derive "InnerError" [Show,Eq]
 
+export %inline
+Cast a e => Cast a (InnerError e) where
+  cast = Custom . cast
+
 ||| Convenience alias for `Bounded . InnerError`
 public export
 0 BoundedErr : Type -> Type

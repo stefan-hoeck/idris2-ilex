@@ -14,8 +14,8 @@ import Syntax.T1
 
 data STACK : Type where
   Top   : STACK
-  Seq   : STACK -> Skot Syntax BPOp BIOp -> STACK
-  SeqT  : STACK -> Skot Syntax BPOp BIOp -> Syntax -> STACK
+  Seq   : STACK -> Skot Syntax POp IOp -> STACK
+  SeqT  : STACK -> Skot Syntax POp IOp -> Syntax -> STACK
   Open  : STACK -> STACK
 
 0 ST : Type -> Type
