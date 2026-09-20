@@ -50,23 +50,15 @@ Interpolation POp where
   interpolate NOT   = "~"
 
 public export
-0 BIOp : Type
-BIOp = ByteBounded IOp
-
-public export
-0 BPOp : Type
-BPOp = ByteBounded POp
-
-public export
 data Syntax : Type where
-  SSeq  : Skot Syntax BPOp BIOp -> Syntax -> Syntax
+  SSeq  : Skot Syntax POp IOp -> Syntax -> Syntax
   SBool : Bool -> Syntax
   SNat  : Nat -> Syntax
 
 %runElab derive "Syntax" [Show,Eq]
 
 export
-sseq : Skot Syntax BPOp BIOp -> Syntax -> Syntax
+sseq : Skot Syntax POp IOp -> Syntax -> Syntax
 sseq [<] s = s
 sseq sk  s = SSeq sk s
 
@@ -94,15 +86,12 @@ public export
 0 TErr : Type
 TErr = BBErr (ShuntingErr IOp)
 
-toErr : ShuntingErr BIOp -> TErr
-toErr (AssocNone bo p) = B (Custom $ AssocNone bo.val p) bo.bounds
-
-shuntTok : Tok Syntax BPOp BIOp -> Either TErr (Tok Term BPOp BIOp)
+shuntTok : Tok Syntax POp IOp -> Either TErr (Tok Term POp IOp)
 
 skot :
-     Toks Term BPOp BIOp
-  -> Skot Syntax BPOp BIOp
-  -> Either TErr (Skot Term BPOp BIOp)
+     Toks Term POp IOp
+  -> Skot Syntax POp IOp
+  -> Either TErr (Skot Term POp IOp)
 skot is [<]     = Right ([<] <>< is)
 skot is (si:<i) =
  let Right i2 := shuntTok i | Left x => Left x
@@ -113,14 +102,12 @@ desugar : Syntax -> Either TErr Term
 desugar (SSeq sk s) = Prelude.do
   skt <- skot [] sk
   t   <- desugar s
-  mapFst toErr $ shuntingYard (\x,y => TI x y.val) (\x => TP x.val) skt t
+  shuntingYard (\x,y => TI x y.val) (\x => TP x.val) skt t
 desugar (SBool b)   = Right (TBool b)
 desugar (SNat n)    = Right (TNat n)
 
 shuntTok (TPre o n) = Right (TPre o n)
-shuntTok (TInf t o n a) =
- let Right s := desugar t | Left x => Left x
-  in Right (TInf s o n a)
+shuntTok (TInf t o n a) = (\s => TInf s o n a) <$> desugar t
 
 --------------------------------------------------------------------------------
 -- Pretty Printing

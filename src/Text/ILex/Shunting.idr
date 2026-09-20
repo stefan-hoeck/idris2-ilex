@@ -72,8 +72,8 @@ Interpolation o => Interpolation (ShuntingErr o) where
 ||| or a single prefix operator
 public export
 data Tok : (t,p,i : Type) -> Type where
-  TPre : p -> (prec : Nat) -> Tok t p i
-  TInf : t -> i -> (prec : Nat) -> Assoc -> Tok t p i
+  TPre : ByteBounded p -> (prec : Nat) -> Tok t p i
+  TInf : t -> ByteBounded i -> (prec : Nat) -> Assoc -> Tok t p i
 
 %runElab derive "Tok" [Show,Eq]
 
@@ -94,12 +94,16 @@ Skot t p i = SnocList (Tok t p i)
 -- Shunting Yard Implementation
 --------------------------------------------------------------------------------
 
-parameters {0 t,p,i  : Type}
-           (inf      : t -> i -> t -> t)
-           (pre      : p -> t -> t)
+parameters {0 t,p,i,e : Type}
+           {auto cst  : Cast (ShuntingErr i) e}
+           (inf       : t -> ByteBounded i -> t -> t)
+           (pre       : ByteBounded p -> t -> t)
 
   0 Res : Type
-  Res = Either (ShuntingErr i) (Skot t p i)
+  Res = Either (ByteBounded e) (Skot t p i)
+
+  err : ByteBounded i -> Precedence -> Either (ByteBounded e) a
+  err op p = Left (B (cast $ AssocNone op.val p) op.bounds)
 
   app : Tok t p i -> t -> t
   app (TPre op _)     y = pre op y
@@ -109,7 +113,7 @@ parameters {0 t,p,i  : Type}
   apply [<]     lst = lst
   apply (si:<i) lst = apply si (app i lst)
 
-  insInf : Skot t p i -> t -> i -> Nat -> Assoc -> Res
+  insInf : Skot t p i -> t -> ByteBounded i -> Nat -> Assoc -> Res
   insInf [<]     lst op n a = Right $ [<TInf lst op n a]
   insInf (si:<i) lst op n a =
     case compare (prec i) n of
@@ -117,12 +121,12 @@ parameters {0 t,p,i  : Type}
       GT => insInf si (app i lst) op n a
       EQ =>
        let False := InfixL == a | True => insInf si (app i lst) op n a
-           False := None == a   | True => Left (AssocNone op $ Infix n a)
+           False := None == a   | True => err op $ Infix n a
            TInf _ o _ x := i    | _    => Right $ si:<i:<TInf lst op n a
-           False := None == x   | True => Left (AssocNone o $ Infix n x)
+           False := None == x   | True => err o $ Infix n x
         in Right $ si:<i:<TInf lst op n a
 
-  impl : Skot t p i -> Toks t p i -> t -> Either (ShuntingErr i) t
+  impl : Skot t p i -> Toks t p i -> t -> Either (ByteBounded e) t
   impl si []      lst = Right $ apply si lst
   impl si (i::is) lst =
     case i of
@@ -136,5 +140,5 @@ parameters {0 t,p,i  : Type}
   ||| used to convert term-operator chains such as `1 + 2 * 3 ^ 4` to proper
   ||| syntax trees based on the operators' associativity and precedence.
   export %inline
-  shuntingYard : Skot t p i -> t -> Either (ShuntingErr i) t
+  shuntingYard : Skot t p i -> t -> Either (ByteBounded e) t
   shuntingYard = impl [<] . (<>> [])
