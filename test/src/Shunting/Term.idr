@@ -51,14 +51,14 @@ Interpolation POp where
 
 public export
 data Syntax : Type where
-  SSeq  : Skot Syntax POp IOp -> Syntax -> Syntax
+  SSeq  : Skot Syntax POp IOp Void -> Syntax -> Syntax
   SBool : Bool -> Syntax
   SNat  : Nat -> Syntax
 
 %runElab derive "Syntax" [Show,Eq]
 
 export
-sseq : Skot Syntax POp IOp -> Syntax -> Syntax
+sseq : Skot Syntax POp IOp Void -> Syntax -> Syntax
 sseq [<] s = s
 sseq sk  s = SSeq sk s
 
@@ -86,12 +86,12 @@ public export
 0 TErr : Type
 TErr = BBErr (ShuntingErr IOp)
 
-shuntTok : Tok Syntax POp IOp -> Either TErr (Tok Term POp IOp)
+shuntTok : Tok Syntax POp IOp Void -> Either TErr (Tok Term POp IOp Void)
 
 skot :
-     Toks Term POp IOp
-  -> Skot Syntax POp IOp
-  -> Either TErr (Skot Term POp IOp)
+     Toks Term POp IOp Void
+  -> Skot Syntax POp IOp Void
+  -> Either TErr (Skot Term POp IOp Void)
 skot is [<]     = Right ([<] <>< is)
 skot is (si:<i) =
  let Right i2 := shuntTok i | Left x => Left x
@@ -102,12 +102,13 @@ desugar : Syntax -> Either TErr Term
 desugar (SSeq sk s) = Prelude.do
   skt <- skot [] sk
   t   <- desugar s
-  shuntingYard (\x,y => TI x y.val) (\x => TP x.val) skt t
+  shuntingYard (TP . val) (\x => TI x . val) (absurd . val) skt t
 desugar (SBool b)   = Right (TBool b)
 desugar (SNat n)    = Right (TNat n)
 
 shuntTok (TPre o n) = Right (TPre o n)
 shuntTok (TInf t o n a) = (\s => TInf s o n a) <$> desugar t
+shuntTok (TPst o n) = absurd o.val
 
 --------------------------------------------------------------------------------
 -- Pretty Printing
