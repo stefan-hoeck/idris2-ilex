@@ -56,12 +56,14 @@ prec v =
 public export
 data ShuntingErr : Type -> Type where
   AssocNone      : (op : o) -> (prec : Precedence) -> ShuntingErr o
+  Msg            : String -> ShuntingErr o
 
 %runElab derive "ShuntingErr" [Show,Eq]
 
 export
 Interpolation o => Interpolation (ShuntingErr o) where
   interpolate (AssocNone op p) = "operator '\{op}' (\{p}) is non-associative"
+  interpolate (Msg m)          = m
 
 public export
 record ShuntTerm (t,p,o : Type) where
@@ -167,6 +169,38 @@ parameters {0 t,p,i,o,e : Type}
   ||| [shunting yard algorithm](https://en.wikipedia.org/wiki/Shunting_yard_algorithm)
   ||| used to convert term-operator chains such as `1 + 2 * 3 ^ 4` to proper
   ||| syntax trees based on the operators' associativity and precedence.
+  |||
+  ||| There are several forms of ambiguity that can occur with operator
+  ||| chains of arbitrary precedence, which will be described in the following
+  ||| section.
+  |||
+  ||| 1) Infix-only operator chains. Operators with higher precedence bind more
+  |||    strongly than those of lower precedence. Left-associative operators bind
+  |||    to the left, right-associative operators bind to the right.
+  |||    This leads to the following natural behavior for arithmetic expressions,
+  |||    assuming that `*` is `infixl 9`, `+` is `infixl 8`, and `^` is `infixr 10`:
+  |||
+  |||    a) `a + b + c` => `(a + b) + c`
+  |||    b) `a + b * c` => `a + (b * c)`
+  |||    c) `a + b ^ c ^ d` => `a + (b ^ (c ^ d))`
+  |||
+  |||    Ambiguity arises in case of non-associative operators being chained with
+  |||    other operators of the same precedence. For instance, assuming `==` is
+  |||    `infix 8`:
+  |||
+  |||    d) `a == b == c` => ambiguity error
+  |||    e) `a == b + c`  => ambiguity error
+  |||
+  ||| 2) Prefix operators bind to the right. Assuming the precedences given so far
+  |||    and `~` is `prefix 11`, we get:
+  |||
+  |||    a) `~~~x` => `~(~(~x))`
+  |||    b) `x + ~y` => `x + (~y)`
+  |||
+  |||    Ambiguity arises in operator chains
+  |||
+  |||    c) `x +   |: y + z` => `x + (|: (y+z))`
+  |||    d) `x + ~ |: y + z` => `x + (|: (y+z))`
   export %inline
   shuntingYard : SnocItms t p i o -> ShuntTerm t p o -> Either (ByteBounded e) t
   shuntingYard = impl [<] . (<>> [])
