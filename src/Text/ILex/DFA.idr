@@ -16,10 +16,10 @@ import Text.ILex.Internal.Types
 %default total
 
 public export
-data Res : Type -> Type where
-  Run : (res : a) -> Res a
-  Ign : Res a
-  Err : Res a
+data Trans : Type -> Type where
+  Run : (res : a) -> Trans a
+  Ign : Trans a
+  Err : Trans a
 
 public export
 data Transition : (n : Nat) -> Type -> Type where
@@ -31,12 +31,12 @@ data Transition : (n : Nat) -> Type -> Type where
   MoveE  : Fin (S n) -> Transition n a
   Bottom : Transition n a
 
-move : Res a -> Fin (S n) -> Transition n a
+move : Trans a -> Fin (S n) -> Transition n a
 move (Run f) y = Move y f
 move Ign     y = MoveI y
 move Err     y = Bottom
 
-done : Res a -> Transition n a
+done : Trans a -> Transition n a
 done (Run f) = Done f
 done Ign     = Ignore
 done Err     = Bottom
@@ -73,7 +73,7 @@ record DFA a where
 
 public export
 0 Results : Type -> Type
-Results a = TokenMap (Res a)
+Results a = TokenMap (Trans a)
 
 emptyRow : ByteTrans n a
 emptyRow = fill _ Bottom
@@ -99,7 +99,7 @@ index : {n : _} -> List (Nat,Node) -> SortedMap Nat (Fin (S n))
 index ns = SM.fromList $ mapMaybe (\(x,n) => (n.pos,) <$> tryNatToFin x) ns
 
 node :
-     SortedMap Nat (Either (Res a) (Res a))
+     SortedMap Nat (Either (Trans a) (Trans a))
   -> (index : SortedMap Nat (Fin (S n)))
   -> (node  : (Nat,Node))
   -> (Nat, ByteTrans n a)
@@ -119,7 +119,7 @@ node terms index (ix, N me _ out) =
 
 ||| A DFA operating on raw bytes.
 export
-byteDFA : (m : TokenMap8 (Res a)) -> DFA a
+byteDFA : (m : TokenMap8 (Trans a)) -> DFA a
 byteDFA m =
   let M tms graph := assert_total $ machine (toDFA m)
       terms       := SM.fromList (mapMaybe (terminals tms . snd) graph)
