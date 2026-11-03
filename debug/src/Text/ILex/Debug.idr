@@ -124,7 +124,7 @@ prettyByte n = line "\{pre} 0x\{toHex $ cast n}"
        True  => "   "
        False => "'\{String.singleton $ cast n}'"
 
-prettyByteStep : {d : _} -> (Nat, ByteStep n q r s) -> Doc d
+prettyByteStep : {d : _} -> (Nat, ByteTrans n a) -> Doc d
 prettyByteStep (x,bs) =
   vsep
     [ line (show x)
@@ -132,7 +132,7 @@ prettyByteStep (x,bs) =
     ]
 
   where
-    trans : (Nat, Transition n q r s) -> Maybe (Doc d)
+    trans : (Nat, Transition n a) -> Maybe (Doc d)
     trans (byte,t) =
       case t of
         Keep       => Just (prettyByte byte <+> colon <++> line "stay")
@@ -144,12 +144,12 @@ prettyByteStep (x,bs) =
         Bottom     => Nothing
 
 export
-Pretty (DFA q r s) where
+Pretty (DFA a) where
   prettyPrec p (L _ next) =
     vsep $ prettyByteStep <$> zipWithIndex (toList next)
 
 export
-prettyLexer : DFA q r s -> IO ()
+prettyLexer : DFA a -> IO ()
 prettyLexer dfa = putPretty dfa
 
 export

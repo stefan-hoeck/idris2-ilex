@@ -65,7 +65,7 @@ arr32 n dflt es =
 
 public export
 0 Lex1 : (q : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type
-Lex1 q r s = Arr32 r (DFA q r s)
+Lex1 q r s = Arr32 r (DFA1 q r s)
 
 --------------------------------------------------------------------------------
 -- HasBytes Interface
@@ -204,7 +204,7 @@ PRun p = Run1 q p.states p.state
 ||| An array of arrays describing a lexer's state machine.
 public export
 0 PByteStep : Nat -> (p : P1 q e a) -> Type
-PByteStep n p = IArray 256 (Transition n q p.states p.state)
+PByteStep n p = IArray 256 (Transition n $ Run1 q p.states p.state)
 
 ||| An array of arrays describing a lexer's state machine.
 public export
@@ -236,5 +236,5 @@ public export
 Parser1 e a = {0 q : _} -> P1 q e a
 
 export %inline
-lex1 : {r : _} -> List (Entry r (DFA q r s)) -> Lex1 q r s
+lex1 : {r : _} -> List (Entry r (DFA1 q r s)) -> Lex1 q r s
 lex1 es = arr32 r (dfa []) es

@@ -147,11 +147,11 @@ val' x = val x . const
 -- Lexer Steps
 --------------------------------------------------------------------------------
 
-tomlSpaced : Steps q TSz ST -> DFA q TSz ST
-tomlSpaced ss = dfa $ ignore (plus wschar) :: ss
+tomlSpaced : Steps q TSz ST -> DFA1 q TSz ST
+tomlSpaced ss = dfa $ ign (plus wschar) :: ss
 
-tomlIgnore : TST -> Steps q TSz ST -> DFA q TSz ST
-tomlIgnore nl ss = tomlSpaced $ [ignore comment, step' newline nl] ++ ss
+tomlIgnore : TST -> Steps q TSz ST -> DFA1 q TSz ST
+tomlIgnore nl ss = tomlSpaced $ [ign comment, step' newline nl] ++ ss
 
 keySteps : Steps q TSz ST
 keySteps =
@@ -166,16 +166,16 @@ valSteps =
   , val' "false" (TBool False)
 
   -- integers
-  , val  decInt  (TInt . readDecInt)
-  , val  binInt  (TInt . binarySep . drop 2)
-  , val  octInt  (TInt . octalSep underscore . drop 2)
-  , val  hexInt  (TInt . hexadecimalSep underscore . drop 2)
+  , Parser.val  decInt  (TInt . readDecInt)
+  , Parser.val  binInt  (TInt . binarySep . drop 2)
+  , Parser.val  octInt  (TInt . octalSep underscore . drop 2)
+  , Parser.val  hexInt  (TInt . hexadecimalSep underscore . drop 2)
 
   -- floats
   , val' nan     (TDbl NaN)
   , val' posInf  (TDbl $ Infty Plus)
   , val' "-inf"  (TDbl $ Infty Minus)
-  , val float    (TDbl . readFloat)
+  , Parser.val float    (TDbl . readFloat)
 
   -- Date and Time
   , valE fullDate  (ATLocalDate . readLocalDate)
@@ -214,7 +214,7 @@ escapes res =
     , bytes ("\\U" >> repeat 8 hexdigit) (escape res)
     ]
 
-mlqDFA : DFA q TSz ST
+mlqDFA : DFA1 q TSz ST
 mlqDFA =
   dfa $
     [ closeStr #"""""# qstr
@@ -226,7 +226,7 @@ mlqDFA =
     , step' mlbEscapedNL MLQStr
     ] ++ escapes MLQStr
 
-mllDFA : DFA q TSz ST
+mllDFA : DFA1 q TSz ST
 mllDFA =
   dfa $
     [ closeStr "'''" qstr

@@ -29,6 +29,7 @@ modules = Text.ILex
         , Text.ILex.State.Regular
         , Text.ILex.State.Streaming
 
+        , Text.ILex.DFA
         , Text.ILex.Interfaces
         , Text.ILex.Lexer
         , Text.ILex.Parser

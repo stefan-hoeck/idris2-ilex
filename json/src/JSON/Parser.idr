@@ -179,7 +179,7 @@ parameters {auto sk : ST q}
 --------------------------------------------------------------------------------
 
 %inline
-spaced : Steps q r ST -> DFA q r ST
+spaced : Steps q r ST -> DFA1 q r ST
 spaced = dfa . jsonSpaced
 
 export
@@ -190,7 +190,7 @@ jsonDouble =
    in opt '-' >> decimal >> opt frac >> opt exp
 
 %inline
-valTok : Steps q JSz ST -> DFA q JSz ST
+valTok : Steps q JSz ST -> DFA1 q JSz ST
 valTok ts =
   spaced $
     [ step "null"  (onVal JNull)
@@ -219,7 +219,7 @@ jchar : RExp True
 jchar = range32 0x20 0x10ffff && not '"' && not '\\'
 
 %inline
-strTok : DFA q JSz ST
+strTok : DFA1 q JSz ST
 strTok =
   dfa
     [ closeStr '"' endStr
