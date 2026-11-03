@@ -59,8 +59,8 @@ parameters {auto sk : ST q}
 linecomment : RExp True
 linecomment = "--" >> star dot
 
-spaced : Lexer -> Steps q Lexers ST -> Entry Lexers (DFA q Lexers ST)
-spaced x ss = E x $ dfa $ jsonSpaced $ ignore linecomment :: ss
+spaced : Lexer -> Steps q Lexers ST -> Entry Lexers (DFA1 q Lexers ST)
+spaced x ss = E x $ dfa $ jsonSpaced $ ign linecomment :: ss
 
 ptrans : Lex1 q Lexers ST
 ptrans =

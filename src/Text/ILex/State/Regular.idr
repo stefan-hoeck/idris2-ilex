@@ -173,7 +173,7 @@ toStep :
   -> (RExpOf True b, Step q VSz (State e (Maybe a) VSz))
 toStep (x,c) =
   case c of
-    Ignore  => ignore x
+    Ignore  => ign x
     Const v => step x (putStackAs (Just v) VDone)
     Txt f   =>
       string x $ \s => case f s of
@@ -187,7 +187,7 @@ toStep (x,c) =
 ignore :
      (RExpOf True b, Token e a)
   -> Maybe (RExpOf True b, Step q VSz (State e (Maybe a) VSz))
-ignore (x,Ignore) = Just $ ignore x
+ignore (x,Ignore) = Just $ ign x
 ignore _          = Nothing
 
 valEOI : VST -> State e (Maybe a) VSz q -> F1 q (Either (BBErr e) a)

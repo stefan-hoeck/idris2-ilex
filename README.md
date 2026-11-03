@@ -482,7 +482,7 @@ was recognized. For the initial state, almost nothing changes
 compared to `csv1_2`:
 
 ```idris
-lexInit : DFA q 2 QST
+lexInit : DFA1 q 2 QST
 lexInit =
   dfa
     [ tok ',' Comma1
@@ -495,7 +495,7 @@ lexInit =
     ]
 ```
 
-*DFA* is an acronym for "discrete finite automaton", and utility `dfa`
+*DFA1* is an acronym for "discrete finite automaton", and utility `dfa`
 converts a list of pairs (regular expressions plus state transformations)
 to such an automaton.
 
@@ -518,7 +518,7 @@ Here are the necessary utilities and token map:
 ```idris
 closeStr : (x : QST q) => F1 q QLexer
 
-lexStr : DFA q QSz QST
+lexStr : DFA1 q QSz QST
 lexStr =
   dfa
     [ step #""""# $ pushStr InStr "\""
@@ -771,7 +771,7 @@ thing that needs to be closed (`copen`) and switch to
 the `Str` state:
 
 ```idris
-csvDflt : (afterComma : Bool) -> DFA q CSz CSTCK
+csvDflt : (afterComma : Bool) -> DFA1 q CSz CSTCK
 csvDflt afterComma =
   dfa
     [ step ',' $ push1 (cells %search) Null >> pure Com
@@ -790,14 +790,14 @@ double quote is encountered, which leads to the accumulated
 string to be pushed onto the stack of cells (`onCell`).
 
 ```idris
-csvStr : DFA q CSz CSTCK
+csvStr : DFA1 q CSz CSTCK
 csvStr =
   dfa
     [ step #""""# $ pushStr Str "\""
     , step #""n"# $ pushStr Str "\n"
     , step #""r"# $ pushStr Str "\r"
     , step #""t"# $ pushStr Str "\t"
-    , close '"' $ getStr >>= onCell . CStr
+    , Interfaces.close '"' $ getStr >>= onCell . CStr
     , string (plus $ dot && not '"') $ pushStr Str
     , step' linebreak NL
     ]

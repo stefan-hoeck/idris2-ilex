@@ -1,30 +1,17 @@
 module Text.ILex.Lexer
 
-import public Data.Array
+import public Text.ILex.DFA
 import public Data.Enum
-import public Data.List
-import public Data.Prim.Bits32
-import public Text.ILex.RExp
-
-import Control.Monad.State
-
 import Data.ByteString
-import Data.Linear.Traverse1
-import Data.SortedMap as SM
-import Derive.Prelude
-
-import Text.ILex.Char.UTF8
-import Text.ILex.Internal.DFA
-import Text.ILex.Internal.Types
+import Data.Linear.Token
 
 %default total
-%language ElabReflection
 
 public export
 record Env (q : Type) (s : Type -> Type) where
   constructor E
-  state : s q
-  1 tok : T1 q
+  state   : s q
+  1 token : T1 q
 
 public export
 0 Step1 : (q : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type
@@ -39,44 +26,17 @@ public export
 Run1 q r s = Fun1 q s (Index r)
 
 public export
-data Step : (q : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type where
-  Run : Run1 q r s -> Step q r s
-  Ign : Step q r s
-  Err : Step q r s
+0 Step : (q : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type
+Step q r s = Res (Run1 q r s)
 
 export %inline
 toState : Index r -> Step q r s
 toState v = Run $ \(E _ t) => v # t
 
-public export
-data Transition :
-     (n : Nat)
-  -> (q : Type)
-  -> (r : Bits32)
-  -> (s : Type -> Type)
-  -> Type where
-  Keep   : Transition n q r s
-  Done   : Run1 q r s -> Transition n q r s
-  Ignore : Transition n q r s
-  Move   : Fin (S n) -> Run1 q r s -> Transition n q r s
-  MoveI  : Fin (S n) -> Transition n q r s
-  MoveE  : Fin (S n) -> Transition n q r s
-  Bottom : Transition n q r s
-
-move : Step q r s -> Fin (S n) -> Transition n q r s
-move (Run f) y = Move y f
-move Ign     y = MoveI y
-move Err     y = Bottom
-
-done : Step q r s -> Transition n q r s
-done (Run f) = Done f
-done Ign     = Ignore
-done Err     = Bottom
-
 ||| An array of arrays describing a lexer's state machine.
 public export
 0 ByteStep : Nat -> (q : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type
-ByteStep n q r s = IArray 256 (Transition n q r s)
+ByteStep n q r s = IArray 256 (Transition n $ Run1 q r s)
 
 ||| An array of arrays describing a lexer's state machine.
 public export
@@ -87,81 +47,9 @@ Stepper n q r s = IArray (S n) (ByteStep n q r s)
 ||| an array of state transitions plus an array
 ||| describing the terminal token states.
 public export
-record DFA q r s where
-  constructor L
-  ||| Number of non-zero states in the automaton.
-  states : Nat
-
-  ||| State transitions matrix.
-  |||
-  ||| If `cur` is the current state (encoded as a `Fin (S states)`
-  ||| and `b` is the current input byte, the next state is determined
-  ||| by `next[cur][b]` (in pseudo C-syntax).
-  next   : Stepper states q r s
-
---------------------------------------------------------------------------------
--- Lexer Generator
---------------------------------------------------------------------------------
+0 DFA1 : (q : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type
+DFA1 q r s = DFA (Run1 q r s)
 
 public export
 0 Steps : (q : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type
 Steps q r s = TokenMap (Step q r s)
-
-emptyRow : ByteStep n q r s
-emptyRow = fill _ Bottom
-
-emptyDFA : DFA q r s
-emptyDFA = L 0 (fill _ emptyRow)
-
--- Extracts the terminal state of a node
--- `Left` : This is a final node with no more state transitions
--- `Right`: This node has additional state transitions
-terminals : SortedMap Nat a -> Node -> Maybe (Nat, Either a a)
-terminals m (N n (t::_) []) = ((n,) . Left) <$> lookup t m
-terminals m (N n (t::_) _)  = ((n,) . Right) <$> lookup t m
-terminals _ _               = Nothing
-
-nonFinal : SortedMap Nat (Either a a) -> Node -> Maybe Node
-nonFinal m n =
-  case lookup n.pos m of
-    Just (Left _) => Nothing
-    _             => Just n
-
-index : {n : _} -> List (Nat,Node) -> SortedMap Nat (Fin (S n))
-index ns = SM.fromList $ mapMaybe (\(x,n) => (n.pos,) <$> tryNatToFin x) ns
-
-node :
-     SortedMap Nat (Either (Step q r s) (Step q r s))
-  -> (index : SortedMap Nat (Fin (S n)))
-  -> (node  : (Nat,Node))
-  -> (Nat, ByteStep n q r s)
-node terms index (ix, N me _ out) =
-  (ix, fromPairs _ Bottom $ mapMaybe pair (out >>= transitions))
-  where
-    pair : (Bits8,Nat) -> Maybe (Nat, Transition n q r s)
-    pair (b,tgt) =
-      case lookup tgt terms of
-        Nothing        => case tgt == me of
-          True  => Just (cast b, Keep)
-          False => ((cast b,) . MoveE) <$> lookup tgt index
-        Just (Left f)  => Just (cast b, done f)
-        Just (Right f) => case tgt == me of
-          True  => Just (cast b, Keep)
-          False => ((cast b,) . (move f)) <$> lookup tgt index
-
-||| A DFA operating on raw bytes.
-export
-byteDFA : (m : TokenMap8 (Step q r s)) -> DFA q r s
-byteDFA m =
-  let M tms graph := assert_total $ machine (toDFA m)
-      terms       := SM.fromList (mapMaybe (terminals tms . snd) graph)
-      nodes       := zipWithIndex $ mapMaybe (nonFinal terms . snd) graph
-      S len       := length nodes | 0 => emptyDFA
-      ix          := index nodes
-      trans       := fromPairs (S len) emptyRow (map (node terms ix) nodes)
-   in L len trans
-
-||| A utf-8 aware DFA operating on text.
-export
-dfa : Steps q r s -> DFA q r s
-dfa = byteDFA . map toUTF8

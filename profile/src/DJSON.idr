@@ -140,11 +140,11 @@ parameters {auto sk : DSK q}
 --------------------------------------------------------------------------------
 
 %inline
-spaced : Steps q r DSK -> DFA q r DSK
+spaced : Steps q r DSK -> DFA1 q r DSK
 spaced = dfa . jsonSpaced
 
 %inline
-valTok : Steps q JSz DSK -> DFA q JSz DSK
+valTok : Steps q JSz DSK -> DFA1 q JSz DSK
 valTok ts =
   spaced $
     [ step "null"  (onVal JNull)
@@ -173,7 +173,7 @@ jchar : RExp True
 jchar = range32 0x20 0x10ffff && not '"' && not '\\'
 
 %inline
-strTok : DFA q JSz DSK
+strTok : DFA1 q JSz DSK
 strTok =
   dfa
     [ closeStr '"' endStr

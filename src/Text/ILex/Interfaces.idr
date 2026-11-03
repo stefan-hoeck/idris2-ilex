@@ -412,10 +412,6 @@ parameters {auto hbp : HasBytes s}
            (x        : a)
 
   export %inline
-  ignore : (a,Step q r s)
-  ignore = ign x
-
-  export %inline
   step : (s q => F1 q (Index r)) -> (a,Step q r s)
   step = go x
 
@@ -604,7 +600,7 @@ jsonSpaces = plus jsonSpace
 
 export %inline
 jsonSpaced : HasBytes s => Steps q r s -> Steps q r s
-jsonSpaced xs = ignore jsonSpaces :: xs
+jsonSpaced xs = ign jsonSpaces :: xs
 
 --------------------------------------------------------------------------------
 -- Error handling
