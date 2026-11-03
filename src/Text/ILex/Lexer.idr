@@ -27,7 +27,7 @@ Run1 q r s = Fun1 q s (Index r)
 
 public export
 0 Step : (q : Type) -> (r : Bits32) -> (s : Type -> Type) -> Type
-Step q r s = Res (Run1 q r s)
+Step q r s = Trans (Run1 q r s)
 
 export %inline
 toState : Index r -> Step q r s
