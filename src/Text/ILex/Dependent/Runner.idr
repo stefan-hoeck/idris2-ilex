@@ -121,7 +121,7 @@ parameters {0 e,a : Type}
     -> (sk          : t)
     -> (dfa         : PMachine k p t)
     -> (cur         : PByteTrans k p t)
-    -> (from        : LTENat n) 
+    -> (from        : LTENat n)
     -> (pos         : Nat)
     -> {auto posIx  : Ix pos n}
     -> LoopRes p
@@ -132,7 +132,7 @@ parameters {0 e,a : Type}
     -> (dfa         : PMachine k p t)
     -> (cur         : PByteTrans k p t)
     -> (last        : PRun p t)
-    -> (from        : LTENat n) 
+    -> (from        : LTENat n)
     -> (pos         : Nat)
     -> {auto posIx  : Ix pos n}
     -> LoopRes p
@@ -142,7 +142,7 @@ parameters {0 e,a : Type}
     -> (sk          : t)
     -> (dfa         : PMachine k p t)
     -> (cur         : PByteTrans k p t)
-    -> (from        : LTENat n) 
+    -> (from        : LTENat n)
     -> (pos         : Nat)
     -> {auto posIx  : Ix pos n}
     -> LoopRes p

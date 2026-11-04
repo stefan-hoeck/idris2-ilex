@@ -41,7 +41,7 @@ collapseString s =
     (r,xs)  => (r,fastConcat xs)
 
 export %inline
-app : 
+app :
      {0 l      : Type -> Type}
   -> (x        : RExp True)
   -> (lex      : l (Stack True r a))
@@ -50,7 +50,7 @@ app :
 app x lex va = (x, Run $ \i => E lex (i.val :< va))
 
 export %inline
-appString : 
+appString :
      {0 l      : Type -> Type}
   -> (x        : RExp True)
   -> (lex      : l (Stack True r a))
@@ -59,7 +59,7 @@ appString :
 appString x lex va = (x, Run $ \i => E lex (i.val :< va (getString i)))
 
 export %inline
-appBytes : 
+appBytes :
      {0 l      : Type -> Type}
   -> (x        : RExp True)
   -> (lex      : l (Stack True r a))
@@ -79,7 +79,7 @@ record Root (p : Type -> Type) where
   bounds    : ByteBounds
 
 export %inline
-opn : 
+opn :
      {0 p,l    : Type -> Type}
   -> {auto prf : p t}
   -> (x        : RExp True)
@@ -88,7 +88,7 @@ opn :
 opn x lex = (x, Run $ \i => E lex [< R i.val $ bounds i])
 
 export %inline
-close : 
+close :
      {0 p      : Type -> Type}
   -> (x        : RExp True)
   -> (cls      : {0 t : _} -> p t => List a -> t -> r)
@@ -96,7 +96,7 @@ close :
 close x cls = (x, Run $ \i => let (R v _, vs) := collapse i.val in cls vs v)
 
 export %inline
-closeStr : 
+closeStr :
      {0 p      : Type -> Type}
   -> (x        : RExp True)
   -> (cls      : {0 t : _} -> p t => String -> t -> r)
