@@ -5,9 +5,8 @@ brief   = "Generating fast Lexers from an Idris2 DSL"
 langversion >= 0.7
 depends = elab-util
         , algebra
-        , array
+        , darray
         , bytestring
-        , enum
         , ilex-core
         , refined
 
@@ -18,6 +17,12 @@ modules = Text.ILex
         , Text.ILex.Char.Range
         , Text.ILex.Char.Set
         , Text.ILex.Char.UTF8
+
+        , Text.ILex.Dependent
+        , Text.ILex.Dependent.Bytes
+        , Text.ILex.Dependent.Parser
+        , Text.ILex.Dependent.Runner
+        , Text.ILex.Dependent.Stack
 
         , Text.ILex.Internal.DFA
         , Text.ILex.Internal.ENFA
@@ -32,6 +37,7 @@ modules = Text.ILex
         , Text.ILex.DFA
         , Text.ILex.Interfaces
         , Text.ILex.Lexer
+        , Text.ILex.LTENat
         , Text.ILex.Parser
         , Text.ILex.RExp
         , Text.ILex.RExp.Unicode
